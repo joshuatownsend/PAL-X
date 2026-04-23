@@ -1,0 +1,341 @@
+openapi: 3.1.0
+info:
+  title: PAL 2026 Analysis API
+  version: 0.2.0
+  description: >
+    Phase 2 API for asynchronous PAL analysis jobs, pack discovery, and
+    report retrieval.
+
+servers:
+  - url: http://localhost:8080
+
+tags:
+  - name: Health
+  - name: Packs
+  - name: Uploads
+  - name: Analysis
+  - name: Reports
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      responses:
+        '200':
+          description: API health
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /packs:
+    get:
+      tags: [Packs]
+      operationId: listPacks
+      responses:
+        '200':
+          description: Available analysis packs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pack'
+
+  /uploads:
+    post:
+      tags: [Uploads]
+      operationId: createUpload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                contentType:
+                  type: string
+                sourceType:
+                  type: string
+                  enum: [blg, csv, json, zip]
+      responses:
+        '201':
+          description: Upload accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+
+  /analysis:
+    post:
+      tags: [Analysis]
+      operationId: submitAnalysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnalysisRequest'
+      responses:
+        '202':
+          description: Analysis job created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisJobAccepted'
+
+    get:
+      tags: [Analysis]
+      operationId: listAnalyses
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [queued, running, completed, failed, canceled]
+      responses:
+        '200':
+          description: Analysis jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AnalysisJob'
+
+  /analysis/{analysisId}:
+    get:
+      tags: [Analysis]
+      operationId: getAnalysis
+      parameters:
+        - in: path
+          name: analysisId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Analysis job detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisJob'
+
+  /analysis/{analysisId}/results:
+    get:
+      tags: [Analysis]
+      operationId: getAnalysisResults
+      parameters:
+        - in: path
+          name: analysisId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Structured analysis results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisResult'
+
+  /analysis/{analysisId}/report:
+    get:
+      tags: [Reports]
+      operationId: getAnalysisReport
+      parameters:
+        - in: path
+          name: analysisId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: format
+          required: true
+          schema:
+            type: string
+            enum: [html, markdown]
+      responses:
+        '200':
+          description: Report document
+          content:
+            text/html:
+              schema:
+                type: string
+            text/markdown:
+              schema:
+                type: string
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        version:
+          type: string
+          example: 0.2.0
+
+    Pack:
+      type: object
+      required: [id, version, title, status]
+      properties:
+        id:
+          type: string
+        version:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive, deprecated]
+        supportedTargets:
+          type: array
+          items:
+            type: string
+        inputTypes:
+          type: array
+          items:
+            type: string
+
+    UploadResponse:
+      type: object
+      required: [uploadId, fileName, sourceType]
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        fileName:
+          type: string
+        sourceType:
+          type: string
+
+    CreateAnalysisRequest:
+      type: object
+      required: [uploadId, packs]
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        packs:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        options:
+          type: object
+          properties:
+            reportFormats:
+              type: array
+              items:
+                type: string
+                enum: [html, markdown]
+            retainNormalizedData:
+              type: boolean
+            failOnCritical:
+              type: boolean
+        context:
+          type: object
+          properties:
+            targetName:
+              type: string
+            environment:
+              type: string
+            workload:
+              type: string
+            notes:
+              type: string
+
+    AnalysisJobAccepted:
+      type: object
+      properties:
+        analysisId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued]
+
+    AnalysisJob:
+      type: object
+      required: [analysisId, status, createdAt]
+      properties:
+        analysisId:
+          type: string
+          format: uuid
+        uploadId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, completed, failed, canceled]
+        packs:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+
+    AnalysisResult:
+      type: object
+      properties:
+        analysisId:
+          type: string
+          format: uuid
+        summary:
+          type: object
+          properties:
+            findingCounts:
+              type: object
+              additionalProperties:
+                type: integer
+            highestSeverity:
+              type: string
+        findings:
+          type: array
+          items:
+            type: object
+            properties:
+              findingId:
+                type: string
+              severity:
+                type: string
+              title:
+                type: string
+              rationale:
+                type: string
+              sourceRuleId:
+                type: string
+              metricReferences:
+                type: array
+                items:
+                  type: string
+        reportFormats:
+          type: array
+          items:
+            type: string

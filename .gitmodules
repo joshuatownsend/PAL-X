@@ -1,0 +1,3 @@
+[submodule "legacy/pal-v2"]
+	path = legacy/pal-v2
+	url = https://github.com/clinthuffman/PAL
