@@ -74,7 +74,8 @@ public sealed class AnalysisRepository : IAnalysisRepository
             .Where(j => j.Id == id)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(j => j.Status, "completed")
-                .SetProperty(j => j.CompletedAt, DateTimeOffset.UtcNow), ct);
+                .SetProperty(j => j.CompletedAt, DateTimeOffset.UtcNow)
+                .SetProperty(j => j.FailureReason, (string?)null), ct);
     }
 
     public async Task MarkFailedAsync(Guid id, string reason, CancellationToken ct = default)
@@ -102,21 +103,24 @@ public sealed class AnalysisRepository : IAnalysisRepository
     public async Task SaveResultAsync(Guid jobId, string summaryJson, string findingsJson, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
-        var result = new AnalysisResultEntity
+        await db.AnalysisResults.Where(r => r.AnalysisJobId == jobId).ExecuteDeleteAsync(ct);
+        db.AnalysisResults.Add(new AnalysisResultEntity
         {
             AnalysisJobId = jobId,
             SummaryJson = summaryJson,
             FindingsJson = findingsJson,
             GeneratedAt = DateTimeOffset.UtcNow
-        };
-        db.AnalysisResults.Add(result);
+        });
         await db.SaveChangesAsync(ct);
     }
 
     public async Task SaveReportAsync(Guid jobId, string format, string storagePath, long sizeBytes, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
-        var report = new AnalysisReportEntity
+        await db.AnalysisReports
+            .Where(r => r.AnalysisJobId == jobId && r.Format == format)
+            .ExecuteDeleteAsync(ct);
+        db.AnalysisReports.Add(new AnalysisReportEntity
         {
             Id = Guid.NewGuid(),
             AnalysisJobId = jobId,
@@ -124,8 +128,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
             StoragePath = storagePath,
             SizeBytes = sizeBytes,
             CreatedAt = DateTimeOffset.UtcNow
-        };
-        db.AnalysisReports.Add(report);
+        });
         await db.SaveChangesAsync(ct);
     }
 
@@ -162,6 +165,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
     public async Task SetJobPackVersionsAsync(Guid jobId, IReadOnlyList<JobPackDto> packs, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
+        await db.AnalysisJobPacks.Where(p => p.AnalysisJobId == jobId).ExecuteDeleteAsync(ct);
         foreach (var p in packs)
         {
             db.AnalysisJobPacks.Add(new AnalysisJobPackEntity

@@ -32,8 +32,8 @@ public sealed class PalApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
     {
         await base.DisposeAsync();
         await _postgres.DisposeAsync();
-        Directory.Delete(_storageRoot, recursive: true);
-        Directory.Delete(_packsRoot, recursive: true);
+        try { Directory.Delete(_storageRoot, recursive: true); } catch { /* best-effort */ }
+        try { Directory.Delete(_packsRoot, recursive: true); } catch { /* best-effort */ }
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

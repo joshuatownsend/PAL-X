@@ -58,12 +58,14 @@
         ? _findings
         : _findings.Where(f => f.Severity == _severityFilter);
 
+    private static readonly JsonSerializerOptions FindingDeserializeOptions =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+
     protected override void OnParametersSet()
     {
         try
         {
-            _findings = JsonSerializer.Deserialize<List<FindingRow>>(FindingsJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+            _findings = JsonSerializer.Deserialize<List<FindingRow>>(FindingsJson, FindingDeserializeOptions) ?? [];
         }
         catch { _findings = []; }
     }

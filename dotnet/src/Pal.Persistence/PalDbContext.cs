@@ -21,7 +21,7 @@ public sealed class PalDbContext : DbContext
         modelBuilder.Entity<UploadEntity>(e =>
         {
             e.HasKey(x => x.Id);
-            e.HasIndex(x => x.Sha256);
+            e.HasIndex(x => x.Sha256).IsUnique();
         });
 
         modelBuilder.Entity<AnalysisJobEntity>(e =>

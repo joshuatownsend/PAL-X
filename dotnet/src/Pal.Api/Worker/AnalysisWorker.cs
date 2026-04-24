@@ -83,8 +83,7 @@ public sealed class AnalysisWorker : BackgroundService
 
             var requestedPacks = ParseRequestedPacks(job);
             var inputPath = _storage.GetAbsolutePath(upload.StoragePath);
-
-            var format = Path.GetExtension(upload.FileName).TrimStart('.').ToLowerInvariant();
+            var format = upload.SourceType;
 
             var runResult = _runner.Run(new AnalysisRunRequest
             {
@@ -144,7 +143,7 @@ public sealed class AnalysisWorker : BackgroundService
         return JsonSerializer.Serialize(new
         {
             finding_counts = new { critical = c, warning = w, informational = i },
-            highest_severity = status
+            status
         });
     }
 

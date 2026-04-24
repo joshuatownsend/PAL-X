@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Pal.Application.Persistence;
 using Pal.Persistence.Entities;
 
@@ -32,8 +33,17 @@ public sealed class UploadRepository : IUploadRepository
             CreatedAt = DateTimeOffset.UtcNow
         };
         db.Uploads.Add(entity);
-        await db.SaveChangesAsync(ct);
-        return ToDto(entity);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            return ToDto(entity);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
+        {
+            // Concurrent upload of same content — return the winner's row
+            var existing = await db.Uploads.FirstAsync(u => u.Sha256 == sha256, ct);
+            return ToDto(existing);
+        }
     }
 
     public async Task<UploadDto?> GetAsync(Guid id, CancellationToken ct = default)
