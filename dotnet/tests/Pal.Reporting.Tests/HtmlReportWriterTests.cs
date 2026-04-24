@@ -1,6 +1,5 @@
 using System.Text;
 using Pal.Engine.Model;
-using Pal.Engine.Rules;
 using Pal.Reporting.Html;
 using Pal.Reporting.Json;
 using Xunit;
@@ -82,14 +81,16 @@ public class HtmlReportWriterTests
     public void HtmlReport_NoFindings_ShowsHealthyStatusColor()
     {
         var html = RenderHtml(MakeInput());
-        Assert.Contains("#388e3c", html);
+        // Inline style on the status badge (no space, no semicolon) — distinct from the CSS rule
+        Assert.Contains("style=\"background:#388e3c\"", html);
     }
 
     [Fact]
     public void HtmlReport_CriticalFinding_ShowsCriticalStatusColor()
     {
         var html = RenderHtml(MakeInput([MakeFinding("critical")]));
-        Assert.Contains("#d32f2f", html);
+        // Inline style on the status badge (no space, no semicolon) — distinct from the CSS rule
+        Assert.Contains("style=\"background:#d32f2f\"", html);
     }
 
     [Fact]

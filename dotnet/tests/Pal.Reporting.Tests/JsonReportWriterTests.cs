@@ -1,7 +1,5 @@
-using System.Text;
 using System.Text.Json;
 using Pal.Engine.Model;
-using Pal.Engine.Rules;
 using Pal.Reporting.Json;
 using Xunit;
 
