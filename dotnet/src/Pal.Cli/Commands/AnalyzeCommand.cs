@@ -2,13 +2,8 @@ using System.ComponentModel;
 using System.Diagnostics;
 using Spectre.Console;
 using Spectre.Console.Cli;
-using Pal.Engine.Model;
-using Pal.Engine.Normalization;
+using Pal.Application.Analysis;
 using Pal.Engine.Rules;
-using Pal.Ingestion.Blg;
-using Pal.Ingestion.Csv;
-using Pal.Ingestion.HostContext;
-using Pal.Packs;
 using Pal.Reporting.Json;
 
 namespace Pal.Cli.Commands;
@@ -118,86 +113,49 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
     public override int Execute(CommandContext context, AnalyzeSettings settings)
     {
         var sw = Stopwatch.StartNew();
-        AnsiConsole.MarkupLine($"[bold]PAL 2026.1.0[/]");
+        AnsiConsole.MarkupLine("[bold]PAL 2026.1.0[/]");
 
         DateTimeOffset generatedAt = settings.NowOverride is not null
             ? DateTimeOffset.Parse(settings.NowOverride, System.Globalization.CultureInfo.InvariantCulture)
             : DateTimeOffset.UtcNow;
 
-        // Detect format
-        string format = settings.Format;
-        if (format == "auto")
-            format = Path.GetExtension(settings.Input).TrimStart('.').ToLowerInvariant();
+        string format = settings.Format == "auto"
+            ? Path.GetExtension(settings.Input).TrimStart('.').ToLowerInvariant()
+            : settings.Format;
 
         AnsiConsole.MarkupLine($"Input:     [cyan]{settings.Input}[/]");
         AnsiConsole.MarkupLine($"Collector: [cyan]{format.ToUpperInvariant()}[/]");
         AnsiConsole.MarkupLine($"Output:    [cyan]{settings.Output}[/]");
+        AnsiConsole.Markup("Analyzing...");
 
-        // BLG: stub
-        if (format == "blg")
-        {
-            try { BlgCollectorStub.ThrowNotSupported(settings.Input); }
-            catch (NotSupportedException ex)
-            {
-                AnsiConsole.MarkupLine($"[red]ERROR:[/] {ex.Message}");
-                return ExitCodes.InputCollectorFailure;
-            }
-        }
-
-        // Collect dataset
-        AnsiConsole.Markup("Importing dataset...");
-        Dataset dataset;
-        IReadOnlyList<string> collectorWarnings;
+        AnalysisRunResult result;
         try
         {
-            var registry = MetricAliasRegistry.BuildDefault();
-            var collector = new CsvCollector(registry);
-            var hostCtx = HostContextReader.Read(settings.HostMemoryMb, settings.HostCpuCount,
-                sidecarPath: Path.Combine(Path.GetDirectoryName(settings.Input)!, "host-context.json"));
-
-            var result = collector.Collect(settings.Input, settings.MachineName, settings.TimeZone);
-            dataset = result.Dataset with { HostContext = hostCtx };
-            collectorWarnings = result.Warnings;
-            AnsiConsole.MarkupLine($" [green]done[/] ({dataset.SeriesCount} series, {dataset.SampleCount} samples)");
+            result = new AnalysisRunner().Run(new AnalysisRunRequest
+            {
+                InputPath = settings.Input,
+                InputFormat = format,
+                PackIds = settings.Packs,
+                PackDirs = settings.PackDirs,
+                AutoResolvePacks = settings.AutoResolvePacks,
+                HostMemoryMb = settings.HostMemoryMb,
+                HostCpuCount = settings.HostCpuCount,
+                MachineName = settings.MachineName,
+                TimeZone = settings.TimeZone,
+                HostContextSidecarPath = Path.Combine(
+                    Path.GetDirectoryName(settings.Input) ?? ".", "host-context.json")
+            });
         }
-        catch (Exception ex)
+        catch (NotSupportedException ex)
         {
-            AnsiConsole.MarkupLine($"\n[red]ERROR:[/] Import failed: {ex.Message}");
+            AnsiConsole.MarkupLine($"\n[red]ERROR:[/] {ex.Message}");
             return ExitCodes.InputCollectorFailure;
         }
-
-        // Normalize (registry already applied during collection)
-        AnsiConsole.MarkupLine("Normalizing counters...");
-
-        // Resolve packs
-        AnsiConsole.Markup("Resolving packs...");
-        var resolver = new PackResolver();
-        var presentMetrics = dataset.Series.Select(s => s.CanonicalMetric).ToHashSet();
-        var resolveResult = resolver.Resolve(
-            settings.Packs,
-            settings.PackDirs,
-            settings.AutoResolvePacks,
-            presentMetrics);
-
-        if (resolveResult.Errors.Count > 0)
+        catch (PackResolutionException ex)
         {
-            foreach (var e in resolveResult.Errors)
+            foreach (var e in ex.Errors)
                 AnsiConsole.MarkupLine($"\n[red]ERROR: Pack validation failed:[/] {e}");
             return ExitCodes.PackValidationFailure;
-        }
-
-        var packNames = string.Join(", ", resolveResult.Resolutions.Select(p => p.PackId));
-        AnsiConsole.MarkupLine($" [green]{packNames}[/]");
-
-        int ruleCount = resolveResult.Packs.Sum(p => p.Rules.Count);
-        AnsiConsole.Markup($"Executing {ruleCount} rules...");
-
-        // Run engine
-        RuleEngine.RunResult engineResult;
-        try
-        {
-            var engine = new RuleEngine();
-            engineResult = engine.Run(resolveResult.Packs, dataset);
         }
         catch (Exception ex)
         {
@@ -205,15 +163,17 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
             return ExitCodes.AnalysisExecutionFailure;
         }
 
-        var findings = engineResult.Findings;
+        var findings = result.Findings;
         int criticals = 0, warnings = 0, infos = 0;
         foreach (var f in findings)
             if (f.Severity == "critical") criticals++;
             else if (f.Severity == "warning") warnings++;
             else infos++;
-        AnsiConsole.MarkupLine($"\nFindings:  [bold]{findings.Count}[/] ({criticals} critical, {warnings} warning, {infos} informational)");
 
-        // Write reports
+        var packNames = string.Join(", ", result.PackResolutions.Select(p => p.PackId));
+        AnsiConsole.MarkupLine($" [green]done[/] — packs: {packNames}");
+        AnsiConsole.MarkupLine($"Findings:  [bold]{findings.Count}[/] ({criticals} critical, {warnings} warning, {infos} informational)");
+
         Directory.CreateDirectory(settings.Output);
         string stem = settings.ReportName ?? Path.GetFileNameWithoutExtension(settings.Input);
         string jsonPath = Path.Combine(settings.Output, $"{stem}.pal-report.json");
@@ -225,11 +185,11 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
         sw.Stop();
         var writeInput = new JsonReportWriter.WriteInput
         {
-            Dataset = dataset,
+            Dataset = result.Dataset,
             Findings = findings,
-            PackResolutions = resolveResult.Resolutions,
-            EngineWarnings = engineResult.Warnings,
-            CollectorWarnings = collectorWarnings,
+            PackResolutions = result.PackResolutions,
+            EngineWarnings = result.EngineWarnings,
+            CollectorWarnings = result.CollectorWarnings,
             InputPath = settings.Input,
             OutputPath = jsonPath,
             HtmlReportPath = emitHtml ? htmlPath : null,

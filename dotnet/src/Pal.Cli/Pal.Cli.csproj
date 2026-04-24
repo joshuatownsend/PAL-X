@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Pal.Application\Pal.Application.csproj" />
     <ProjectReference Include="..\Pal.Engine\Pal.Engine.csproj" />
     <ProjectReference Include="..\Pal.Ingestion\Pal.Ingestion.csproj" />
     <ProjectReference Include="..\Pal.Packs\Pal.Packs.csproj" />
