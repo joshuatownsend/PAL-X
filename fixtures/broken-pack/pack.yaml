@@ -1,0 +1,19 @@
+schema_version: "pal.pack/v1"
+pack_id: broken-pack
+pack_name: "Broken Pack"
+version: "1.0.0"
+description: "This pack is intentionally invalid for testing pal validate-pack exit code 4."
+
+rules:
+  - rule_id: invalid-rule
+    severity: unknown-severity
+    category: not-a-valid-category
+    title: "Invalid Rule"
+    summary: "This rule has multiple validation errors."
+    conditions:
+      - metric: some.metric
+        aggregation: unknown-agg
+        operator: unknown-op
+        threshold: 42
+    recommendations:
+      - nonexistent-recommendation-id

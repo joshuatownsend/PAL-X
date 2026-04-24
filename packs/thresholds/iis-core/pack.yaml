@@ -1,0 +1,142 @@
+schema_version: "pal.pack/v1"
+pack_id: iis-core
+pack_name: "IIS Core"
+version: "1.0.0"
+description: "IIS web server performance thresholds: application pools, ASP.NET, HTTP queues."
+
+applicability:
+  requires_any:
+    - iis.recent_worker_process_failures
+    - iis.current_worker_processes
+    - aspnet.requests_rejected
+    - aspnet.request_wait_time
+
+recommendations:
+  check-event-log:
+    priority: high
+    text: "Check the Windows Application event log for worker process crash details and error codes."
+    rationale: "Worker process failures are logged with crash reason and faulting module."
+
+  recycle-pool:
+    priority: medium
+    text: "Recycle the application pool to recover from the failure state, then investigate the root cause."
+    rationale: "IIS rapid-fail protection may have stopped the pool — a recycle restores service while you debug."
+
+  check-aspnet-errors:
+    priority: high
+    text: "Check ASP.NET error logs and Windows event log for the cause of request rejection (HTTP 503)."
+    rationale: "Requests rejected means the ASP.NET request queue is full — either the server is overloaded or the queue limit is too small."
+
+  increase-queue-limit:
+    priority: medium
+    text: "Consider increasing the ASP.NET request queue limit in machine.config if traffic volume is legitimate."
+    rationale: "The default queue limit may be too small for high-traffic sites."
+
+  check-request-wait:
+    priority: high
+    text: "Profile ASP.NET request execution time to find slow handlers contributing to queue wait."
+    rationale: "Long wait times indicate handlers are slow, causing queue buildup."
+
+  check-worker-cpu:
+    priority: medium
+    text: "Monitor W3SVC_W3WP Active Requests and Active Threads to identify request processing bottlenecks."
+    rationale: "High worker process CPU often indicates application-level inefficiency, not infrastructure limits."
+
+rules:
+  - rule_id: app-pool-recent-failures
+    severity: critical
+    category: iis
+    title: "IIS application pool worker process failures"
+    summary: "Recent worker process failures detected — the application pool may be in rapid-fail protection."
+    explanation: |
+      Recent Worker Process Failures counts worker process crashes in the current rapid-fail
+      protection interval (default 5 minutes). If the count reaches the configured limit (default 5),
+      IIS disables the application pool entirely, returning HTTP 503 for all requests until manually
+      restarted. Any non-zero value requires immediate investigation.
+    conditions:
+      - metric: iis.recent_worker_process_failures
+        aggregation: max
+        operator: ge
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - check-event-log
+      - recycle-pool
+
+  - rule_id: aspnet-requests-rejected
+    severity: critical
+    category: iis
+    title: "ASP.NET requests rejected (HTTP 503)"
+    summary: "ASP.NET is rejecting requests — the request queue is full."
+    explanation: |
+      ASP.NET Requests Rejected counts requests that were dropped because the application request
+      queue was full. Each rejected request returns HTTP 503 to the client. This indicates the
+      application is overloaded and cannot process requests fast enough, or the queue limit is
+      configured too low for the traffic volume.
+    conditions:
+      - metric: aspnet.requests_rejected
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - check-aspnet-errors
+      - increase-queue-limit
+
+  - rule_id: aspnet-request-wait-time
+    severity: warning
+    category: iis
+    title: "High ASP.NET request queue wait time"
+    summary: "ASP.NET request wait time exceeded 1000ms, indicating queue backlog."
+    explanation: |
+      Request Wait Time measures how long requests spend in the ASP.NET queue before being
+      handed to a worker thread. Values above 1000ms indicate significant backlog — requests
+      are waiting nearly a second before even beginning to execute. This causes cascading
+      timeouts at the client.
+    conditions:
+      - metric: aspnet.request_wait_time
+        aggregation: avg
+        operator: gt
+        threshold: 1000
+        duration_percent: 10
+    recommendations:
+      - check-request-wait
+      - check-worker-cpu
+
+  - rule_id: aspnet-application-restarts
+    severity: warning
+    category: iis
+    title: "ASP.NET application restarts detected"
+    summary: "One or more ASP.NET application restarts occurred during the capture window."
+    explanation: |
+      ASP.NET Application Restarts counts how many times the application domain was recycled.
+      Restarts flush all in-memory state (session, cache) and introduce latency as the application
+      re-initializes. They may be triggered by configuration changes, code exceptions, or
+      memory pressure.
+    conditions:
+      - metric: aspnet.application_restarts
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - check-event-log
+
+  - rule_id: aspnet-requests-in-queue
+    severity: warning
+    category: iis
+    title: "ASP.NET requests queued"
+    summary: "Requests are queuing in the ASP.NET application queue."
+    explanation: |
+      Requests In Application Queue greater than zero means requests are waiting for a thread
+      to become available. Persistent queuing indicates the application cannot scale its
+      execution fast enough for the incoming request rate.
+    conditions:
+      - metric: aspnet.requests_in_application_queue
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - check-worker-cpu
+      - check-request-wait

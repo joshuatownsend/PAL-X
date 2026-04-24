@@ -1,0 +1,198 @@
+using System.Text.Json;
+using Pal.Engine.Model;
+using Pal.Engine.Normalization;
+using Pal.Engine.Rules;
+using Pal.Engine.Scoring;
+using Pal.Ingestion.Csv;
+using Pal.Ingestion.HostContext;
+using Pal.Packs;
+using Pal.Reporting.Json;
+using Xunit;
+
+namespace Pal.Cli.Tests;
+
+public class GoldenFixtureTests
+{
+    private static string? RepoRoot => FindRepoRoot();
+
+    [Fact]
+    public void CpuPressure_FindsHighCpuSustained()
+    {
+        if (RepoRoot is null) return;
+
+        var (findings, warnings) = RunAnalysis("cpu-pressure", [], null, null);
+
+        var cpuFinding = findings.FirstOrDefault(f => f.RuleId == "high-cpu-sustained");
+        Assert.NotNull(cpuFinding);
+        Assert.Equal("warning", cpuFinding.Severity);
+        Assert.Equal("cpu", cpuFinding.Category);
+    }
+
+    [Fact]
+    public void CpuPressure_FindingsAreSortedBySeverityThenCategory()
+    {
+        if (RepoRoot is null) return;
+
+        var (findings, _) = RunAnalysis("cpu-pressure", [], null, null);
+        var sorted = findings.ToList();
+
+        for (int i = 1; i < sorted.Count; i++)
+        {
+            int prevRank = SeverityRank(sorted[i - 1].Severity);
+            int curRank = SeverityRank(sorted[i].Severity);
+            Assert.True(prevRank >= curRank, $"Finding {i} has higher severity than {i-1}");
+        }
+    }
+
+    [Fact]
+    public void HealthyServer_ProducesNoFindings()
+    {
+        if (RepoRoot is null) return;
+
+        var (findings, _) = RunAnalysis("healthy-server", [], null, null);
+
+        // Healthy-server CSV has low CPU, high memory, low disk latency
+        var criticals = findings.Count(f => f.Severity == "critical");
+        var warnCpu = findings.Count(f => f.RuleId == "high-cpu-sustained");
+        Assert.Equal(0, criticals);
+        Assert.Equal(0, warnCpu);
+    }
+
+    [Fact]
+    public void MemoryPressure_WithHostContext_FindsLowAvailableMemory()
+    {
+        if (RepoRoot is null) return;
+
+        var (findings, warnings) = RunAnalysis("memory-pressure", [], 8192, null);
+
+        var memFinding = findings.FirstOrDefault(f => f.RuleId == "low-available-memory");
+        Assert.NotNull(memFinding);
+    }
+
+    [Fact]
+    public void MemoryPressure_WithoutHostContext_EmitsSkipWarning()
+    {
+        if (RepoRoot is null) return;
+
+        var (findings, engineWarnings) = RunAnalysis("memory-pressure", [], null, null, useSidecar: false);
+
+        // low-available-memory rule needs host_context — expect a skip warning
+        bool hasSkipWarning = engineWarnings.Any(w =>
+            w.Code == "rule.host_context_unavailable" &&
+            w.Message.Contains("low-available-memory"));
+        Assert.True(hasSkipWarning, "Expected a host_context_unavailable warning for low-available-memory");
+    }
+
+    [Fact]
+    public void DiskLatency_FindsSustainedDiskReadLatency()
+    {
+        if (RepoRoot is null) return;
+
+        var (findings, _) = RunAnalysis("disk-latency", [], null, null);
+
+        var diskFinding = findings.FirstOrDefault(f => f.RuleId == "sustained-disk-read-latency" ||
+                                                        f.RuleId == "critical-disk-read-latency");
+        Assert.NotNull(diskFinding);
+    }
+
+    [Fact]
+    public void FindingIds_AreDeterministic_AcrossTwoRuns()
+    {
+        if (RepoRoot is null) return;
+
+        var (f1, _) = RunAnalysis("cpu-pressure", [], null, null);
+        var (f2, _) = RunAnalysis("cpu-pressure", [], null, null);
+
+        var ids1 = f1.Select(f => f.FindingId).OrderBy(x => x).ToList();
+        var ids2 = f2.Select(f => f.FindingId).OrderBy(x => x).ToList();
+        Assert.Equal(ids1, ids2);
+    }
+
+    [Fact]
+    public void JsonReport_IsUtf8WithoutBom()
+    {
+        if (RepoRoot is null) return;
+
+        var tmpDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tmpDir);
+        try
+        {
+            var inputCsv = Path.Combine(RepoRoot, "fixtures", "cpu-pressure", "input.csv");
+            var outputJson = Path.Combine(tmpDir, "test.pal-report.json");
+
+            var registry = MetricAliasRegistry.BuildDefault();
+            var collector = new CsvCollector(registry);
+            var collectResult = collector.Collect(inputCsv);
+            var dataset = collectResult.Dataset with { HostContext = HostContext.Unknown };
+
+            var resolver = new PackResolver();
+            var resolveResult = resolver.Resolve([], [Path.Combine(RepoRoot, "packs", "thresholds")], false);
+            var engine = new RuleEngine();
+            var engineResult = engine.Run(resolveResult.Packs, dataset);
+
+            new JsonReportWriter().Write(new JsonReportWriter.WriteInput
+            {
+                Dataset = dataset,
+                Findings = engineResult.Findings,
+                PackResolutions = resolveResult.Resolutions,
+                EngineWarnings = engineResult.Warnings,
+                CollectorWarnings = collectResult.Warnings,
+                InputPath = inputCsv,
+                OutputPath = outputJson,
+                HtmlReportPath = null,
+                DurationMs = 0,
+                GeneratedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+            });
+
+            var bytes = File.ReadAllBytes(outputJson);
+            // UTF-8 BOM is EF BB BF
+            Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
+                "JSON report must not have a UTF-8 BOM");
+
+            // Verify it's valid JSON
+            using var doc = JsonDocument.Parse(File.ReadAllText(outputJson));
+            Assert.Equal("pal.report/v1", doc.RootElement.GetProperty("schema_version").GetString());
+        }
+        finally { Directory.Delete(tmpDir, recursive: true); }
+    }
+
+    private (IReadOnlyList<Finding> findings, IReadOnlyList<RuleEngine.EngineWarning> warnings)
+        RunAnalysis(string fixtureName, IReadOnlyList<string> packIds, double? hostMemoryMb, int? hostCpuCount,
+            bool useSidecar = true)
+    {
+        string fixtureDir = Path.Combine(RepoRoot!, "fixtures", fixtureName);
+        string csvPath = Path.Combine(fixtureDir, "input.csv");
+
+        var registry = MetricAliasRegistry.BuildDefault();
+        var collector = new CsvCollector(registry);
+        var collectResult = collector.Collect(csvPath);
+        string? sidecarPath = useSidecar ? Path.Combine(fixtureDir, "host-context.json") : null;
+        var hostCtx = HostContextReader.Read(hostMemoryMb, hostCpuCount, sidecarPath);
+        var dataset = collectResult.Dataset with { HostContext = hostCtx };
+
+        var resolver = new PackResolver();
+        var resolveResult = resolver.Resolve(packIds, [Path.Combine(RepoRoot!, "packs", "thresholds")], false);
+
+        var engine = new RuleEngine();
+        var result = engine.Run(resolveResult.Packs, dataset);
+        return (result.Findings, result.Warnings);
+    }
+
+    private static int SeverityRank(string sev) => sev switch
+    {
+        "critical" => 3, "warning" => 2, "informational" => 1, _ => 0
+    };
+
+    private static string? FindRepoRoot()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            if (Directory.Exists(Path.Combine(dir.FullName, "packs")) &&
+                Directory.Exists(Path.Combine(dir.FullName, "fixtures")))
+                return dir.FullName;
+            dir = dir.Parent;
+        }
+        return null;
+    }
+}

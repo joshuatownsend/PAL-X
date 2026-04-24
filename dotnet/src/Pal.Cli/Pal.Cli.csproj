@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Pal.Cli</RootNamespace>
+    <AssemblyName>pal</AssemblyName>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console.Cli" Version="0.49.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pal.Engine\Pal.Engine.csproj" />
+    <ProjectReference Include="..\Pal.Ingestion\Pal.Ingestion.csproj" />
+    <ProjectReference Include="..\Pal.Packs\Pal.Packs.csproj" />
+    <ProjectReference Include="..\Pal.Reporting\Pal.Reporting.csproj" />
+  </ItemGroup>
+</Project>

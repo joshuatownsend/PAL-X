@@ -1,0 +1,374 @@
+schema_version: "pal.pack/v1"
+pack_id: windows-core
+pack_name: "Windows Core"
+version: "1.0.0"
+description: "Core Windows OS performance counter thresholds: CPU, memory, disk, system."
+
+applicability:
+  always: true
+
+recommendations:
+  investigate-process-cpu:
+    priority: high
+    text: "Identify which process is consuming CPU using Process\\% Processor Time counters."
+    rationale: "Total CPU alone does not identify the responsible process."
+    links:
+      - "https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/typeperf"
+
+  check-privileged-time:
+    priority: medium
+    text: "Investigate kernel-mode CPU usage. High privileged time often indicates driver or I/O issues."
+    rationale: "Privileged time > 30% suggests OS overhead rather than application CPU."
+
+  add-cpu-capacity:
+    priority: low
+    text: "Consider adding CPU capacity or distributing load if sustained utilization is expected."
+    rationale: "Sustained high CPU leaves no headroom for burst workloads."
+
+  check-paging-activity:
+    priority: high
+    text: "Investigate what is causing paging. Check available memory, committed bytes, and per-process working sets."
+    rationale: "Excessive paging causes disk I/O that dramatically reduces throughput."
+
+  add-memory:
+    priority: high
+    text: "Add physical memory to this server."
+    rationale: "Low available memory forces the OS to page to disk, causing severe performance degradation."
+
+  check-committed-bytes:
+    priority: medium
+    text: "Identify which processes are committing the most virtual memory."
+    rationale: "High commit pressure may indicate a memory leak or over-provisioned application."
+
+  optimize-disk-io:
+    priority: high
+    text: "Identify which processes are generating the highest disk I/O using Process\\IO Data Operations/sec."
+    rationale: "High disk latency indicates the disk is saturated and cannot keep up with I/O demand."
+
+  upgrade-storage:
+    priority: medium
+    text: "Consider upgrading to faster storage (SSD/NVMe) or adding more spindles."
+    rationale: "Sustained latency > 25ms typically indicates the storage tier is undersized for the workload."
+
+  check-disk-queue:
+    priority: high
+    text: "Check Current Disk Queue Length to confirm the disk is the bottleneck."
+    rationale: "A queue length consistently > 2 per disk confirms the storage subsystem is saturated."
+
+  check-context-switches:
+    priority: medium
+    text: "Profile which threads are causing context switch storms using ETW or PerfView."
+    rationale: "Excessive context switches reduce CPU efficiency and can indicate lock contention."
+
+  check-processor-queue:
+    priority: high
+    text: "Identify runnable threads waiting for CPU — correlate with high CPU and specific processes."
+    rationale: "A sustained queue length > 2 per core means threads are waiting, causing request latency."
+
+rules:
+  # ── CPU ─────────────────────────────────────────────────────────────────
+  - rule_id: high-cpu-sustained
+    severity: warning
+    category: cpu
+    title: "Sustained high CPU utilization"
+    summary: "Total processor time averaged above 80% for more than 20% of the capture window."
+    explanation: |
+      Sustained CPU utilization above 80% leaves little headroom for burst workloads. When the
+      processor is consistently near saturation, request queues grow, response times increase, and
+      the system becomes susceptible to latency spikes from any additional load. This rule fires
+      when the _Total processor time averages above 80% for at least 20% of the sampled period.
+      Note: 80% is a warning threshold — if utilization is this high consistently, investigate
+      which processes are responsible before adding capacity.
+    conditions:
+      - metric: processor.percent_processor_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 80
+        duration_percent: 20
+    recommendations:
+      - investigate-process-cpu
+      - add-cpu-capacity
+
+  - rule_id: high-cpu-critical
+    severity: critical
+    category: cpu
+    title: "Critical CPU saturation"
+    summary: "Total processor time averaged above 95% for more than 10% of the capture window."
+    explanation: |
+      CPU utilization above 95% sustained over more than 10% of the log window indicates
+      near-total saturation. At this level the OS scheduler is starved and even background
+      maintenance tasks (GC, memory reclaim, I/O completion) cannot run reliably.
+    conditions:
+      - metric: processor.percent_processor_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 95
+        duration_percent: 10
+    recommendations:
+      - investigate-process-cpu
+      - add-cpu-capacity
+
+  - rule_id: high-privileged-time
+    severity: warning
+    category: cpu
+    title: "High kernel-mode CPU time"
+    summary: "Processor privileged time exceeded 20%, indicating driver or I/O pressure."
+    explanation: |
+      Privileged time (kernel mode) above 20% suggests that the OS — rather than user-mode
+      applications — is consuming CPU. Common causes include high I/O rates (disk, network),
+      driver issues, or excessive system calls. Compare with disk and network counters to
+      narrow down the source.
+    conditions:
+      - metric: processor.percent_privileged_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 20
+        duration_percent: 20
+    recommendations:
+      - check-privileged-time
+
+  # ── Memory ──────────────────────────────────────────────────────────────
+  - rule_id: low-available-memory
+    severity: warning
+    category: memory
+    title: "Low available physical memory"
+    summary: "Available memory dropped below 10% of installed RAM."
+    explanation: |
+      When available memory falls below 10% of installed RAM, the OS begins aggressively paging
+      working sets to disk. This causes cascading latency: page faults increase, disk I/O rises,
+      and CPU time spent on memory management grows. The critical threshold (5%) applies a floor
+      of 64 MB to protect very small systems.
+    applies_when:
+      requires_all:
+        - memory.available_mbytes
+    conditions:
+      - metric: memory.available_mbytes
+        aggregation: avg
+        operator: lt
+        threshold:
+          host_context: total_physical_memory_mb
+          factor: 0.10
+          minimum: 128
+        duration_percent: 10
+    recommendations:
+      - add-memory
+      - check-paging-activity
+
+  - rule_id: critical-low-available-memory
+    severity: critical
+    category: memory
+    title: "Critical memory exhaustion"
+    summary: "Available memory dropped below 5% of installed RAM (minimum 64 MB)."
+    explanation: |
+      Available memory below 5% of installed RAM (with a 64 MB floor) represents near-total
+      memory exhaustion. At this level the OS is continuously paging and may begin failing
+      memory allocations, leading to OOM conditions or process crashes.
+    applies_when:
+      requires_all:
+        - memory.available_mbytes
+    conditions:
+      - metric: memory.available_mbytes
+        aggregation: avg
+        operator: lt
+        threshold:
+          host_context: total_physical_memory_mb
+          factor: 0.05
+          minimum: 64
+        duration_percent: 5
+    recommendations:
+      - add-memory
+      - check-paging-activity
+
+  - rule_id: high-commit-pressure
+    severity: warning
+    category: memory
+    title: "High memory commit pressure"
+    summary: "Committed Bytes In Use exceeded 80%, approaching the commit limit."
+    explanation: |
+      The commit charge represents memory promised to all processes. When it exceeds 80% of the
+      commit limit (physical RAM + page file), the system is close to the point where new
+      allocations will fail. This precedes OOM conditions even if physical RAM is not yet
+      exhausted.
+    conditions:
+      - metric: memory.percent_committed_bytes_in_use
+        aggregation: avg
+        operator: gt
+        threshold: 80
+        duration_percent: 20
+    recommendations:
+      - check-committed-bytes
+      - add-memory
+
+  - rule_id: high-paging-activity
+    severity: warning
+    category: memory
+    title: "High paging activity"
+    summary: "Pages/sec exceeded 1000, indicating heavy disk paging."
+    explanation: |
+      Pages/sec above 1000 indicates the OS is actively paging memory to or from disk.
+      While occasional paging is normal, sustained rates above 1000 pages/sec create
+      significant disk I/O that competes with application reads and writes. Correlate with
+      Available MBytes and disk latency counters.
+    conditions:
+      - metric: memory.pages_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 1000
+        duration_percent: 10
+    recommendations:
+      - check-paging-activity
+      - add-memory
+
+  # ── Disk ────────────────────────────────────────────────────────────────
+  - rule_id: sustained-disk-read-latency
+    severity: warning
+    category: disk
+    title: "Sustained disk read latency"
+    summary: "Average disk read latency exceeded 25ms — approaching the threshold for user-visible impact."
+    explanation: |
+      Avg. Disk sec/Read above 25ms (0.025 sec) indicates the storage subsystem is struggling
+      to service read requests in a timely manner. At 50ms+ (critical), most interactive and
+      OLTP workloads will show visible latency degradation. Check Current Disk Queue Length to
+      confirm saturation; check which applications are generating the most reads.
+    conditions:
+      - metric: physicaldisk.avg_disk_sec_per_read
+        aggregation: avg
+        operator: gt
+        threshold: 0.025
+        duration_percent: 20
+    recommendations:
+      - check-disk-queue
+      - optimize-disk-io
+
+  - rule_id: critical-disk-read-latency
+    severity: critical
+    category: disk
+    title: "Critical disk read latency"
+    summary: "Average disk read latency exceeded 50ms — storage subsystem is saturated."
+    explanation: |
+      Read latency above 50ms is generally unacceptable for any production workload. At this
+      level databases will time out queries, web servers will queue requests, and OS operations
+      will stall. Immediate investigation of disk queue length and I/O-generating processes is
+      required.
+    conditions:
+      - metric: physicaldisk.avg_disk_sec_per_read
+        aggregation: avg
+        operator: gt
+        threshold: 0.050
+        duration_percent: 10
+    recommendations:
+      - check-disk-queue
+      - upgrade-storage
+
+  - rule_id: sustained-disk-write-latency
+    severity: warning
+    category: disk
+    title: "Sustained disk write latency"
+    summary: "Average disk write latency exceeded 25ms."
+    explanation: |
+      Avg. Disk sec/Write above 25ms indicates write I/O is queuing at the storage layer.
+      Write latency spikes typically indicate the disk cache has flushed or the spindle/flash
+      is saturated. Database transaction logs and swap files are particularly sensitive to
+      write latency.
+    conditions:
+      - metric: physicaldisk.avg_disk_sec_per_write
+        aggregation: avg
+        operator: gt
+        threshold: 0.025
+        duration_percent: 20
+    recommendations:
+      - check-disk-queue
+      - optimize-disk-io
+
+  - rule_id: high-disk-queue-length
+    severity: warning
+    category: disk
+    title: "High disk queue length"
+    summary: "Current Disk Queue Length exceeded 2, indicating I/O backlog."
+    explanation: |
+      A queue length consistently above 2 per physical disk means I/O requests are waiting
+      for service. For RAID arrays or SSD devices, higher queue depths may be acceptable
+      depending on the controller; however, a sustained queue > 2 typically signals saturation.
+      Correlate with disk latency counters to confirm.
+    conditions:
+      - metric: physicaldisk.current_disk_queue_length
+        aggregation: avg
+        operator: gt
+        threshold: 2
+        duration_percent: 20
+    recommendations:
+      - check-disk-queue
+      - upgrade-storage
+
+  - rule_id: low-disk-idle-time
+    severity: warning
+    category: disk
+    title: "Low disk idle time"
+    summary: "Disk % Idle Time dropped below 30%, indicating sustained I/O pressure."
+    explanation: |
+      % Idle Time below 30% means the disk is busy more than 70% of the time. While short
+      bursts are expected, sustained busy periods leave no capacity for I/O spikes and
+      indicate the storage subsystem is undersized for the workload. Critical threshold
+      (< 10% idle) indicates near-continuous saturation.
+    conditions:
+      - metric: physicaldisk.percent_idle_time
+        aggregation: avg
+        operator: lt
+        threshold: 30
+        duration_percent: 20
+    recommendations:
+      - upgrade-storage
+      - optimize-disk-io
+
+  # ── System ──────────────────────────────────────────────────────────────
+  - rule_id: excessive-context-switches
+    severity: warning
+    category: system
+    title: "Excessive context switches"
+    summary: "Context switches per second exceeded 15,000 per logical processor."
+    explanation: |
+      Context switching has a CPU cost: each switch requires saving and restoring register state.
+      While modern processors handle thousands of switches per second efficiently, rates above
+      15,000 per core sustained over time indicate lock contention, thread pool exhaustion, or
+      spin-wait behavior. Use PerfView or ETW to identify which threads are switching most.
+    applies_when:
+      requires_all:
+        - system.context_switches_per_sec
+    conditions:
+      - metric: system.context_switches_per_sec
+        aggregation: avg
+        operator: gt
+        threshold:
+          host_context: logical_processor_count
+          factor: 15000
+        duration_percent: 20
+    recommendations:
+      - check-context-switches
+
+  - rule_id: high-processor-queue-length
+    severity: warning
+    category: cpu
+    title: "Processor queue length elevated"
+    summary: "Runnable threads waiting for CPU exceeded 2 per logical processor."
+    explanation: |
+      Processor Queue Length counts threads that are runnable but waiting for a CPU to become
+      available. A sustained queue > 2 per logical processor indicates CPU contention — threads
+      are doing useful work but cannot run because all cores are busy. This directly causes
+      request latency in multi-threaded applications.
+    applies_when:
+      requires_all:
+        - system.processor_queue_length
+    conditions:
+      - metric: system.processor_queue_length
+        aggregation: avg
+        operator: gt
+        threshold:
+          host_context: logical_processor_count
+          factor: 2
+        duration_percent: 20
+    recommendations:
+      - check-processor-queue
+      - investigate-process-cpu

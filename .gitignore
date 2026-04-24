@@ -1,0 +1,28 @@
+# .NET build outputs
+dotnet/src/*/bin/
+dotnet/src/*/obj/
+dotnet/tests/*/bin/
+dotnet/tests/*/obj/
+artifacts/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Rider
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# PAL output artifacts (not fixtures)
+*.pal-report.json
+*.pal-report.html
+out/

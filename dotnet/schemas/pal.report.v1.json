@@ -1,0 +1,295 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "pal.report/v1",
+  "title": "PAL Report Schema v1",
+  "description": "Machine-readable output of a PAL analysis run. HTML is a derived rendering of this document.",
+  "type": "object",
+  "required": ["schema_version", "report_id", "generated_at_utc", "engine", "input", "dataset", "packs", "warnings", "summary", "findings", "series_index", "artifacts"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "pal.report/v1"
+    },
+    "report_id": {
+      "type": "string",
+      "description": "Content-hash-based ID: base32(SHA-256(sorted_input_digests || sorted_pack_ids_with_versions)[0..10])"
+    },
+    "generated_at_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp of report generation"
+    },
+    "engine": { "$ref": "#/definitions/Engine" },
+    "input": { "$ref": "#/definitions/Input" },
+    "dataset": { "$ref": "#/definitions/Dataset" },
+    "packs": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/PackRef" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Warning" }
+    },
+    "summary": { "$ref": "#/definitions/Summary" },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Finding" }
+    },
+    "series_index": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/SeriesEntry" },
+      "description": "Compact summary of all ingested series. Raw samples are not embedded."
+    },
+    "artifacts": { "$ref": "#/definitions/Artifacts" }
+  },
+  "definitions": {
+    "Engine": {
+      "type": "object",
+      "required": ["name", "version", "runtime", "execution_mode", "duration_ms"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "runtime": { "type": "string" },
+        "host_os": { "type": "string" },
+        "execution_mode": {
+          "type": "string",
+          "enum": ["cli"]
+        },
+        "duration_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Input": {
+      "type": "object",
+      "required": ["source_type", "source_path", "source_count", "collector", "collector_version"],
+      "properties": {
+        "source_type": {
+          "type": "string",
+          "enum": ["blg", "csv"]
+        },
+        "source_path": { "type": "string" },
+        "source_count": { "type": "integer", "minimum": 1 },
+        "collector": { "type": "string" },
+        "collector_version": { "type": "string" }
+      }
+    },
+    "Dataset": {
+      "type": "object",
+      "required": ["dataset_id", "start_time_utc", "end_time_utc", "sample_interval_seconds", "series_count", "sample_count", "gap_count"],
+      "properties": {
+        "dataset_id": { "type": "string" },
+        "machine_name": { "type": "string" },
+        "time_zone": { "type": "string" },
+        "start_time_utc": { "type": "string", "format": "date-time" },
+        "end_time_utc": { "type": "string", "format": "date-time" },
+        "sample_interval_seconds": { "type": "number", "exclusiveMinimum": 0 },
+        "series_count": { "type": "integer", "minimum": 0 },
+        "sample_count": { "type": "integer", "minimum": 0 },
+        "gap_count": { "type": "integer", "minimum": 0 },
+        "metadata": { "type": "object" }
+      }
+    },
+    "PackRef": {
+      "type": "object",
+      "required": ["pack_id", "pack_name", "version", "resolution_mode"],
+      "properties": {
+        "pack_id": { "type": "string" },
+        "pack_name": { "type": "string" },
+        "version": { "type": "string" },
+        "resolution_mode": {
+          "type": "string",
+          "enum": ["explicit", "auto"]
+        }
+      }
+    },
+    "Warning": {
+      "type": "object",
+      "required": ["code", "message", "severity"],
+      "properties": {
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "severity": {
+          "type": "string",
+          "enum": ["warning", "informational"]
+        },
+        "details": { "type": "object" }
+      }
+    },
+    "Summary": {
+      "type": "object",
+      "required": ["overall_status", "finding_counts", "category_statuses", "analysis_status"],
+      "description": "Tri-state health classification. No numeric score — three criticals should not be treated the same as 30 informational findings.",
+      "properties": {
+        "overall_status": {
+          "type": "string",
+          "enum": ["critical", "warning", "healthy"],
+          "description": "Critical if any critical finding exists; Warning if any warning (no criticals); otherwise Healthy"
+        },
+        "finding_counts": {
+          "type": "object",
+          "required": ["critical", "warning", "informational"],
+          "properties": {
+            "critical": { "type": "integer", "minimum": 0 },
+            "warning": { "type": "integer", "minimum": 0 },
+            "informational": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "category_statuses": {
+          "type": "object",
+          "description": "Per-category tri-state status scoped to that category's findings",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["critical", "warning", "healthy"]
+          }
+        },
+        "analysis_status": {
+          "type": "string",
+          "enum": ["completed", "completed_with_warnings", "failed"]
+        }
+      }
+    },
+    "TimeWindow": {
+      "type": "object",
+      "required": ["start_time_utc", "end_time_utc"],
+      "properties": {
+        "start_time_utc": { "type": "string", "format": "date-time" },
+        "end_time_utc": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Finding": {
+      "type": "object",
+      "required": ["finding_id", "pack_id", "rule_id", "severity", "category", "title", "summary", "explanation", "evidence", "recommendations"],
+      "properties": {
+        "finding_id": {
+          "type": "string",
+          "description": "Content-hash ID: base32(SHA-256(rule_id || canonical_metric_id || window_start || window_end)[0..10])"
+        },
+        "pack_id": { "type": "string" },
+        "rule_id": { "type": "string" },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "warning", "informational"]
+        },
+        "category": {
+          "type": "string",
+          "enum": ["cpu", "memory", "disk", "network", "process", "iis", "sql", "system", "collection", "pack-validation"]
+        },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "explanation": { "type": "string" },
+        "time_window": { "$ref": "#/definitions/TimeWindow" },
+        "evidence": { "$ref": "#/definitions/Evidence" },
+        "recommendations": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Recommendation" }
+        }
+      }
+    },
+    "Evidence": {
+      "type": "object",
+      "required": ["metrics"],
+      "properties": {
+        "metrics": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/EvidenceMetric" }
+        },
+        "charts": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/ChartRef" }
+        }
+      }
+    },
+    "EvidenceMetric": {
+      "type": "object",
+      "required": ["series_id", "canonical_metric", "statistics", "trigger_details"],
+      "properties": {
+        "series_id": { "type": "string" },
+        "canonical_metric": { "type": "string" },
+        "statistics": { "$ref": "#/definitions/Statistics" },
+        "trigger_details": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/TriggerDetail" }
+        }
+      }
+    },
+    "TriggerDetail": {
+      "type": "object",
+      "required": ["expression", "result"],
+      "properties": {
+        "expression": {
+          "type": "string",
+          "description": "Human-readable representation of the declarative condition that fired, e.g. 'avg(processor.percent_processor_time) > 80 for >= 20% of samples'"
+        },
+        "result": { "type": "boolean" },
+        "actual_value": { "type": "number" },
+        "expected_value": { "type": "number" },
+        "notes": { "type": "string" }
+      }
+    },
+    "ChartRef": {
+      "type": "object",
+      "required": ["chart_id", "artifact_path", "title"],
+      "properties": {
+        "chart_id": { "type": "string" },
+        "artifact_path": { "type": "string" },
+        "title": { "type": "string" }
+      }
+    },
+    "Recommendation": {
+      "type": "object",
+      "required": ["id", "priority", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "priority": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "text": { "type": "string" },
+        "rationale": { "type": "string" },
+        "links": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "SeriesEntry": {
+      "type": "object",
+      "required": ["series_id", "counter_path_original", "canonical_metric", "statistics"],
+      "properties": {
+        "series_id": { "type": "string" },
+        "counter_path_original": { "type": "string" },
+        "canonical_metric": { "type": "string" },
+        "unit": { "type": "string" },
+        "statistics": { "$ref": "#/definitions/Statistics" }
+      }
+    },
+    "Statistics": {
+      "type": "object",
+      "required": ["count", "min", "max", "avg"],
+      "properties": {
+        "count": { "type": "integer", "minimum": 0 },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "avg": { "type": "number" },
+        "median": { "type": "number" },
+        "p90": { "type": "number" },
+        "p95": { "type": "number" },
+        "p99": { "type": "number" },
+        "stddev": { "type": "number" },
+        "trend_per_hour": { "type": "number" },
+        "missing_sample_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Artifacts": {
+      "type": "object",
+      "required": ["json_report_path"],
+      "properties": {
+        "json_report_path": { "type": "string" },
+        "html_report_path": { "type": "string" },
+        "chart_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "pal.pack/v1",
+  "title": "PAL Pack Schema v1",
+  "description": "Schema for PAL rule packs. Uses declarative comparators — no expression parser needed.",
+  "type": "object",
+  "required": ["schema_version", "pack_id", "pack_name", "version", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "pal.pack/v1"
+    },
+    "pack_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Unique kebab-case identifier"
+    },
+    "pack_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "applicability": {
+      "$ref": "#/definitions/ApplicabilityFilter",
+      "description": "Determines whether this pack is auto-loaded for a given dataset"
+    },
+    "metric_aliases": {
+      "type": "object",
+      "description": "Maps snake_case canonical metric IDs to Windows counter path patterns (regex or exact). Used during normalization.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1
+      }
+    },
+    "recommendations": {
+      "type": "object",
+      "description": "Named recommendation definitions. Rules reference these by ID.",
+      "additionalProperties": {
+        "$ref": "#/definitions/RecommendationDef"
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Rule" },
+      "minItems": 1
+    }
+  },
+  "definitions": {
+    "ApplicabilityFilter": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "always": {
+          "type": "boolean",
+          "description": "If true, pack always loads regardless of dataset content"
+        },
+        "requires_any": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Pack loads if at least one of these canonical metric IDs is present in the dataset"
+        },
+        "requires_all": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Pack loads only if all of these canonical metric IDs are present"
+        }
+      }
+    },
+    "HostContextThreshold": {
+      "type": "object",
+      "required": ["host_context"],
+      "additionalProperties": false,
+      "description": "A threshold value derived from host context (e.g., total RAM, CPU count)",
+      "properties": {
+        "host_context": {
+          "type": "string",
+          "enum": ["total_physical_memory_mb", "logical_processor_count"],
+          "description": "Which host context variable to use as the base value"
+        },
+        "factor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Multiply the host_context value by this factor (e.g., 0.10 for 10%)"
+        },
+        "minimum": {
+          "type": "number",
+          "description": "Clamp the computed threshold to at least this value (e.g., 64 MB floor)"
+        },
+        "maximum": {
+          "type": "number",
+          "description": "Clamp the computed threshold to at most this value"
+        }
+      }
+    },
+    "Condition": {
+      "type": "object",
+      "required": ["metric", "aggregation", "operator", "threshold"],
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "type": "string",
+          "description": "snake_case canonical metric ID (e.g., processor.percent_processor_time)"
+        },
+        "instance": {
+          "type": "string",
+          "description": "Instance filter: exact name (e.g., '_total'), '*' matches any, omit to match all"
+        },
+        "aggregation": {
+          "type": "string",
+          "enum": ["avg", "min", "max", "p90", "p95", "p99", "trend"],
+          "description": "How to reduce the time series to a single value for comparison"
+        },
+        "operator": {
+          "type": "string",
+          "enum": ["gt", "lt", "ge", "le", "eq"],
+          "description": "Comparison operator applied to aggregated value vs threshold"
+        },
+        "threshold": {
+          "oneOf": [
+            {
+              "type": "number",
+              "description": "Literal numeric threshold"
+            },
+            {
+              "$ref": "#/definitions/HostContextThreshold"
+            }
+          ]
+        },
+        "duration_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 1,
+          "description": "Percentage of samples that must satisfy the condition for the rule to fire. Default 1 means any single sample triggers it."
+        }
+      }
+    },
+    "AppliesWhen": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-rule applicability guard evaluated at rule evaluation time (not pack load time)",
+      "properties": {
+        "requires_any": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Rule runs if at least one of these metric IDs is present"
+        },
+        "requires_all": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Rule runs only if all of these metric IDs are present"
+        }
+      }
+    },
+    "RecommendationDef": {
+      "type": "object",
+      "required": ["priority", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "priority": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "links": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "Rule": {
+      "type": "object",
+      "required": ["rule_id", "severity", "category", "title", "summary", "conditions", "recommendations"],
+      "additionalProperties": false,
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "Unique kebab-case identifier within the pack"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "warning", "informational"]
+        },
+        "category": {
+          "type": "string",
+          "enum": ["cpu", "memory", "disk", "network", "process", "iis", "sql", "system", "collection", "pack-validation"]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "description": "One-sentence finding summary shown in the report"
+        },
+        "explanation": {
+          "type": "string",
+          "description": "Longer explanation of why this finding matters and what to investigate"
+        },
+        "applies_when": {
+          "$ref": "#/definitions/AppliesWhen"
+        },
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/Condition" },
+          "minItems": 1,
+          "description": "All conditions must be satisfied for the rule to fire"
+        },
+        "recommendations": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "IDs of recommendations defined in the pack-level recommendations object"
+        }
+      }
+    }
+  }
+}

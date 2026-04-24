@@ -1,0 +1,148 @@
+schema_version: "pal.pack/v1"
+pack_id: sql-host-core
+pack_name: "SQL Server Host Core"
+version: "1.0.0"
+description: "SQL Server host performance thresholds: buffer manager, locks, memory grants, statistics."
+
+applicability:
+  requires_any:
+    - sql.page_life_expectancy
+    - sql.buffer_cache_hit_ratio
+    - sql.batch_requests_per_sec
+    - sql.deadlocks_per_sec
+
+recommendations:
+  tune-sql-memory:
+    priority: high
+    text: "Increase the SQL Server max server memory setting or add physical RAM to the host."
+    rationale: "Low PLE and high lazy writes indicate the buffer pool is too small for the working set."
+
+  check-query-plans:
+    priority: high
+    text: "Use sys.dm_exec_query_stats and SQL Server Profiler to identify queries driving physical I/O."
+    rationale: "Low buffer cache hit ratio or low PLE typically trace back to a small number of expensive queries."
+
+  check-deadlocks:
+    priority: high
+    text: "Enable the deadlock trace flag (1222) or use Extended Events to capture deadlock graphs."
+    rationale: "Deadlocks require identifying the exact queries and lock order involved."
+
+  review-lock-patterns:
+    priority: medium
+    text: "Review locking patterns in high-contention queries. Consider READ COMMITTED SNAPSHOT isolation."
+    rationale: "Lock contention can often be reduced by adjusting isolation levels or query structure."
+
+  check-memory-grants:
+    priority: high
+    text: "Identify queries requiring large memory grants using sys.dm_exec_query_memory_grants."
+    rationale: "Memory grants pending > 0 means queries are waiting for workspace memory, directly causing latency."
+
+  check-sql-statistics:
+    priority: medium
+    text: "Compare compilation rate against batch requests per second to identify recompile pressure."
+    rationale: "High compile/recompile ratios indicate missing plan cache hits, often from parameter sniffing."
+
+rules:
+  - rule_id: low-page-life-expectancy
+    severity: critical
+    category: sql
+    title: "Low SQL Server Page Life Expectancy"
+    summary: "Buffer pool page life expectancy dropped below 300 seconds (5 minutes)."
+    explanation: |
+      Page Life Expectancy (PLE) measures how long a data page stays in the SQL Server buffer pool
+      before being evicted. The traditional warning threshold is 300 seconds (5 minutes). A low PLE
+      means the buffer pool is too small for the working data set, forcing SQL Server to read pages
+      from disk on each access. This causes a cascade: lazy writes increase, physical reads spike,
+      and disk latency rises. Correlate with Lazy Writes/sec and Physical Disk counters to confirm
+      the diagnosis.
+    conditions:
+      - metric: sql.page_life_expectancy
+        aggregation: avg
+        operator: lt
+        threshold: 300
+        duration_percent: 10
+    recommendations:
+      - tune-sql-memory
+      - check-query-plans
+
+  - rule_id: low-buffer-cache-hit-ratio
+    severity: warning
+    category: sql
+    title: "Low SQL Server buffer cache hit ratio"
+    summary: "Buffer cache hit ratio dropped below 97%, indicating physical read pressure."
+    explanation: |
+      Buffer Cache Hit Ratio measures the percentage of page requests served from the in-memory
+      buffer pool without requiring a physical disk read. Values below 97% indicate that data pages
+      are being evicted and re-read from disk more than expected. While brief dips are normal after
+      SQL Server startup, sustained low ratios point to an undersized buffer pool. Correlate with
+      Page Life Expectancy for confirmation.
+    conditions:
+      - metric: sql.buffer_cache_hit_ratio
+        aggregation: avg
+        operator: lt
+        threshold: 97
+        duration_percent: 10
+    recommendations:
+      - tune-sql-memory
+      - check-query-plans
+
+  - rule_id: high-lazy-writes
+    severity: critical
+    category: sql
+    title: "High SQL Server lazy write rate"
+    summary: "Lazy writes exceeded 20 per second — buffer pool is evicting dirty pages under pressure."
+    explanation: |
+      Lazy writes occur when the SQL Server buffer pool is under memory pressure and the lazy
+      writer background process must evict dirty (modified) pages to disk to free buffer space.
+      A sustained rate above 20 lazy writes/sec is a strong indicator of buffer pool exhaustion.
+      This finding typically accompanies low PLE and low buffer cache hit ratio.
+    conditions:
+      - metric: sql.lazy_writes_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - tune-sql-memory
+
+  - rule_id: deadlocks-detected
+    severity: critical
+    category: sql
+    title: "SQL Server deadlocks detected"
+    summary: "One or more deadlocks occurred during the capture window."
+    explanation: |
+      Number of Deadlocks/sec greater than zero indicates SQL Server detected and resolved
+      deadlock cycles by killing one of the participating transactions. Each deadlock causes
+      a transaction to be rolled back and the application to receive error 1205. Deadlocks
+      indicate a resource lock ordering problem between concurrent transactions that requires
+      code changes or index additions to resolve.
+    conditions:
+      - metric: sql.deadlocks_per_sec
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - check-deadlocks
+      - review-lock-patterns
+
+  - rule_id: memory-grants-pending
+    severity: warning
+    category: sql
+    title: "SQL Server memory grants pending"
+    summary: "Queries are waiting for memory workspace grants — query execution is blocked."
+    explanation: |
+      Memory Grants Pending counts queries waiting for workspace memory (used by hash joins,
+      sorts, and index builds). When this count is greater than zero, queries are blocked from
+      executing because SQL Server cannot allocate the required memory from the buffer pool.
+      This directly causes query latency and can indicate missing indexes forcing hash/sort
+      operations, or an undersized buffer pool.
+    conditions:
+      - metric: sql.memory_grants_pending
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 5
+    recommendations:
+      - check-memory-grants
+      - tune-sql-memory

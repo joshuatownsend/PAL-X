@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore dotnet/Pal.sln
+
+      - name: Build
+        run: dotnet build dotnet/Pal.sln -c Release --no-restore
+
+      - name: Test
+        run: dotnet test dotnet/Pal.sln -c Release --no-build --logger "console;verbosity=normal"
+
+      - name: Validate packs
+        run: |
+          dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- validate-pack --path packs/thresholds/windows-core
+          dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- validate-pack --path packs/thresholds/iis-core
+          dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- validate-pack --path packs/thresholds/sql-host-core
+
+      - name: Validate broken pack exits 4
+        run: |
+          dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- validate-pack --path fixtures/broken-pack
+          if ($LASTEXITCODE -ne 4) { Write-Error "Expected exit code 4 for broken pack"; exit 1 }
+        shell: pwsh
+
+      - name: Run cpu-pressure fixture (determinism check 1)
+        run: dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/cpu-pressure/input.csv --output out/run1 --pack-dir packs/thresholds --now 2026-01-01T00:00:00Z
+
+      - name: Run cpu-pressure fixture (determinism check 2)
+        run: dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/cpu-pressure/input.csv --output out/run2 --pack-dir packs/thresholds --now 2026-01-01T00:00:00Z
+
+      - name: Assert deterministic output
+        run: |
+          $f1 = Get-Content out/run1/input.pal-report.json -Raw
+          $f2 = Get-Content out/run2/input.pal-report.json -Raw
+          if ($f1 -ne $f2) { Write-Error "Report outputs differ between runs — non-determinism detected"; exit 1 }
+          Write-Host "Determinism check passed"
+        shell: pwsh
+
+      - name: Run healthy-server fixture
+        run: dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/healthy-server/input.csv --output out/healthy --pack-dir packs/thresholds --now 2026-01-01T00:00:00Z
+
+      - name: Run disk-latency fixture
+        run: dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/disk-latency/input.csv --output out/disk --pack-dir packs/thresholds --now 2026-01-01T00:00:00Z
+
+      - name: Run memory-pressure fixture with host context
+        run: dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/memory-pressure/input.csv --output out/memory --pack-dir packs/thresholds --host-memory-mb 8192 --host-cpu-count 4 --now 2026-01-01T00:00:00Z
+
+      - name: Verify --html-only --json-only exits 2
+        run: |
+          dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/cpu-pressure/input.csv --output out/bad --html-only --json-only
+          if ($LASTEXITCODE -ne 2) { Write-Error "Expected exit code 2"; exit 1 }
+        shell: pwsh
