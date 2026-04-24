@@ -16,6 +16,7 @@ public sealed class AnalysisJobDto
     public required Guid Id { get; init; }
     public required Guid UploadId { get; init; }
     public required string Status { get; init; }
+    public string? OptionsJson { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
     public DateTimeOffset? StartedAt { get; init; }
     public DateTimeOffset? CompletedAt { get; init; }

@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pal.Application", "src\Pal.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pal.Persistence", "src\Pal.Persistence\Pal.Persistence.csproj", "{A1B2C3D4-0007-0000-0000-000000000007}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pal.Api", "src\Pal.Api\Pal.Api.csproj", "{A1B2C3D4-0008-0000-0000-000000000008}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pal.Cli", "src\Pal.Cli\Pal.Cli.csproj", "{A1B2C3D4-0005-0000-0000-000000000005}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pal.Engine.Tests", "tests\Pal.Engine.Tests\Pal.Engine.Tests.csproj", "{A1B2C3D4-0011-0000-0000-000000000011}"
@@ -61,6 +63,10 @@ Global
         {A1B2C3D4-0007-0000-0000-000000000007}.Debug|Any CPU.Build.0 = Debug|Any CPU
         {A1B2C3D4-0007-0000-0000-000000000007}.Release|Any CPU.ActiveCfg = Release|Any CPU
         {A1B2C3D4-0007-0000-0000-000000000007}.Release|Any CPU.Build.0 = Release|Any CPU
+        {A1B2C3D4-0008-0000-0000-000000000008}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+        {A1B2C3D4-0008-0000-0000-000000000008}.Debug|Any CPU.Build.0 = Debug|Any CPU
+        {A1B2C3D4-0008-0000-0000-000000000008}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {A1B2C3D4-0008-0000-0000-000000000008}.Release|Any CPU.Build.0 = Release|Any CPU
         {A1B2C3D4-0011-0000-0000-000000000011}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
         {A1B2C3D4-0011-0000-0000-000000000011}.Debug|Any CPU.Build.0 = Debug|Any CPU
         {A1B2C3D4-0011-0000-0000-000000000011}.Release|Any CPU.ActiveCfg = Release|Any CPU

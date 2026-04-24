@@ -1,0 +1,79 @@
+@page "/jobs/{Id:guid}"
+@inject IAnalysisRepository AnalysisRepo
+@implements IDisposable
+
+<PageTitle>Job @Id.ToString("N")[..8]</PageTitle>
+
+@if (_job is null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <h1>Job <code>@_job.Id.ToString("N")[..8]</code></h1>
+    <div class="job-meta">
+        <p>Status: <span class="status-badge status-@_job.Status">@_job.Status</span></p>
+        <p>Created: @_job.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")</p>
+        @if (_job.StartedAt is not null)
+        {
+            <p>Started: @_job.StartedAt.Value.LocalDateTime.ToString("HH:mm:ss")</p>
+        }
+        @if (_job.CompletedAt is not null)
+        {
+            <p>Completed: @_job.CompletedAt.Value.LocalDateTime.ToString("HH:mm:ss")</p>
+        }
+        @if (_job.FailureReason is not null)
+        {
+            <p class="error">Failure: @_job.FailureReason</p>
+        }
+        <p>Packs: @string.Join(", ", _job.Packs.Select(p => $"{p.PackId} v{p.PackVersion}"))</p>
+    </div>
+
+    @if (_job.Status == "completed" && _result is not null)
+    {
+        <div class="report-links">
+            <a href="/analysis/@_job.Id/report?format=json" target="_blank">Download JSON Report</a>
+            &nbsp;|&nbsp;
+            <a href="/analysis/@_job.Id/report?format=html" target="_blank">Download HTML Report</a>
+        </div>
+
+        <FindingsExplorer FindingsJson="@_result.FindingsJson" />
+    }
+    else if (_job.Status is "queued" or "running")
+    {
+        <p>Analysis in progress...</p>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private AnalysisJobDto? _job;
+    private AnalysisResultDto? _result;
+    private Timer? _timer;
+
+    protected override async Task OnInitializedAsync() => await RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        _job = await AnalysisRepo.GetJobAsync(Id);
+        if (_job?.Status == "completed")
+            _result = await AnalysisRepo.GetResultAsync(Id);
+
+        if (_job?.Status is "queued" or "running")
+        {
+            _timer ??= new Timer(async _ =>
+            {
+                await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+        }
+        else
+        {
+            _timer?.Dispose();
+            _timer = null;
+        }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

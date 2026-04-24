@@ -1,0 +1,87 @@
+@page "/jobs"
+@inject IAnalysisRepository AnalysisRepo
+@implements IDisposable
+
+<PageTitle>Analysis Jobs</PageTitle>
+<h1>Analysis Jobs</h1>
+
+<div class="filter-row">
+    <label>Status:
+        <select @bind="_statusFilter" @bind:after="LoadJobsAsync">
+            <option value="">All</option>
+            <option value="queued">Queued</option>
+            <option value="running">Running</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+        </select>
+    </label>
+</div>
+
+@if (_jobs is null)
+{
+    <p>Loading...</p>
+}
+else if (_jobs.Count == 0)
+{
+    <p>No jobs found. <a href="/submit">Submit an analysis</a>.</p>
+}
+else
+{
+    <table class="jobs-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Packs</th>
+                <th>Created</th>
+                <th>Duration</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var job in _jobs)
+            {
+                <tr @onclick="() => NavTo(job.Id)" style="cursor:pointer">
+                    <td><code>@job.Id.ToString("N")[..8]</code></td>
+                    <td><span class="status-badge status-@job.Status">@job.Status</span></td>
+                    <td>@string.Join(", ", job.Packs.Select(p => p.PackId))</td>
+                    <td>@job.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@Duration(job)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<AnalysisJobDto>? _jobs;
+    private string _statusFilter = "";
+    private Timer? _timer;
+
+    [Inject] private NavigationManager Nav { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobsAsync();
+        _timer = new Timer(async _ =>
+        {
+            await LoadJobsAsync();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    private async Task LoadJobsAsync()
+    {
+        _jobs = (await AnalysisRepo.ListJobsAsync(string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter)).ToList();
+    }
+
+    private void NavTo(Guid id) => Nav.NavigateTo($"/jobs/{id}");
+
+    private static string Duration(AnalysisJobDto job)
+    {
+        if (job.CompletedAt is null || job.StartedAt is null) return "—";
+        var span = job.CompletedAt.Value - job.StartedAt.Value;
+        return span.TotalSeconds < 60 ? $"{span.TotalSeconds:F1}s" : $"{span.TotalMinutes:F1}m";
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

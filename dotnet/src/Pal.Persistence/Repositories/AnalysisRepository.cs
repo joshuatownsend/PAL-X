@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pal.Application.Persistence;
 using Pal.Persistence.Entities;
@@ -18,6 +19,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
             Id = Guid.NewGuid(),
             UploadId = uploadId,
             Status = "queued",
+            OptionsJson = JsonSerializer.Serialize(new { requestedPacks = packIds }),
             CreatedAt = DateTimeOffset.UtcNow
         };
         db.AnalysisJobs.Add(job);
@@ -177,6 +179,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
         Id = j.Id,
         UploadId = j.UploadId,
         Status = j.Status,
+        OptionsJson = j.OptionsJson,
         CreatedAt = j.CreatedAt,
         StartedAt = j.StartedAt,
         CompletedAt = j.CompletedAt,

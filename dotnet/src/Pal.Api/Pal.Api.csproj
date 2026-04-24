@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>Pal.Api</RootNamespace>
+    <AssemblyName>pal-api</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pal.Application\Pal.Application.csproj" />
+    <ProjectReference Include="..\Pal.Persistence\Pal.Persistence.csproj" />
+    <ProjectReference Include="..\Pal.Reporting\Pal.Reporting.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,35 @@
+body { font-family: system-ui, sans-serif; margin: 0; background: #f5f5f5; }
+.page { display: flex; min-height: 100vh; }
+.sidebar { width: 200px; background: #1e293b; color: #e2e8f0; padding: 1rem; flex-shrink: 0; }
+.nav-brand { font-size: 1.4rem; font-weight: 700; margin-bottom: 1.5rem; }
+.nav-links { list-style: none; padding: 0; margin: 0; }
+.nav-links li { margin-bottom: 0.5rem; }
+.nav-links a { color: #94a3b8; text-decoration: none; display: block; padding: 0.4rem 0.6rem; border-radius: 4px; }
+.nav-links a:hover, .nav-links a.active { background: #334155; color: #fff; }
+.content { flex: 1; padding: 2rem; }
+h1 { margin-top: 0; }
+.form-section { max-width: 600px; display: flex; flex-direction: column; gap: 1rem; }
+.form-section label { font-weight: 600; }
+.pack-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.pack-option { font-weight: normal; display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+.version { color: #64748b; font-size: 0.85em; }
+.btn-submit { padding: 0.6rem 1.5rem; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 1rem; width: fit-content; }
+.btn-submit:disabled { background: #94a3b8; cursor: default; }
+.error { color: #dc2626; }
+.jobs-table, .findings-table { width: 100%; border-collapse: collapse; background: #fff; }
+.jobs-table th, .jobs-table td, .findings-table th, .findings-table td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #e2e8f0; text-align: left; }
+.jobs-table tr:hover { background: #f8fafc; }
+.status-badge { padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
+.status-queued { background: #dbeafe; color: #1d4ed8; }
+.status-running { background: #fef9c3; color: #92400e; }
+.status-completed { background: #dcfce7; color: #166534; }
+.status-failed { background: #fee2e2; color: #991b1b; }
+.sev-badge { padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.8rem; }
+.sev-critical, .sev-badge.sev-critical { background: #fee2e2; color: #991b1b; }
+.sev-warning, .sev-badge.sev-warning { background: #fef3c7; color: #92400e; }
+.sev-informational, .sev-badge.sev-informational { background: #dbeafe; color: #1e40af; }
+.finding-detail td { background: #f8fafc; font-size: 0.9em; color: #475569; }
+.filter-row { margin-bottom: 1rem; }
+.job-meta { background: #fff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+.report-links { margin-bottom: 1rem; }
+.healthy { color: #166534; font-weight: 600; }
