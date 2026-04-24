@@ -1,0 +1,81 @@
+@using System.Text.Json
+
+<div class="findings-explorer">
+    <h2>Findings</h2>
+
+    @if (_findings.Count == 0)
+    {
+        <p class="healthy">No findings — dataset is within expected parameters.</p>
+    }
+    else
+    {
+        <div class="filter-row">
+            <select @bind="_severityFilter">
+                <option value="">All severities</option>
+                <option value="critical">Critical</option>
+                <option value="warning">Warning</option>
+                <option value="informational">Informational</option>
+            </select>
+        </div>
+
+        <table class="findings-table">
+            <thead>
+                <tr>
+                    <th>Severity</th>
+                    <th>Category</th>
+                    <th>Title</th>
+                    <th>Pack</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var f in Filtered)
+                {
+                    <tr class="sev-@f.Severity">
+                        <td><span class="sev-badge sev-@f.Severity">@f.Severity</span></td>
+                        <td>@f.Category</td>
+                        <td>@f.Title</td>
+                        <td>@f.PackId</td>
+                    </tr>
+                    @if (!string.IsNullOrWhiteSpace(f.Summary))
+                    {
+                        <tr class="finding-detail">
+                            <td colspan="4">@f.Summary</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required string FindingsJson { get; set; }
+
+    private List<FindingRow> _findings = [];
+    private string _severityFilter = "";
+
+    private IEnumerable<FindingRow> Filtered => string.IsNullOrEmpty(_severityFilter)
+        ? _findings
+        : _findings.Where(f => f.Severity == _severityFilter);
+
+    private static readonly JsonSerializerOptions FindingDeserializeOptions =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+
+    protected override void OnParametersSet()
+    {
+        try
+        {
+            _findings = JsonSerializer.Deserialize<List<FindingRow>>(FindingsJson, FindingDeserializeOptions) ?? [];
+        }
+        catch { _findings = []; }
+    }
+
+    private sealed class FindingRow
+    {
+        public string Severity { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string? Summary { get; set; }
+        public string PackId { get; set; } = "";
+    }
+}

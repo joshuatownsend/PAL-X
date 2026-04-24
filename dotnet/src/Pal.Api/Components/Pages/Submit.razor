@@ -1,0 +1,106 @@
+@page "/submit"
+@using System.Threading.Channels
+@using Pal.Application.Storage
+@inject IPackRepository PackRepo
+@inject IUploadRepository UploadRepo
+@inject IAnalysisRepository AnalysisRepo
+@inject IStorageProvider Storage
+@inject Channel<Guid> WorkerChannel
+@inject NavigationManager Nav
+
+<PageTitle>Submit Analysis</PageTitle>
+<h1>Submit Analysis</h1>
+
+@if (_packs.Count == 0)
+{
+    <p>Loading packs...</p>
+}
+else
+{
+    <div class="form-section">
+        <label><strong>Pack(s)</strong></label>
+        <div class="pack-list">
+            @foreach (var pack in _packs)
+            {
+                <label class="pack-option">
+                    <input type="checkbox"
+                           checked="@_selectedPacks.Contains(pack.Id)"
+                           @onchange="e => TogglePack(pack.Id, (bool)e.Value!)" />
+                    @pack.Title <span class="version">v@pack.CurrentVersion</span>
+                </label>
+            }
+        </div>
+
+        <label><strong>Dataset File</strong></label>
+        <InputFile OnChange="e => _file = e.File" accept=".csv,.blg" />
+
+        @if (_error is not null)
+        {
+            <p class="error">@_error</p>
+        }
+
+        <button class="btn-submit"
+                disabled="@(_file is null || _selectedPacks.Count == 0 || _submitting)"
+                @onclick="SubmitAsync">
+            @(_submitting ? "Submitting..." : "Analyze")
+        </button>
+    </div>
+}
+
+@code {
+    private List<PackSummaryDto> _packs = [];
+    private readonly HashSet<string> _selectedPacks = [];
+    private IBrowserFile? _file;
+    private string? _error;
+    private bool _submitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _packs = (await PackRepo.ListPacksAsync()).ToList();
+        if (_packs.Count == 1)
+            _selectedPacks.Add(_packs[0].Id);
+    }
+
+    private void TogglePack(string id, bool selected)
+    {
+        if (selected) _selectedPacks.Add(id);
+        else _selectedPacks.Remove(id);
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_file is null || _selectedPacks.Count == 0) return;
+        _submitting = true;
+        _error = null;
+        StateHasChanged();
+
+        try
+        {
+            await using var stream = _file.OpenReadStream(maxAllowedSize: 536_870_912);
+            var (sha256, tempPath, sizeBytes) = await Storage.WriteToTempAsync(stream);
+
+            UploadDto upload;
+            var existing = await UploadRepo.FindBySha256Async(sha256);
+            if (existing is not null)
+            {
+                Storage.DeleteTemp(tempPath);
+                upload = existing;
+            }
+            else
+            {
+                var rel = await Storage.CommitUploadAsync(tempPath, sha256, _file.Name);
+                var sourceType = Path.GetExtension(_file.Name).TrimStart('.').ToLowerInvariant();
+                upload = await UploadRepo.CreateAsync(_file.Name, sourceType, sizeBytes, sha256, rel);
+            }
+
+            var job = await AnalysisRepo.CreateJobAsync(upload.Id, _selectedPacks.ToList());
+            WorkerChannel.Writer.TryWrite(job.Id);
+            Nav.NavigateTo($"/jobs/{job.Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _submitting = false;
+        }
+    }
+}

@@ -1,0 +1,14 @@
+@inherits LayoutComponentBase
+
+<div class="page">
+    <nav class="sidebar">
+        <div class="nav-brand">PAL</div>
+        <ul class="nav-links">
+            <li><NavLink href="/submit" Match="NavLinkMatch.All">Submit Analysis</NavLink></li>
+            <li><NavLink href="/jobs">Jobs</NavLink></li>
+        </ul>
+    </nav>
+    <main class="content">
+        @Body
+    </main>
+</div>

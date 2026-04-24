@@ -39,6 +39,13 @@ public sealed class JsonReportWriter
         writer.Write(JsonSerializer.Serialize(doc, JsonOptions));
     }
 
+    public void WriteToStream(WriteInput input, Stream destination)
+    {
+        var doc = BuildDocument(input);
+        using var writer = new StreamWriter(destination, new UTF8Encoding(false), leaveOpen: true);
+        writer.Write(JsonSerializer.Serialize(doc, JsonOptions));
+    }
+
     private static object BuildDocument(WriteInput input)
     {
         var overall = StatusClassifier.ClassifyOverall(input.Findings);
