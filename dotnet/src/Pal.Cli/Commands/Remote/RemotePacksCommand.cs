@@ -11,7 +11,7 @@ public sealed class RemotePacksCommand : AsyncCommand<RemotePacksCommand.Setting
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
     {
-        using var client = settings.CreateClient();
+        using var client = RemoteHttpClient.Create(settings.ApiBase);
         var resp = await client.GetAsync("packs");
         resp.EnsureSuccessStatusCode();
 

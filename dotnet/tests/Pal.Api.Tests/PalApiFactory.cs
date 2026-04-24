@@ -26,6 +26,8 @@ public sealed class PalApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         Directory.CreateDirectory(_packsRoot);
     }
 
+    // WebApplicationFactory<T>.DisposeAsync() returns ValueTask (IAsyncDisposable);
+    // IAsyncLifetime.DisposeAsync() requires Task — incompatible return types, so `new` is the only option.
     public new async Task DisposeAsync()
     {
         await base.DisposeAsync();

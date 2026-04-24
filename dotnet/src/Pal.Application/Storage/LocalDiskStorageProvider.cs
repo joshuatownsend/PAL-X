@@ -65,8 +65,5 @@ public sealed class LocalDiskStorageProvider : IStorageProvider
 
     public Stream OpenReport(string relativePath) => File.OpenRead(Path.Combine(_root, relativePath));
 
-    public void DeleteTemp(string tempPath)
-    {
-        if (File.Exists(tempPath)) File.Delete(tempPath);
-    }
+    public void DeleteTemp(string tempPath) => File.Delete(tempPath);
 }

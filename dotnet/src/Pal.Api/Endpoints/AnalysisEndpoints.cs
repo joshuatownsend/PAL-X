@@ -74,7 +74,7 @@ public static class AnalysisEndpoints
             string contentType = format == "html" ? "text/html; charset=utf-8" : "application/json; charset=utf-8";
             var stream = storage.OpenReport(report.StoragePath);
             return Results.Stream(stream, contentType,
-                fileDownloadName: $"pal-report-{id:N}.{(format == "html" ? "html" : "json")}");
+                fileDownloadName: $"pal-report-{id:N}.{format}");
         })
         .WithName("GetReport")
         .WithTags("Analysis");

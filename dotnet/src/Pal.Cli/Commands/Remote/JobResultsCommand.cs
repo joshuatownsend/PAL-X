@@ -8,6 +8,7 @@ namespace Pal.Cli.Commands.Remote;
 
 public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
 {
+    private static readonly JsonSerializerOptions IndentedOptions = new() { WriteIndented = true };
     public sealed class Settings : RemoteSettings
     {
         [CommandArgument(0, "<job-id>")]
@@ -27,7 +28,7 @@ public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
             return ExitCodes.InvalidArguments;
         }
 
-        using var client = settings.CreateClient();
+        using var client = RemoteHttpClient.Create(settings.ApiBase);
         var resp = await client.GetAsync($"analysis/{id}/results");
 
         if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
@@ -46,11 +47,10 @@ public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
 
         if (settings.Json)
         {
-            Console.WriteLine(JsonSerializer.Serialize(doc, new JsonSerializerOptions { WriteIndented = true }));
+            Console.WriteLine(JsonSerializer.Serialize(doc, IndentedOptions));
             return ExitCodes.Success;
         }
 
-        // Summary table
         if (doc.TryGetProperty("summaryJson", out var summaryEl))
         {
             var summary = JsonSerializer.Deserialize<JsonElement>(summaryEl.GetString()!);
@@ -58,7 +58,6 @@ public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
                 AnsiConsole.MarkupLine($"Overall status: [{StatusColor(st.GetString())}]{st.GetString()}[/]");
         }
 
-        // Findings table
         if (doc.TryGetProperty("findingsJson", out var findingsEl))
         {
             var findings = JsonSerializer.Deserialize<JsonElement[]>(findingsEl.GetString()!) ?? [];

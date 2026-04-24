@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using Pal.Application.Analysis;
 using Pal.Application.Persistence;
 using Pal.Application.Storage;
+using Pal.Engine.Scoring;
 using Pal.Reporting.Html;
 using Pal.Reporting.Json;
 
@@ -11,6 +12,9 @@ namespace Pal.Api.Worker;
 
 public sealed class AnalysisWorker : BackgroundService
 {
+    private static readonly JsonSerializerOptions FindingsJsonOptions =
+        new() { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
+
     private readonly Channel<Guid> _channel;
     private readonly IAnalysisRepository _analysisRepo;
     private readonly IUploadRepository _uploadRepo;
@@ -92,7 +96,6 @@ public sealed class AnalysisWorker : BackgroundService
                 HostContextSidecarPath = null
             });
 
-            // Record the exact pack versions used
             var packVersions = runResult.PackResolutions.Select(r => new JobPackDto
             {
                 PackId = r.PackId,
@@ -100,13 +103,10 @@ public sealed class AnalysisWorker : BackgroundService
             }).ToList();
             await _analysisRepo.SetJobPackVersionsAsync(jobId, packVersions, ct);
 
-            // Serialize and store results
             var summaryJson = BuildSummaryJson(runResult);
-            var findingsJson = JsonSerializer.Serialize(runResult.Findings,
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower });
+            var findingsJson = JsonSerializer.Serialize(runResult.Findings, FindingsJsonOptions);
             await _analysisRepo.SaveResultAsync(jobId, summaryJson, findingsJson, ct);
 
-            // Generate and store reports
             await GenerateAndStoreReportsAsync(jobId, runResult, upload, ct);
 
             await _analysisRepo.MarkCompletedAsync(jobId, ct);
@@ -119,7 +119,7 @@ public sealed class AnalysisWorker : BackgroundService
         }
     }
 
-    private static IReadOnlyList<string> ParseRequestedPacks(AnalysisJobDto job)
+    private IReadOnlyList<string> ParseRequestedPacks(AnalysisJobDto job)
     {
         if (job.OptionsJson is null) return [];
         try
@@ -128,23 +128,23 @@ public sealed class AnalysisWorker : BackgroundService
             if (doc.TryGetProperty("requestedPacks", out var arr))
                 return arr.EnumerateArray().Select(e => e.GetString()!).ToList();
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse OptionsJson for job {JobId}", job.Id);
+        }
         return [];
     }
 
     private static string BuildSummaryJson(AnalysisRunResult result)
     {
-        int c = 0, w = 0, i = 0;
-        foreach (var f in result.Findings)
-            if (f.Severity == "critical") c++;
-            else if (f.Severity == "warning") w++;
-            else i++;
-
-        string highest = c > 0 ? "critical" : w > 0 ? "warning" : "healthy";
+        var c = result.Findings.Count(f => f.Severity == "critical");
+        var w = result.Findings.Count(f => f.Severity == "warning");
+        var i = result.Findings.Count(f => f.Severity == "informational");
+        var status = StatusClassifier.ClassifyOverall(result.Findings).ToString().ToLowerInvariant();
         return JsonSerializer.Serialize(new
         {
             finding_counts = new { critical = c, warning = w, informational = i },
-            highest_severity = highest
+            highest_severity = status
         });
     }
 
@@ -169,14 +169,12 @@ public sealed class AnalysisWorker : BackgroundService
             GeneratedAt = DateTimeOffset.UtcNow
         };
 
-        // JSON report
         using var jsonMs = new MemoryStream();
         new JsonReportWriter().WriteToStream(writeInput, jsonMs);
         var jsonBytes = jsonMs.ToArray();
         var jsonPath = await _storage.WriteReportAsync(jobId, "json", jsonBytes, ct);
         await _analysisRepo.SaveReportAsync(jobId, "json", jsonPath, jsonBytes.Length, ct);
 
-        // HTML report
         using var htmlMs = new MemoryStream();
         HtmlReportWriter.WriteToStream(writeInput, htmlMs);
         var htmlBytes = htmlMs.ToArray();

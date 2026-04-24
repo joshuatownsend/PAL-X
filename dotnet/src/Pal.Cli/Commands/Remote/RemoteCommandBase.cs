@@ -9,6 +9,10 @@ public abstract class RemoteSettings : CommandSettings
     [Description("Base URL of the PAL API server")]
     [DefaultValue("http://localhost:8080")]
     public string ApiBase { get; init; } = "http://localhost:8080";
+}
 
-    public HttpClient CreateClient() => new() { BaseAddress = new Uri(ApiBase.TrimEnd('/') + "/") };
+internal static class RemoteHttpClient
+{
+    public static HttpClient Create(string apiBase) =>
+        new() { BaseAddress = new Uri(apiBase.TrimEnd('/') + "/") };
 }

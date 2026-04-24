@@ -26,9 +26,8 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
             return ExitCodes.InvalidArguments;
         }
 
-        using var client = settings.CreateClient();
+        using var client = RemoteHttpClient.Create(settings.ApiBase);
 
-        // 1. Upload the file
         Guid uploadId;
         await using (var fs = System.IO.File.OpenRead(settings.File))
         {
@@ -48,7 +47,6 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
             AnsiConsole.MarkupLine($"[grey]Upload id:[/] {uploadId}");
         }
 
-        // 2. Create the analysis job
         var jobResp = await client.PostAsJsonAsync("analysis", new
         {
             uploadId,

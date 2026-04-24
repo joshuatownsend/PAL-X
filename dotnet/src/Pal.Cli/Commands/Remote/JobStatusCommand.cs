@@ -23,7 +23,7 @@ public sealed class JobStatusCommand : AsyncCommand<JobStatusCommand.Settings>
             return ExitCodes.InvalidArguments;
         }
 
-        using var client = settings.CreateClient();
+        using var client = RemoteHttpClient.Create(settings.ApiBase);
         var resp = await client.GetAsync($"analysis/{id}");
         if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
