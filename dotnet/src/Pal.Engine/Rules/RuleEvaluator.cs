@@ -47,7 +47,6 @@ public static class RuleEvaluator
             };
         }
 
-        // duration_percent evaluation: check each sample, compute % satisfying the condition
         var validSamples = series.Samples.Where(s => s.Value.HasValue).ToList();
         if (validSamples.Count == 0)
         {

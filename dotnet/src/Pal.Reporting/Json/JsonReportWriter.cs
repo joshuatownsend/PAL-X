@@ -54,6 +54,7 @@ public sealed class JsonReportWriter
             warnings.Add(new { code = w.Code, message = w.Message, severity = w.Severity });
 
         string analysisStatus = warnings.Count > 0 ? "completed_with_warnings" : "completed";
+        var (nCrit, nWarn, nInfo) = CountSeverities(input.Findings);
 
         return new
         {
@@ -102,9 +103,9 @@ public sealed class JsonReportWriter
                 overall_status = overall.ToString().ToLowerInvariant(),
                 finding_counts = new
                 {
-                    critical = input.Findings.Count(f => f.Severity == "critical"),
-                    warning = input.Findings.Count(f => f.Severity == "warning"),
-                    informational = input.Findings.Count(f => f.Severity == "informational")
+                    critical = nCrit,
+                    warning = nWarn,
+                    informational = nInfo
                 },
                 category_statuses = byCategory.ToDictionary(
                     kv => kv.Key,
@@ -189,6 +190,16 @@ public sealed class JsonReportWriter
         trend_per_hour = s.TrendPerHour,
         missing_sample_count = s.MissingSampleCount
     };
+
+    private static (int critical, int warning, int info) CountSeverities(IReadOnlyList<Finding> findings)
+    {
+        int c = 0, w = 0, i = 0;
+        foreach (var f in findings)
+            if (f.Severity == "critical") c++;
+            else if (f.Severity == "warning") w++;
+            else i++;
+        return (c, w, i);
+    }
 
     private static string ComputeReportId(string inputPath, IReadOnlyList<PackResolutionInfo> packs)
     {

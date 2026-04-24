@@ -13,7 +13,7 @@ public static class SeriesStatisticsCalculator
             .ToList();
 
         int total = samples.Count;
-        int missing = samples.Count(s => !s.Value.HasValue);
+        int missing = total - values.Count;
 
         if (values.Count == 0)
         {

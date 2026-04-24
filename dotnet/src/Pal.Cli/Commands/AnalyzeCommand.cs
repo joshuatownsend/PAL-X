@@ -206,9 +206,11 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
         }
 
         var findings = engineResult.Findings;
-        int criticals = findings.Count(f => f.Severity == "critical");
-        int warnings = findings.Count(f => f.Severity == "warning");
-        int infos = findings.Count(f => f.Severity == "informational");
+        int criticals = 0, warnings = 0, infos = 0;
+        foreach (var f in findings)
+            if (f.Severity == "critical") criticals++;
+            else if (f.Severity == "warning") warnings++;
+            else infos++;
         AnsiConsole.MarkupLine($"\nFindings:  [bold]{findings.Count}[/] ({criticals} critical, {warnings} warning, {infos} informational)");
 
         // Write reports

@@ -24,6 +24,7 @@ public sealed class PackResolver
         var availablePacks = DiscoverPacks(searchPaths);
         var errors = new List<string>();
         var selected = new List<(Pack pack, string mode)>();
+        var loadedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (explicitPackIds.Count > 0)
         {
@@ -35,30 +36,31 @@ public sealed class PackResolver
                     continue;
                 }
                 var pack = LoadAndValidate(packPath, errors);
-                if (pack is not null) selected.Add((pack, "explicit"));
+                if (pack is not null) { selected.Add((pack, "explicit")); loadedIds.Add(pack.PackId); }
             }
         }
         else
         {
-            // Default: always load windows-core if present
             if (availablePacks.TryGetValue("windows-core", out var wcPath))
             {
                 var pack = LoadAndValidate(wcPath, errors);
-                if (pack is not null) selected.Add((pack, "auto"));
+                if (pack is not null) { selected.Add((pack, "auto")); loadedIds.Add(pack.PackId); }
             }
 
             if (autoResolve && presentMetrics is not null)
             {
                 foreach (var (id, path) in availablePacks)
                 {
-                    if (id == "windows-core") continue;
-                    if (selected.Any(s => s.pack.PackId == id)) continue;
+                    if (loadedIds.Contains(id)) continue;
 
                     var pack = LoadAndValidate(path, errors);
                     if (pack is null) continue;
 
                     if (IsApplicable(pack, presentMetrics))
+                    {
                         selected.Add((pack, "auto"));
+                        loadedIds.Add(pack.PackId);
+                    }
                 }
             }
         }

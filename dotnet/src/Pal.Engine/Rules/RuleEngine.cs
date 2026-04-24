@@ -61,13 +61,9 @@ public sealed class RuleEngine
             yield break;
         }
 
-        // Check rule applicability guard
         if (!IsApplicable(rule.AppliesWhen, dataset))
             yield break;
 
-        // Find candidate series for each condition
-        // Currently: each condition targets one metric; all conditions must fire on matching series
-        // For a finding, we require ALL conditions to be satisfied
         var conditionResults = new List<(TimeSeries series, RuleEvaluator.Result result, Condition condition)>();
 
         foreach (var condition in rule.Conditions)
@@ -94,7 +90,6 @@ public sealed class RuleEngine
                 yield break; // This condition not satisfied — all conditions required
         }
 
-        // Build finding
         var evidenceMetrics = conditionResults.Select(cr => new EvidenceMetric
         {
             SeriesId = cr.series.SeriesId,

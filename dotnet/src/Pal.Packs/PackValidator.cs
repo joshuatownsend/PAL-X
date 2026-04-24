@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Pal.Engine.Model;
 
 namespace Pal.Packs;
@@ -25,13 +26,13 @@ public sealed class PackValidator
 
         if (string.IsNullOrWhiteSpace(pack.PackId))
             errors.Add("pack_id is required");
-        else if (!System.Text.RegularExpressions.Regex.IsMatch(pack.PackId, @"^[a-z][a-z0-9-]*$"))
+        else if (!Regex.IsMatch(pack.PackId, @"^[a-z][a-z0-9-]*$"))
             errors.Add($"pack_id '{pack.PackId}' must be kebab-case (lowercase letters, digits, hyphens)");
 
         if (string.IsNullOrWhiteSpace(pack.PackName))
             errors.Add("pack_name is required");
 
-        if (!System.Text.RegularExpressions.Regex.IsMatch(pack.Version ?? "", @"^\d+\.\d+\.\d+$"))
+        if (!Regex.IsMatch(pack.Version ?? "", @"^\d+\.\d+\.\d+$"))
             errors.Add($"version '{pack.Version}' must be semver (e.g., 1.0.0)");
 
         var ruleIds = new HashSet<string>();

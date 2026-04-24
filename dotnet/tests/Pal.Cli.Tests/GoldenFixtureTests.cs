@@ -35,12 +35,13 @@ public class GoldenFixtureTests
 
         var (findings, _) = RunAnalysis("cpu-pressure", [], null, null);
         var sorted = findings.ToList();
+        string[] severityOrder = ["critical", "warning", "informational"];
 
         for (int i = 1; i < sorted.Count; i++)
         {
-            int prevRank = SeverityRank(sorted[i - 1].Severity);
-            int curRank = SeverityRank(sorted[i].Severity);
-            Assert.True(prevRank >= curRank, $"Finding {i} has higher severity than {i-1}");
+            int prevRank = Array.IndexOf(severityOrder, sorted[i - 1].Severity);
+            int curRank = Array.IndexOf(severityOrder, sorted[i].Severity);
+            Assert.True(prevRank <= curRank, $"Finding {i - 1} should have severity >= finding {i}");
         }
     }
 
@@ -177,11 +178,6 @@ public class GoldenFixtureTests
         var result = engine.Run(resolveResult.Packs, dataset);
         return (result.Findings, result.Warnings);
     }
-
-    private static int SeverityRank(string sev) => sev switch
-    {
-        "critical" => 3, "warning" => 2, "informational" => 1, _ => 0
-    };
 
     private static string? FindRepoRoot()
     {
