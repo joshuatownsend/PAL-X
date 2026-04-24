@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: pal
+      POSTGRES_USER: pal
+      POSTGRES_PASSWORD: paldev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pal -d pal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=pal;Username=pal;Password=paldev"
+      Storage__LocalRoot: /data/storage
+      Packs__Directory: /app/packs/thresholds
+    volumes:
+      - api_data:/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  api_data:

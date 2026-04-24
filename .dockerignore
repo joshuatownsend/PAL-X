@@ -1,0 +1,11 @@
+**/.git
+**/.vs
+**/bin
+**/obj
+**/.env*
+dotnet/tests/
+legacy/
+docs/
+fixtures/
+out/
+**/artifacts/
