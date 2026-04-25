@@ -24,11 +24,14 @@ public sealed class CsvCollector
 
     public CollectResult Collect(string filePath, string? machineName = null, string? timeZone = null)
     {
-        var fileBytes = File.ReadAllBytes(filePath);
-        var hashBytes = SHA256.HashData(fileBytes);
-        string inputDigest = Convert.ToHexString(hashBytes).ToLowerInvariant();
+        string inputDigest;
+        using (var hashStream = File.OpenRead(filePath))
+        {
+            var hashBytes = SHA256.HashData(hashStream);
+            inputDigest = Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
 
-        using var reader = new StreamReader(new MemoryStream(fileBytes), new UTF8Encoding(false));
+        using var reader = new StreamReader(File.OpenRead(filePath), new UTF8Encoding(false));
         var lines = ReadAllLines(reader);
 
         if (lines.Count < 2)

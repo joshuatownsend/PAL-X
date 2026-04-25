@@ -184,28 +184,28 @@ public class GoldenFixtureTests
     [Fact]
     public void HealthyServer_JsonReport_MatchesGolden()
     {
-        if (RepoRoot is null) return;
+        Assert.NotNull(RepoRoot);
         AssertMatchesGolden("healthy-server", null, null);
     }
 
     [Fact]
     public void CpuPressure_JsonReport_MatchesGolden()
     {
-        if (RepoRoot is null) return;
+        Assert.NotNull(RepoRoot);
         AssertMatchesGolden("cpu-pressure", null, null);
     }
 
     [Fact]
     public void DiskLatency_JsonReport_MatchesGolden()
     {
-        if (RepoRoot is null) return;
+        Assert.NotNull(RepoRoot);
         AssertMatchesGolden("disk-latency", null, null);
     }
 
     [Fact]
     public void MemoryPressure_JsonReport_MatchesGolden()
     {
-        if (RepoRoot is null) return;
+        Assert.NotNull(RepoRoot);
         AssertMatchesGolden("memory-pressure", 8192, 4);
     }
 
