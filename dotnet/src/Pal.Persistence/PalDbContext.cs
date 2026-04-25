@@ -15,6 +15,7 @@ public sealed class PalDbContext : DbContext
     public DbSet<PackEntity> Packs => Set<PackEntity>();
     public DbSet<PackVersionEntity> PackVersions => Set<PackVersionEntity>();
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
+    public DbSet<CompareResultEntity> CompareResults => Set<CompareResultEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -75,6 +76,19 @@ public sealed class PalDbContext : DbContext
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.EventType, x.CreatedAt });
+        });
+
+        modelBuilder.Entity<CompareResultEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasOne(x => x.BaselineJob)
+                .WithMany()
+                .HasForeignKey(x => x.BaselineJobId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(x => x.CandidateJob)
+                .WithMany()
+                .HasForeignKey(x => x.CandidateJobId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

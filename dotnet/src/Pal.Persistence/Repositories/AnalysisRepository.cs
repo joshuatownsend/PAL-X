@@ -178,6 +178,27 @@ public sealed class AnalysisRepository : IAnalysisRepository
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task SetBaselineAsync(Guid jobId, bool isBaseline, string? label, CancellationToken ct = default)
+    {
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        await db.AnalysisJobs
+            .Where(j => j.Id == jobId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(j => j.IsBaseline, isBaseline)
+                .SetProperty(j => j.BaselineLabel, isBaseline ? label : null), ct);
+    }
+
+    public async Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(CancellationToken ct = default)
+    {
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        var jobs = await db.AnalysisJobs
+            .Include(j => j.Packs)
+            .Where(j => j.IsBaseline)
+            .OrderByDescending(j => j.CreatedAt)
+            .ToListAsync(ct);
+        return jobs.Select(j => ToDto(j, j.Packs.Select(ToPackDto).ToList())).ToList();
+    }
+
     private static AnalysisJobDto ToDto(AnalysisJobEntity j, IReadOnlyList<JobPackDto> packs) => new()
     {
         Id = j.Id,
@@ -188,7 +209,9 @@ public sealed class AnalysisRepository : IAnalysisRepository
         StartedAt = j.StartedAt,
         CompletedAt = j.CompletedAt,
         FailureReason = j.FailureReason,
-        Packs = packs
+        Packs = packs,
+        IsBaseline = j.IsBaseline,
+        BaselineLabel = j.BaselineLabel
     };
 
     private static JobPackDto ToPackDto(AnalysisJobPackEntity p) => new()

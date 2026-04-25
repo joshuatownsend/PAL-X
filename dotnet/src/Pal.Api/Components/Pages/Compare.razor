@@ -1,0 +1,189 @@
+@page "/compare"
+@inject IAnalysisRepository AnalysisRepo
+@inject ICompareRepository CompareRepo
+@inject CompareRunner Runner
+
+<PageTitle>Compare Runs</PageTitle>
+<h1>Compare Analysis Runs</h1>
+
+<div class="compare-form">
+    <div class="form-row">
+        <label>
+            Baseline job
+            <select @bind="_baselineId">
+                <option value="">— select —</option>
+                @foreach (var job in _completedJobs)
+                {
+                    <option value="@job.Id">
+                        @job.Id.ToString("N")[..8]
+                        @(job.IsBaseline ? " [baseline]" : "")
+                        — @job.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
+                    </option>
+                }
+            </select>
+        </label>
+        <label>
+            Candidate job
+            <select @bind="_candidateId">
+                <option value="">— select —</option>
+                @foreach (var job in _completedJobs)
+                {
+                    <option value="@job.Id">
+                        @job.Id.ToString("N")[..8]
+                        — @job.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
+                    </option>
+                }
+            </select>
+        </label>
+        <button class="btn-primary" @onclick="RunCompare" disabled="@_running">Compare</button>
+    </div>
+    @if (_errorMessage is not null)
+    {
+        <p class="error">@_errorMessage</p>
+    }
+</div>
+
+@if (_result is not null)
+{
+    <div class="compare-summary">
+        <h2>Comparison Result</h2>
+        <p>
+            Baseline: <code>@_result.BaselineJobId.ToString("N")[..8]</code>
+            &rarr;
+            Candidate: <code>@_result.CandidateJobId.ToString("N")[..8]</code>
+        </p>
+        <div class="diff-counts">
+            <span class="diff-new">+@_result.Summary.NewFindings new</span>
+            <span class="diff-resolved">-@_result.Summary.ResolvedFindings resolved</span>
+            <span class="diff-sev-changed">~@_result.Summary.SeverityChanges severity changed</span>
+            <span class="diff-unchanged">@_result.Summary.UnchangedFindings unchanged</span>
+        </div>
+    </div>
+
+    @if (_result.Diffs.Count > 0)
+    {
+        <table class="jobs-table">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Rule</th>
+                    <th>Metric</th>
+                    <th>Baseline</th>
+                    <th>Candidate</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var diff in _result.Diffs)
+                {
+                    var parts = diff.CorrelationKey.Split(':', 2);
+                    string rule = parts[0];
+                    string metric = parts.Length > 1 ? parts[1] : "";
+                    string bSev = diff.BaselineFinding?.Severity ?? "—";
+                    string cSev = diff.CandidateFinding?.Severity ?? "—";
+                    <tr>
+                        <td><span class="diff-badge diff-@diff.Status">@diff.Status</span></td>
+                        <td>@rule</td>
+                        <td>@metric</td>
+                        <td>@bSev</td>
+                        <td>@cSev</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p class="healthy">No differences found — runs are identical in findings.</p>
+    }
+}
+
+@if (_history.Count > 0)
+{
+    <h2>Recent Comparisons</h2>
+    <table class="jobs-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Baseline</th>
+                <th>Candidate</th>
+                <th>New</th>
+                <th>Resolved</th>
+                <th>Sev Changed</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var h in _history)
+            {
+                <tr @onclick="() => LoadHistory(h)" style="cursor:pointer">
+                    <td><code>@h.Id.ToString("N")[..8]</code></td>
+                    <td><code>@h.BaselineJobId.ToString("N")[..8]</code></td>
+                    <td><code>@h.CandidateJobId.ToString("N")[..8]</code></td>
+                    <td class="diff-new">@h.Summary.NewFindings</td>
+                    <td class="diff-resolved">@h.Summary.ResolvedFindings</td>
+                    <td class="diff-sev-changed">@h.Summary.SeverityChanges</td>
+                    <td>@h.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    [Parameter][SupplyParameterFromQuery] public Guid? Baseline { get; set; }
+
+    private List<AnalysisJobDto> _completedJobs = [];
+    private List<CompareResultDto> _history = [];
+    private CompareResultDto? _result;
+    private string _baselineId = "";
+    private string _candidateId = "";
+    private bool _running;
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var all = await AnalysisRepo.ListJobsAsync("completed");
+        _completedJobs = all.ToList();
+        _history = (await CompareRepo.ListAsync()).ToList();
+
+        if (Baseline.HasValue)
+            _baselineId = Baseline.Value.ToString();
+    }
+
+    private async Task RunCompare()
+    {
+        _errorMessage = null;
+        if (!Guid.TryParse(_baselineId, out var bId) || !Guid.TryParse(_candidateId, out var cId))
+        {
+            _errorMessage = "Please select both a baseline and a candidate job.";
+            return;
+        }
+        if (bId == cId)
+        {
+            _errorMessage = "Baseline and candidate must be different jobs.";
+            return;
+        }
+
+        _running = true;
+        try
+        {
+            var baselineResult = await AnalysisRepo.GetResultAsync(bId);
+            var candidateResult = await AnalysisRepo.GetResultAsync(cId);
+            if (baselineResult is null || candidateResult is null)
+            {
+                _errorMessage = "Result data missing for one or both jobs.";
+                return;
+            }
+
+            var diff = Runner.Run(bId, baselineResult.FindingsJson, cId, candidateResult.FindingsJson);
+            _result = await CompareRepo.CreateAsync(bId, cId, diff);
+            _history = (await CompareRepo.ListAsync()).ToList();
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+
+    private void LoadHistory(CompareResultDto h) => _result = h;
+}
