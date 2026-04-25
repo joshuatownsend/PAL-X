@@ -8,6 +8,7 @@ using Pal.Api.Worker;
 using Pal.Application.Analysis;
 using Pal.Application.Compare;
 using Pal.Application.Persistence;
+using Pal.Application.Trends;
 using Pal.Application.Storage;
 using Pal.Persistence;
 using Pal.Persistence.Repositories;
@@ -34,6 +35,7 @@ builder.Services.AddSingleton<IAnalysisRepository, AnalysisRepository>();
 builder.Services.AddSingleton<IPackRepository, PackRepository>();
 builder.Services.AddSingleton<ICompareRepository, CompareRepository>();
 builder.Services.AddSingleton<CompareRunner>();
+builder.Services.AddSingleton<TrendAnalyzer>();
 
 // Analysis runner and worker channel
 builder.Services.AddSingleton<IAnalysisRunner, AnalysisRunner>();
@@ -80,6 +82,7 @@ app.MapPackEndpoints();
 app.MapUploadEndpoints();
 app.MapAnalysisEndpoints();
 app.MapCompareEndpoints();
+app.MapTrendEndpoints();
 
 // Blazor Server UI
 app.MapRazorComponents<App>()
