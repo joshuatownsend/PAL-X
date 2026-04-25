@@ -1,0 +1,101 @@
+@page "/trends"
+@inject TrendService TrendSvc
+
+<PageTitle>Trends</PageTitle>
+<h1>Finding Trends</h1>
+
+<div class="compare-form">
+    <div class="form-row">
+        <label>
+            Last <input type="number" min="2" max="100" @bind="_window" style="width:5em" /> completed jobs
+        </label>
+        <button class="btn-primary" @onclick="RunAnalysis" disabled="@_running">Analyze</button>
+    </div>
+    @if (_errorMessage is not null)
+    {
+        <p class="error">@_errorMessage</p>
+    }
+</div>
+
+@if (_result is not null)
+{
+    @if (_result.JobCount < 2)
+    {
+        <p class="healthy">At least 2 completed runs are needed to compute trends.</p>
+    }
+    else
+    {
+        <div class="compare-summary">
+            <p>
+                Analyzed <strong>@_result.JobCount</strong> runs —
+                @_result.WindowStart.LocalDateTime.ToString("yyyy-MM-dd") to
+                @_result.WindowEnd.LocalDateTime.ToString("yyyy-MM-dd")
+            </p>
+        </div>
+
+        @if (_result.Trends.Count == 0)
+        {
+            <p class="healthy">No findings detected in the selected window.</p>
+        }
+        else
+        {
+            <table class="jobs-table">
+                <thead>
+                    <tr>
+                        <th>Direction</th>
+                        <th>Rule</th>
+                        <th>Metric</th>
+                        <th>Latest severity</th>
+                        <th>Runs present</th>
+                        <th>First seen</th>
+                        <th>Last seen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in _result.Trends)
+                    {
+                        var parts = t.CorrelationKey.Split(':', 2);
+                        string rule = parts[0];
+                        string metric = parts.Length > 1 ? parts[1] : "";
+                        <tr>
+                            <td><span class="diff-badge trend-@t.Direction">@t.Direction</span></td>
+                            <td>@rule</td>
+                            <td>@metric</td>
+                            <td>@(t.LatestSeverity ?? "—")</td>
+                            <td>@t.RunCount / @t.TotalRuns</td>
+                            <td>@t.FirstSeen.LocalDateTime.ToString("yyyy-MM-dd")</td>
+                            <td>@t.LastSeen.LocalDateTime.ToString("yyyy-MM-dd")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@code {
+    private int _window = 10;
+    private bool _running;
+    private string? _errorMessage;
+    private TrendResultDto? _result;
+
+    protected override async Task OnInitializedAsync() => await RunAnalysis();
+
+    private async Task RunAnalysis()
+    {
+        _errorMessage = null;
+        _running = true;
+        try
+        {
+            _result = await TrendSvc.ComputeAsync(_window);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Error computing trends: {ex.Message}";
+        }
+        finally
+        {
+            _running = false;
+        }
+    }
+}

@@ -101,3 +101,38 @@ public sealed class CompareResultDto
     public required CompareSummaryDto Summary { get; init; }
     public required IReadOnlyList<FindingDiffDto> Diffs { get; init; }
 }
+
+public sealed class TrendJobEntryDto
+{
+    public required Guid JobId { get; init; }
+    public required DateTimeOffset CompletedAt { get; init; }
+    public required string FindingsJson { get; init; }
+}
+
+public sealed class TrendRunPointDto
+{
+    public required Guid JobId { get; init; }
+    public required DateTimeOffset CompletedAt { get; init; }
+    public required string? Severity { get; init; }
+}
+
+public sealed class TrendFindingDto
+{
+    // "worsening" | "appearing" | "stable" | "intermittent" | "de-escalating" | "resolving"
+    public required string Direction { get; init; }
+    public required string CorrelationKey { get; init; }
+    public required int RunCount { get; init; }
+    public required int TotalRuns { get; init; }
+    public required string? LatestSeverity { get; init; }
+    public required DateTimeOffset FirstSeen { get; init; }
+    public required DateTimeOffset LastSeen { get; init; }
+    public required IReadOnlyList<TrendRunPointDto> RunPoints { get; init; }
+}
+
+public sealed class TrendResultDto
+{
+    public required int JobCount { get; init; }
+    public required DateTimeOffset WindowStart { get; init; }
+    public required DateTimeOffset WindowEnd { get; init; }
+    public required IReadOnlyList<TrendFindingDto> Trends { get; init; }
+}

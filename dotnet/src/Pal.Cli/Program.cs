@@ -41,6 +41,9 @@ app.Configure(config =>
 
         remote.AddCommand<CompareCommand>("compare")
             .WithDescription("Compare two completed analysis jobs and show a finding diff");
+
+        remote.AddCommand<TrendsCommand>("trends")
+            .WithDescription("Show finding trends across the last N completed analysis jobs");
     });
 });
 
