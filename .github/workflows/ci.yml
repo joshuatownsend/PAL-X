@@ -38,11 +38,12 @@ jobs:
           dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- validate-pack --path packs/thresholds/sql-host-core
 
       - name: Validate broken pack exits 4
+        shell: bash
         run: |
-          $PSNativeCommandUseErrorActionPreference = $false
+          set +e
           dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- validate-pack --path fixtures/broken-pack
-          if ($LASTEXITCODE -ne 4) { Write-Error "Expected exit code 4 for broken pack, got $LASTEXITCODE"; exit 1 }
-        shell: pwsh
+          actual=$?
+          if [ "$actual" -ne 4 ]; then echo "Expected exit code 4 for broken pack, got $actual"; exit 1; fi
 
       - name: Run cpu-pressure fixture (determinism check 1)
         run: dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/cpu-pressure/input.csv --output out/run1 --pack-dir packs/thresholds --now 2026-01-01T00:00:00Z
@@ -68,11 +69,12 @@ jobs:
         run: dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/memory-pressure/input.csv --output out/memory --pack-dir packs/thresholds --host-memory-mb 8192 --host-cpu-count 4 --now 2026-01-01T00:00:00Z
 
       - name: Verify --html-only --json-only exits 2
+        shell: bash
         run: |
-          $PSNativeCommandUseErrorActionPreference = $false
+          set +e
           dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/cpu-pressure/input.csv --output out/bad --html-only --json-only
-          if ($LASTEXITCODE -ne 2) { Write-Error "Expected exit code 2, got $LASTEXITCODE"; exit 1 }
-        shell: pwsh
+          actual=$?
+          if [ "$actual" -ne 2 ]; then echo "Expected exit code 2, got $actual"; exit 1; fi
 
   api-integration-tests:
     runs-on: ubuntu-latest
