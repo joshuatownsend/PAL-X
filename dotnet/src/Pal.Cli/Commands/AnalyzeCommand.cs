@@ -95,9 +95,6 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
 {
     public override ValidationResult Validate(CommandContext context, AnalyzeSettings settings)
     {
-        if (settings.HtmlOnly && settings.JsonOnly)
-            return ValidationResult.Error("--html-only and --json-only are mutually exclusive");
-
         if (string.IsNullOrWhiteSpace(settings.Input))
             return ValidationResult.Error("--input is required");
 
@@ -112,6 +109,12 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
 
     public override int Execute(CommandContext context, AnalyzeSettings settings)
     {
+        if (settings.HtmlOnly && settings.JsonOnly)
+        {
+            AnsiConsole.MarkupLine("[red]Error:[/] --html-only and --json-only are mutually exclusive");
+            return ExitCodes.InvalidArguments;
+        }
+
         var sw = Stopwatch.StartNew();
         AnsiConsole.MarkupLine("[bold]PAL 2026.1.0[/]");
 
