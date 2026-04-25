@@ -254,15 +254,18 @@ public class GoldenFixtureTests
         finally { if (File.Exists(tmpFile)) File.Delete(tmpFile); }
     }
 
-    // Masks fields that vary by machine, OS, or temp path.
+    // Masks fields that vary by machine, OS, git autocrlf setting, or temp path.
     private static string MaskEngineFields(string json)
     {
         var root = JsonNode.Parse(json)!.AsObject();
+        // report_id and dataset_id are SHA-256 of file bytes; git autocrlf
+        // converts CRLF<->LF on checkout, making the hash machine-specific.
+        root["report_id"] = "masked";
+        root["dataset"]!.AsObject()["dataset_id"] = "masked";
         var engineObj = root["engine"]!.AsObject();
         engineObj["host_os"] = "masked";
         engineObj["runtime"] = "masked";
-        var artifactsObj = root["artifacts"]!.AsObject();
-        artifactsObj["json_report_path"] = "masked";
+        root["artifacts"]!.AsObject()["json_report_path"] = "masked";
         return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
