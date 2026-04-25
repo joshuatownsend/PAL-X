@@ -27,7 +27,9 @@ jobs:
         run: dotnet build dotnet/Pal.sln -c Release --no-restore
 
       - name: Test
-        run: dotnet test dotnet/Pal.sln -c Release --no-build --logger "console;verbosity=normal"
+        # Exclude Pal.Api.Tests — it requires Docker (Testcontainers), which is unavailable on Windows runners.
+        # Those tests run in the api-integration-tests job below on ubuntu-latest.
+        run: dotnet test dotnet/Pal.sln -c Release --no-build --filter "FullyQualifiedName!~Pal.Api.Tests" --logger "console;verbosity=normal"
 
       - name: Validate packs
         run: |
@@ -37,8 +39,9 @@ jobs:
 
       - name: Validate broken pack exits 4
         run: |
+          $ErrorActionPreference = 'Continue'
           dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- validate-pack --path fixtures/broken-pack
-          if ($LASTEXITCODE -ne 4) { Write-Error "Expected exit code 4 for broken pack"; exit 1 }
+          if ($LASTEXITCODE -ne 4) { Write-Error "Expected exit code 4 for broken pack, got $LASTEXITCODE"; exit 1 }
         shell: pwsh
 
       - name: Run cpu-pressure fixture (determinism check 1)
@@ -66,6 +69,29 @@ jobs:
 
       - name: Verify --html-only --json-only exits 2
         run: |
+          $ErrorActionPreference = 'Continue'
           dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/cpu-pressure/input.csv --output out/bad --html-only --json-only
-          if ($LASTEXITCODE -ne 2) { Write-Error "Expected exit code 2"; exit 1 }
+          if ($LASTEXITCODE -ne 2) { Write-Error "Expected exit code 2, got $LASTEXITCODE"; exit 1 }
         shell: pwsh
+
+  api-integration-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore dotnet/Pal.sln
+
+      - name: Build
+        run: dotnet build dotnet/tests/Pal.Api.Tests/Pal.Api.Tests.csproj -c Release --no-restore
+
+      - name: Test
+        run: dotnet test dotnet/tests/Pal.Api.Tests/Pal.Api.Tests.csproj -c Release --no-build --logger "console;verbosity=normal"
