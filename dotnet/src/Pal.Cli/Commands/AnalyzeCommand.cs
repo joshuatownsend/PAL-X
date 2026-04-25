@@ -116,7 +116,7 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
         }
 
         var sw = Stopwatch.StartNew();
-        AnsiConsole.MarkupLine("[bold]PAL 2026.1.0[/]");
+        AnsiConsole.MarkupLine("[bold]PAL 2026.2.0[/]");
 
         DateTimeOffset generatedAt = settings.NowOverride is not null
             ? DateTimeOffset.Parse(settings.NowOverride, System.Globalization.CultureInfo.InvariantCulture)

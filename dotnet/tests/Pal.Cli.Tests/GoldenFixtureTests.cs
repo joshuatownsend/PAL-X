@@ -263,6 +263,7 @@ public class GoldenFixtureTests
         root["report_id"] = "masked";
         root["dataset"]!.AsObject()["dataset_id"] = "masked";
         var engineObj = root["engine"]!.AsObject();
+        engineObj["version"] = "masked";
         engineObj["host_os"] = "masked";
         engineObj["runtime"] = "masked";
         root["artifacts"]!.AsObject()["json_report_path"] = "masked";

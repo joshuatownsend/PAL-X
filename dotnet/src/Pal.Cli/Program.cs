@@ -6,7 +6,7 @@ var app = new CommandApp();
 app.Configure(config =>
 {
     config.SetApplicationName("pal");
-    config.SetApplicationVersion("2026.1.0");
+    config.SetApplicationVersion("2026.2.0");
 
     config.AddCommand<AnalyzeCommand>("analyze")
         .WithDescription("Analyze one input dataset and generate report artifacts");
