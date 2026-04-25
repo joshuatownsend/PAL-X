@@ -39,7 +39,7 @@ jobs:
 
       - name: Validate broken pack exits 4
         run: |
-          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
           dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- validate-pack --path fixtures/broken-pack
           if ($LASTEXITCODE -ne 4) { Write-Error "Expected exit code 4 for broken pack, got $LASTEXITCODE"; exit 1 }
         shell: pwsh
@@ -69,7 +69,7 @@ jobs:
 
       - name: Verify --html-only --json-only exits 2
         run: |
-          $ErrorActionPreference = 'Continue'
+          $PSNativeCommandUseErrorActionPreference = $false
           dotnet run --project dotnet/src/Pal.Cli --no-build -c Release -- analyze --input fixtures/cpu-pressure/input.csv --output out/bad --html-only --json-only
           if ($LASTEXITCODE -ne 2) { Write-Error "Expected exit code 2, got $LASTEXITCODE"; exit 1 }
         shell: pwsh
