@@ -24,7 +24,7 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
         => RemoteCommand.RunAsync(async () =>
         {
             using var client = RemoteHttpClient.Create(settings.ApiBase);
-            var resp = await client.GetAsync($"trends?last={settings.Last}");
+            var resp = await client.GetAsync($"trends/data?last={settings.Last}");
             resp.EnsureSuccessStatusCode();
 
             var doc = await resp.Content.ReadFromJsonAsync<JsonElement>();
@@ -42,9 +42,11 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
                 return ExitCodes.Success;
             }
 
-            string start = doc.GetProperty("windowStart").GetString() ?? "";
-            string end = doc.GetProperty("windowEnd").GetString() ?? "";
-            AnsiConsole.MarkupLine($"[bold]Trends[/]  {jobCount} runs  {start[..10]} → {end[..10]}");
+            string startRaw = doc.GetProperty("windowStart").GetString() ?? "";
+            string endRaw = doc.GetProperty("windowEnd").GetString() ?? "";
+            string start = DateTimeOffset.TryParse(startRaw, out var s) ? s.ToString("yyyy-MM-dd") : startRaw;
+            string end = DateTimeOffset.TryParse(endRaw, out var e) ? e.ToString("yyyy-MM-dd") : endRaw;
+            AnsiConsole.MarkupLine($"[bold]Trends[/]  {jobCount} runs  {start} → {end}");
 
             var trends = doc.GetProperty("trends");
             if (trends.GetArrayLength() == 0)
@@ -80,7 +82,7 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
                     "intermittent" => $"[yellow]{dir}[/]",
                     "de-escalating" => $"[green]{dir}[/]",
                     "resolving" => $"[green]{dir}[/]",
-                    _ => dir
+                    _ => Markup.Escape(dir)
                 };
 
                 table.AddRow(dirMarkup, Markup.Escape(rule), Markup.Escape(metric),

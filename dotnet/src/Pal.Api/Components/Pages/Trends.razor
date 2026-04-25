@@ -1,6 +1,5 @@
 @page "/trends"
-@inject IAnalysisRepository AnalysisRepo
-@inject TrendAnalyzer Analyzer
+@inject TrendService TrendSvc
 
 <PageTitle>Trends</PageTitle>
 <h1>Finding Trends</h1>
@@ -88,29 +87,7 @@
         _running = true;
         try
         {
-            var jobs = await AnalysisRepo.ListJobsAsync("completed");
-            var recent = jobs.Take(_window).ToList();
-
-            if (recent.Count == 0)
-            {
-                _result = new TrendResultDto { JobCount = 0, WindowStart = default, WindowEnd = default, Trends = [] };
-                return;
-            }
-
-            var entries = new List<TrendJobEntryDto>(recent.Count);
-            foreach (var job in Enumerable.Reverse(recent))
-            {
-                var r = await AnalysisRepo.GetResultAsync(job.Id);
-                if (r is null) continue;
-                entries.Add(new TrendJobEntryDto
-                {
-                    JobId = job.Id,
-                    CompletedAt = job.CompletedAt ?? job.CreatedAt,
-                    FindingsJson = r.FindingsJson
-                });
-            }
-
-            _result = Analyzer.Analyze(entries);
+            _result = await TrendSvc.ComputeAsync(_window);
         }
         catch (Exception ex)
         {

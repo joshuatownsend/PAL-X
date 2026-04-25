@@ -36,6 +36,7 @@ builder.Services.AddSingleton<IPackRepository, PackRepository>();
 builder.Services.AddSingleton<ICompareRepository, CompareRepository>();
 builder.Services.AddSingleton<CompareRunner>();
 builder.Services.AddSingleton<TrendAnalyzer>();
+builder.Services.AddSingleton<TrendService>();
 
 // Analysis runner and worker channel
 builder.Services.AddSingleton<IAnalysisRunner, AnalysisRunner>();

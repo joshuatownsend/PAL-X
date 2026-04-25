@@ -214,4 +214,19 @@ public class TrendAnalyzerTests
         Assert.Equal(j1.CompletedAt, result.WindowStart);
         Assert.Equal(j2.CompletedAt, result.WindowEnd);
     }
+
+    [Fact]
+    public void Analyze_SeverityFluctuatesButSameFirstAndLast_Intermittent()
+    {
+        // warning → critical → warning: first == last rank but severity fluctuated
+        var jobs = new[]
+        {
+            Job(0, ("high-cpu", "warning", "processor.percent_processor_time")),
+            Job(1, ("high-cpu", "critical", "processor.percent_processor_time")),
+            Job(2, ("high-cpu", "warning", "processor.percent_processor_time"))
+        };
+        var result = _analyzer.Analyze(jobs);
+        var t = Assert.Single(result.Trends);
+        Assert.Equal("intermittent", t.Direction);
+    }
 }

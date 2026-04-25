@@ -97,12 +97,14 @@ public sealed class TrendAnalyzer
 
         if (presentCount == points.Count)
         {
-            // Always present — compare first vs last severity rank
             int firstRank = SeverityRank(points[0].Severity);
             int lastRank = SeverityRank(points[^1].Severity);
+            bool allSameSeverity = points.All(p =>
+                string.Equals(p.Severity, points[0].Severity, StringComparison.OrdinalIgnoreCase));
             return lastRank > firstRank ? "worsening"
                  : lastRank < firstRank ? "de-escalating"
-                 : "stable";
+                 : allSameSeverity ? "stable"
+                 : "intermittent";
         }
 
         if (!firstPresent && lastPresent) return "appearing";
