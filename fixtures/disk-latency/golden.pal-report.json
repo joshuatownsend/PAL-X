@@ -1,0 +1,454 @@
+{
+  "schema_version": "pal.report/v1",
+  "report_id": "rep_580124f18d4c6d603019",
+  "generated_at_utc": "2026-01-01T00:00:00Z",
+  "engine": {
+    "name": "PAL",
+    "version": "2026.1.0",
+    "runtime": ".NET 8.0",
+    "host_os": "Microsoft Windows NT 10.0.26200.0",
+    "execution_mode": "cli",
+    "duration_ms": 0
+  },
+  "input": {
+    "source_type": "csv",
+    "source_path": "input.csv",
+    "source_count": 1,
+    "collector": "Pal.Collectors.Csv",
+    "collector_version": "1.0.0"
+  },
+  "dataset": {
+    "dataset_id": "ds_cb79f473757dd57a",
+    "machine_name": "SERVER01",
+    "start_time_utc": "2026-04-23T08:00:00Z",
+    "end_time_utc": "2026-04-23T08:02:15Z",
+    "sample_interval_seconds": 15,
+    "series_count": 5,
+    "sample_count": 50,
+    "gap_count": 0
+  },
+  "packs": [
+    {
+      "pack_id": "windows-core",
+      "pack_name": "Windows Core",
+      "version": "1.0.0",
+      "resolution_mode": "auto"
+    }
+  ],
+  "warnings": [
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027low-available-memory\u0027 in pack \u0027windows-core\u0027 skipped: host_context.total_physical_memory_mb not provided.",
+      "severity": "informational"
+    },
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027critical-low-available-memory\u0027 in pack \u0027windows-core\u0027 skipped: host_context.total_physical_memory_mb not provided.",
+      "severity": "informational"
+    },
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027excessive-context-switches\u0027 in pack \u0027windows-core\u0027 skipped: host_context.logical_processor_count not provided.",
+      "severity": "informational"
+    },
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027high-processor-queue-length\u0027 in pack \u0027windows-core\u0027 skipped: host_context.logical_processor_count not provided.",
+      "severity": "informational"
+    }
+  ],
+  "summary": {
+    "overall_status": "critical",
+    "finding_counts": {
+      "critical": 1,
+      "warning": 4,
+      "informational": 0
+    },
+    "category_statuses": {
+      "disk": "critical"
+    },
+    "analysis_status": "completed_with_warnings"
+  },
+  "findings": [
+    {
+      "finding_id": "fd_f5wbig6iyztpzu7n",
+      "pack_id": "windows-core",
+      "rule_id": "critical-disk-read-latency",
+      "severity": "critical",
+      "category": "disk",
+      "title": "Critical disk read latency",
+      "summary": "Average disk read latency exceeded 50ms \u2014 storage subsystem is saturated.",
+      "explanation": "Read latency above 50ms is generally unacceptable for any production workload. At this\nlevel databases will time out queries, web servers will queue requests, and OS operations\nwill stall. Immediate investigation of disk queue length and I/O-generating processes is\nrequired.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:02:15Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_002",
+            "canonical_metric": "physicaldisk.avg_disk_sec_per_read",
+            "statistics": {
+              "count": 10,
+              "min": 0.032,
+              "max": 0.062,
+              "avg": 0.0467,
+              "median": 0.044,
+              "p90": 0.0593,
+              "p95": 0.060649999999999996,
+              "p99": 0.06173,
+              "stddev": 0.010188719252192594,
+              "trend_per_hour": 0.4785454545454552,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(physicaldisk.avg_disk_sec_per_read) \u003E 0.05 for \u003E= 10% of samples",
+                "result": true,
+                "actual_value": 0.0467,
+                "expected_value": 0.05
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "check-disk-queue",
+          "priority": "high",
+          "text": "Check Current Disk Queue Length to confirm the disk is the bottleneck.",
+          "rationale": "A queue length consistently \u003E 2 per disk confirms the storage subsystem is saturated."
+        },
+        {
+          "id": "upgrade-storage",
+          "priority": "medium",
+          "text": "Consider upgrading to faster storage (SSD/NVMe) or adding more spindles.",
+          "rationale": "Sustained latency \u003E 25ms typically indicates the storage tier is undersized for the workload."
+        }
+      ]
+    },
+    {
+      "finding_id": "fd_sztkopxcbo3bghdt",
+      "pack_id": "windows-core",
+      "rule_id": "high-disk-queue-length",
+      "severity": "warning",
+      "category": "disk",
+      "title": "High disk queue length",
+      "summary": "Current Disk Queue Length exceeded 2, indicating I/O backlog.",
+      "explanation": "A queue length consistently above 2 per physical disk means I/O requests are waiting\nfor service. For RAID arrays or SSD devices, higher queue depths may be acceptable\ndepending on the controller; however, a sustained queue \u003E 2 typically signals saturation.\nCorrelate with disk latency counters to confirm.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:02:15Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_004",
+            "canonical_metric": "physicaldisk.current_disk_queue_length",
+            "statistics": {
+              "count": 10,
+              "min": 3,
+              "max": 7,
+              "avg": 4.55,
+              "median": 4.25,
+              "p90": 6.1,
+              "p95": 6.549999999999999,
+              "p99": 6.91,
+              "stddev": 1.2539936203984454,
+              "trend_per_hour": 51.63636363636356,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(physicaldisk.current_disk_queue_length) \u003E 2 for \u003E= 20% of samples",
+                "result": true,
+                "actual_value": 4.55,
+                "expected_value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "check-disk-queue",
+          "priority": "high",
+          "text": "Check Current Disk Queue Length to confirm the disk is the bottleneck.",
+          "rationale": "A queue length consistently \u003E 2 per disk confirms the storage subsystem is saturated."
+        },
+        {
+          "id": "upgrade-storage",
+          "priority": "medium",
+          "text": "Consider upgrading to faster storage (SSD/NVMe) or adding more spindles.",
+          "rationale": "Sustained latency \u003E 25ms typically indicates the storage tier is undersized for the workload."
+        }
+      ]
+    },
+    {
+      "finding_id": "fd_7gwgma5r3v7paki4",
+      "pack_id": "windows-core",
+      "rule_id": "low-disk-idle-time",
+      "severity": "warning",
+      "category": "disk",
+      "title": "Low disk idle time",
+      "summary": "Disk % Idle Time dropped below 30%, indicating sustained I/O pressure.",
+      "explanation": "% Idle Time below 30% means the disk is busy more than 70% of the time. While short\nbursts are expected, sustained busy periods leave no capacity for I/O spikes and\nindicate the storage subsystem is undersized for the workload. Critical threshold\n(\u003C 10% idle) indicates near-continuous saturation.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:02:15Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_005",
+            "canonical_metric": "physicaldisk.percent_idle_time",
+            "statistics": {
+              "count": 10,
+              "min": 8.1,
+              "max": 22.4,
+              "avg": 14.280000000000001,
+              "median": 14,
+              "p90": 20.330000000000002,
+              "p95": 21.365,
+              "p99": 22.192999999999998,
+              "stddev": 4.573794923255742,
+              "trend_per_hour": -164.0727272727274,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(physicaldisk.percent_idle_time) \u003C 30 for \u003E= 20% of samples",
+                "result": true,
+                "actual_value": 14.280000000000001,
+                "expected_value": 30
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "upgrade-storage",
+          "priority": "medium",
+          "text": "Consider upgrading to faster storage (SSD/NVMe) or adding more spindles.",
+          "rationale": "Sustained latency \u003E 25ms typically indicates the storage tier is undersized for the workload."
+        },
+        {
+          "id": "optimize-disk-io",
+          "priority": "high",
+          "text": "Identify which processes are generating the highest disk I/O using Process\\IO Data Operations/sec.",
+          "rationale": "High disk latency indicates the disk is saturated and cannot keep up with I/O demand."
+        }
+      ]
+    },
+    {
+      "finding_id": "fd_dwmuuyffvxbyxhlk",
+      "pack_id": "windows-core",
+      "rule_id": "sustained-disk-read-latency",
+      "severity": "warning",
+      "category": "disk",
+      "title": "Sustained disk read latency",
+      "summary": "Average disk read latency exceeded 25ms \u2014 approaching the threshold for user-visible impact.",
+      "explanation": "Avg. Disk sec/Read above 25ms (0.025 sec) indicates the storage subsystem is struggling\nto service read requests in a timely manner. At 50ms\u002B (critical), most interactive and\nOLTP workloads will show visible latency degradation. Check Current Disk Queue Length to\nconfirm saturation; check which applications are generating the most reads.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:02:15Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_002",
+            "canonical_metric": "physicaldisk.avg_disk_sec_per_read",
+            "statistics": {
+              "count": 10,
+              "min": 0.032,
+              "max": 0.062,
+              "avg": 0.0467,
+              "median": 0.044,
+              "p90": 0.0593,
+              "p95": 0.060649999999999996,
+              "p99": 0.06173,
+              "stddev": 0.010188719252192594,
+              "trend_per_hour": 0.4785454545454552,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(physicaldisk.avg_disk_sec_per_read) \u003E 0.025 for \u003E= 20% of samples",
+                "result": true,
+                "actual_value": 0.0467,
+                "expected_value": 0.025
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "check-disk-queue",
+          "priority": "high",
+          "text": "Check Current Disk Queue Length to confirm the disk is the bottleneck.",
+          "rationale": "A queue length consistently \u003E 2 per disk confirms the storage subsystem is saturated."
+        },
+        {
+          "id": "optimize-disk-io",
+          "priority": "high",
+          "text": "Identify which processes are generating the highest disk I/O using Process\\IO Data Operations/sec.",
+          "rationale": "High disk latency indicates the disk is saturated and cannot keep up with I/O demand."
+        }
+      ]
+    },
+    {
+      "finding_id": "fd_5skrlamfup23g7g3",
+      "pack_id": "windows-core",
+      "rule_id": "sustained-disk-write-latency",
+      "severity": "warning",
+      "category": "disk",
+      "title": "Sustained disk write latency",
+      "summary": "Average disk write latency exceeded 25ms.",
+      "explanation": "Avg. Disk sec/Write above 25ms indicates write I/O is queuing at the storage layer.\nWrite latency spikes typically indicate the disk cache has flushed or the spindle/flash\nis saturated. Database transaction logs and swap files are particularly sensitive to\nwrite latency.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:02:15Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_003",
+            "canonical_metric": "physicaldisk.avg_disk_sec_per_write",
+            "statistics": {
+              "count": 10,
+              "min": 0.028,
+              "max": 0.051,
+              "avg": 0.038400000000000004,
+              "median": 0.037,
+              "p90": 0.0483,
+              "p95": 0.04964999999999999,
+              "p99": 0.05073,
+              "stddev": 0.007683749084919418,
+              "trend_per_hour": 0.3723636363636361,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(physicaldisk.avg_disk_sec_per_write) \u003E 0.025 for \u003E= 20% of samples",
+                "result": true,
+                "actual_value": 0.038400000000000004,
+                "expected_value": 0.025
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "check-disk-queue",
+          "priority": "high",
+          "text": "Check Current Disk Queue Length to confirm the disk is the bottleneck.",
+          "rationale": "A queue length consistently \u003E 2 per disk confirms the storage subsystem is saturated."
+        },
+        {
+          "id": "optimize-disk-io",
+          "priority": "high",
+          "text": "Identify which processes are generating the highest disk I/O using Process\\IO Data Operations/sec.",
+          "rationale": "High disk latency indicates the disk is saturated and cannot keep up with I/O demand."
+        }
+      ]
+    }
+  ],
+  "series_index": [
+    {
+      "series_id": "ser_001",
+      "counter_path_original": "\u0022\\\\SERVER01\\Processor(_Total)\\% Processor Time\u0022",
+      "canonical_metric": "processor.percent_processor_time",
+      "statistics": {
+        "count": 10,
+        "min": 32.7,
+        "max": 41.7,
+        "avg": 37.57,
+        "median": 37.849999999999994,
+        "p90": 40.98,
+        "p95": 41.34,
+        "p99": 41.628,
+        "stddev": 2.9990165054564133,
+        "trend_per_hour": 103.12727272727221,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_002",
+      "counter_path_original": "\u0022\\\\SERVER01\\PhysicalDisk(0 C:)\\Avg. Disk sec/Read\u0022",
+      "canonical_metric": "physicaldisk.avg_disk_sec_per_read",
+      "statistics": {
+        "count": 10,
+        "min": 0.032,
+        "max": 0.062,
+        "avg": 0.0467,
+        "median": 0.044,
+        "p90": 0.0593,
+        "p95": 0.060649999999999996,
+        "p99": 0.06173,
+        "stddev": 0.010188719252192594,
+        "trend_per_hour": 0.4785454545454552,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_003",
+      "counter_path_original": "\u0022\\\\SERVER01\\PhysicalDisk(0 C:)\\Avg. Disk sec/Write\u0022",
+      "canonical_metric": "physicaldisk.avg_disk_sec_per_write",
+      "statistics": {
+        "count": 10,
+        "min": 0.028,
+        "max": 0.051,
+        "avg": 0.038400000000000004,
+        "median": 0.037,
+        "p90": 0.0483,
+        "p95": 0.04964999999999999,
+        "p99": 0.05073,
+        "stddev": 0.007683749084919418,
+        "trend_per_hour": 0.3723636363636361,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_004",
+      "counter_path_original": "\u0022\\\\SERVER01\\PhysicalDisk(0 C:)\\Current Disk Queue Length\u0022",
+      "canonical_metric": "physicaldisk.current_disk_queue_length",
+      "statistics": {
+        "count": 10,
+        "min": 3,
+        "max": 7,
+        "avg": 4.55,
+        "median": 4.25,
+        "p90": 6.1,
+        "p95": 6.549999999999999,
+        "p99": 6.91,
+        "stddev": 1.2539936203984454,
+        "trend_per_hour": 51.63636363636356,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_005",
+      "counter_path_original": "\u0022\\\\SERVER01\\PhysicalDisk(0 C:)\\% Idle Time\u0022",
+      "canonical_metric": "physicaldisk.percent_idle_time",
+      "statistics": {
+        "count": 10,
+        "min": 8.1,
+        "max": 22.4,
+        "avg": 14.280000000000001,
+        "median": 14,
+        "p90": 20.330000000000002,
+        "p95": 21.365,
+        "p99": 22.192999999999998,
+        "stddev": 4.573794923255742,
+        "trend_per_hour": -164.0727272727274,
+        "missing_sample_count": 0
+      }
+    }
+  ],
+  "artifacts": {
+    "json_report_path": "input.pal-report.json"
+  }
+}

@@ -19,11 +19,19 @@ public sealed class CsvCollector
     {
         public required Dataset Dataset { get; init; }
         public required IReadOnlyList<string> Warnings { get; init; }
+        public required string InputDigest { get; init; }
     }
 
     public CollectResult Collect(string filePath, string? machineName = null, string? timeZone = null)
     {
-        using var reader = new StreamReader(filePath, new UTF8Encoding(false));
+        string inputDigest;
+        using (var hashStream = File.OpenRead(filePath))
+        {
+            var hashBytes = SHA256.HashData(hashStream);
+            inputDigest = Convert.ToHexString(hashBytes).ToLowerInvariant();
+        }
+
+        using var reader = new StreamReader(File.OpenRead(filePath), new UTF8Encoding(false));
         var lines = ReadAllLines(reader);
 
         if (lines.Count < 2)
@@ -94,7 +102,7 @@ public sealed class CsvCollector
             })
             .ToList();
 
-        string datasetId = ComputeDatasetId(filePath);
+        string datasetId = "ds_" + inputDigest[..16];
 
         var dataset = new Dataset
         {
@@ -108,7 +116,7 @@ public sealed class CsvCollector
             Series = allSeries
         };
 
-        return new CollectResult { Dataset = dataset, Warnings = warnings };
+        return new CollectResult { Dataset = dataset, Warnings = warnings, InputDigest = inputDigest };
     }
 
     private static (List<string> headers, string? machineName) ParseHeader(string line)
@@ -207,9 +215,4 @@ public sealed class CsvCollector
         new string(path.Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '_').ToArray())
             .Trim('_');
 
-    private static string ComputeDatasetId(string filePath)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(filePath)));
-        return "ds_" + Convert.ToHexString(hash[..8]).ToLowerInvariant();
-    }
 }

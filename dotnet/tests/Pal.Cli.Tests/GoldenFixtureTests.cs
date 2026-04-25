@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Pal.Engine.Model;
 using Pal.Engine.Normalization;
 using Pal.Engine.Rules;
@@ -142,7 +143,8 @@ public class GoldenFixtureTests
                 OutputPath = outputJson,
                 HtmlReportPath = null,
                 DurationMs = 0,
-                GeneratedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                GeneratedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                InputDigest = collectResult.InputDigest
             });
 
             var bytes = File.ReadAllBytes(outputJson);
@@ -177,6 +179,94 @@ public class GoldenFixtureTests
         var engine = new RuleEngine();
         var result = engine.Run(resolveResult.Packs, dataset);
         return (result.Findings, result.Warnings);
+    }
+
+    [Fact]
+    public void HealthyServer_JsonReport_MatchesGolden()
+    {
+        Assert.NotNull(RepoRoot);
+        AssertMatchesGolden("healthy-server", null, null);
+    }
+
+    [Fact]
+    public void CpuPressure_JsonReport_MatchesGolden()
+    {
+        Assert.NotNull(RepoRoot);
+        AssertMatchesGolden("cpu-pressure", null, null);
+    }
+
+    [Fact]
+    public void DiskLatency_JsonReport_MatchesGolden()
+    {
+        Assert.NotNull(RepoRoot);
+        AssertMatchesGolden("disk-latency", null, null);
+    }
+
+    [Fact]
+    public void MemoryPressure_JsonReport_MatchesGolden()
+    {
+        Assert.NotNull(RepoRoot);
+        AssertMatchesGolden("memory-pressure", 8192, 4);
+    }
+
+    private void AssertMatchesGolden(string fixtureName, double? hostMemoryMb, int? hostCpuCount)
+    {
+        string fixtureDir = Path.Combine(RepoRoot!, "fixtures", fixtureName);
+        string csvPath = Path.Combine(fixtureDir, "input.csv");
+        string goldenPath = Path.Combine(fixtureDir, "golden.pal-report.json");
+        string tmpFile = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.pal-report.json");
+
+        try
+        {
+            var registry = MetricAliasRegistry.BuildDefault();
+            var collector = new CsvCollector(registry);
+            var collectResult = collector.Collect(csvPath);
+
+            string? sidecarPath = Path.Combine(fixtureDir, "host-context.json");
+            if (!File.Exists(sidecarPath)) sidecarPath = null;
+            var hostCtx = HostContextReader.Read(hostMemoryMb, hostCpuCount, sidecarPath);
+            var dataset = collectResult.Dataset with { HostContext = hostCtx };
+
+            var resolver = new PackResolver();
+            var resolveResult = resolver.Resolve([], [Path.Combine(RepoRoot!, "packs", "thresholds")], false);
+            var engine = new RuleEngine();
+            var engineResult = engine.Run(resolveResult.Packs, dataset);
+
+            new JsonReportWriter().Write(new JsonReportWriter.WriteInput
+            {
+                Dataset = dataset,
+                Findings = engineResult.Findings,
+                PackResolutions = resolveResult.Resolutions,
+                EngineWarnings = engineResult.Warnings,
+                CollectorWarnings = collectResult.Warnings,
+                InputPath = csvPath,
+                OutputPath = tmpFile,
+                HtmlReportPath = null,
+                DurationMs = 0,
+                GeneratedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                InputDigest = collectResult.InputDigest
+            });
+
+            Assert.Equal(
+                MaskEngineFields(File.ReadAllText(goldenPath)),
+                MaskEngineFields(File.ReadAllText(tmpFile)));
+        }
+        finally { if (File.Exists(tmpFile)) File.Delete(tmpFile); }
+    }
+
+    // Masks fields that vary by machine, OS, git autocrlf setting, or temp path.
+    private static string MaskEngineFields(string json)
+    {
+        var root = JsonNode.Parse(json)!.AsObject();
+        // report_id and dataset_id are SHA-256 of file bytes; git autocrlf
+        // converts CRLF<->LF on checkout, making the hash machine-specific.
+        root["report_id"] = "masked";
+        root["dataset"]!.AsObject()["dataset_id"] = "masked";
+        var engineObj = root["engine"]!.AsObject();
+        engineObj["host_os"] = "masked";
+        engineObj["runtime"] = "masked";
+        root["artifacts"]!.AsObject()["json_report_path"] = "masked";
+        return root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
     }
 
     private static string? FindRepoRoot()

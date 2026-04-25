@@ -29,7 +29,8 @@ public class HtmlReportWriterTests
         OutputPath = "test.pal-report.json",
         HtmlReportPath = null,
         DurationMs = 0,
-        GeneratedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero)
+        GeneratedAt = new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero),
+        InputDigest = "0000000000000000000000000000000000000000000000000000000000000000"
     };
 
     private static Finding MakeFinding(string severity) => new()
