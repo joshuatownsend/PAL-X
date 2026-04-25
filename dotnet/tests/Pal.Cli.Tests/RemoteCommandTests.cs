@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 using Spectre.Console.Cli;
 using Pal.Cli.Commands.Remote;
 using Xunit;
@@ -23,7 +22,12 @@ public class RemoteCommandTests
     [Fact]
     public async Task RemotePacks_ServerUnreachable_ReturnsGeneralFailure()
     {
-        var code = await new CommandApp<RemotePacksCommand>().RunAsync(["--api", "http://127.0.0.1:59999"]);
+        string apiUrl;
+        await using (var server = await StubApiServer.StartAsync())
+            apiUrl = server.BaseUrl;
+
+        // server is disposed — port is now closed, connection will be refused
+        var code = await new CommandApp<RemotePacksCommand>().RunAsync(["--api", apiUrl]);
         Assert.Equal(ExitCodes.GeneralFailure, code);
     }
 
@@ -137,7 +141,6 @@ internal sealed class StubApiServer : IAsyncDisposable
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
-        builder.Logging.ClearProviders();
         var app = builder.Build();
 
         app.MapGet("/packs", () => Results.Ok(new

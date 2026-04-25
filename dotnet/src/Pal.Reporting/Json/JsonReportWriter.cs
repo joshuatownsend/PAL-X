@@ -72,7 +72,7 @@ public sealed class JsonReportWriter
             engine = new
             {
                 name = "PAL",
-                version = "2026.1.0",
+                version = "2026.2.0",
                 runtime = $".NET {System.Environment.Version.Major}.{System.Environment.Version.Minor}",
                 host_os = System.Environment.OSVersion.ToString(),
                 execution_mode = "cli",

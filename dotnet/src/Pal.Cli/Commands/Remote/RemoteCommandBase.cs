@@ -25,7 +25,10 @@ internal static class RemoteCommand
         try { return await body(); }
         catch (HttpRequestException ex)
         {
-            AnsiConsole.MarkupLine($"[red]API unreachable:[/] {Markup.Escape(ex.Message)}");
+            if (ex.StatusCode is { } statusCode)
+                AnsiConsole.MarkupLine($"[red]Request failed ({(int)statusCode} {statusCode}):[/] {Markup.Escape(ex.Message)}");
+            else
+                AnsiConsole.MarkupLine($"[red]API unreachable:[/] {Markup.Escape(ex.Message)}");
             return ExitCodes.GeneralFailure;
         }
         catch (TaskCanceledException)
