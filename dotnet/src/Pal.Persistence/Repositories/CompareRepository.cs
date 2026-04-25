@@ -25,7 +25,7 @@ public sealed class CompareRepository : ICompareRepository
             Id = Guid.NewGuid(),
             BaselineJobId = baselineJobId,
             CandidateJobId = candidateJobId,
-            ResultJson = JsonSerializer.Serialize(result, JsonOpts),
+            ResultJson = SerializePayload(result),
             CreatedAt = DateTimeOffset.UtcNow
         };
         db.CompareResults.Add(entity);
@@ -49,10 +49,14 @@ public sealed class CompareRepository : ICompareRepository
         return entities.Select(Deserialize).ToList();
     }
 
-    private static CompareResultDto Deserialize(CompareResultEntity entity)
+    // Stores only the semantic payload — Id/JobIds/CreatedAt live in the entity columns.
+    private string SerializePayload(CompareResultDto result) =>
+        JsonSerializer.Serialize(new { result.Summary, result.Diffs }, JsonOpts);
+
+    private CompareResultDto Deserialize(CompareResultEntity entity)
     {
-        var result = JsonSerializer.Deserialize<CompareResultDto>(entity.ResultJson, JsonOpts)!;
-        return Hydrate(entity, result);
+        var payload = JsonSerializer.Deserialize<ComparePayload>(entity.ResultJson, JsonOpts)!;
+        return Hydrate(entity, payload);
     }
 
     private static CompareResultDto Hydrate(CompareResultEntity entity, CompareResultDto inner) => new()
@@ -64,4 +68,20 @@ public sealed class CompareRepository : ICompareRepository
         Summary = inner.Summary,
         Diffs = inner.Diffs
     };
+
+    private static CompareResultDto Hydrate(CompareResultEntity entity, ComparePayload payload) => new()
+    {
+        Id = entity.Id,
+        BaselineJobId = entity.BaselineJobId,
+        CandidateJobId = entity.CandidateJobId,
+        CreatedAt = entity.CreatedAt,
+        Summary = payload.Summary,
+        Diffs = payload.Diffs
+    };
+
+    private sealed class ComparePayload
+    {
+        public CompareSummaryDto Summary { get; init; } = null!;
+        public IReadOnlyList<FindingDiffDto> Diffs { get; init; } = [];
+    }
 }

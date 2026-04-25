@@ -13,7 +13,7 @@ public sealed class CompareRunner
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    // Produces a CompareResultDto (without Id/CreatedAt — those are set by the repository).
+    // Id = Guid.Empty and CreatedAt = default; the repository replaces them when persisting.
     public CompareResultDto Run(
         Guid baselineJobId, string baselineFindingsJson,
         Guid candidateJobId, string candidateFindingsJson)
@@ -90,7 +90,7 @@ public sealed class CompareRunner
             Id = Guid.Empty,
             BaselineJobId = baselineJobId,
             CandidateJobId = candidateJobId,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = default,
             Summary = summary,
             Diffs = diffs
         };

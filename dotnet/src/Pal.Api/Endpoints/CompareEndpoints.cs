@@ -62,7 +62,7 @@ public static class CompareEndpoints
         .WithName("CreateCompare")
         .WithTags("Compare");
 
-        app.MapGet("/compare", async (ICompareRepository compare) =>
+        app.MapGet("/compare/list", async (ICompareRepository compare) =>
         {
             var results = await compare.ListAsync();
             return Results.Ok(new { items = results });
