@@ -41,7 +41,8 @@ public sealed class AnalysisRunner : IAnalysisRunner
             Findings = engineResult.Findings,
             PackResolutions = resolveResult.Resolutions,
             EngineWarnings = engineResult.Warnings,
-            CollectorWarnings = collectResult.Warnings
+            CollectorWarnings = collectResult.Warnings,
+            InputDigest = collectResult.InputDigest
         };
     }
 }

@@ -1,0 +1,358 @@
+{
+  "schema_version": "pal.report/v1",
+  "report_id": "rep_d3286e3414744488de49",
+  "generated_at_utc": "2026-01-01T00:00:00Z",
+  "engine": {
+    "name": "PAL",
+    "version": "2026.1.0",
+    "runtime": ".NET 8.0",
+    "host_os": "Microsoft Windows NT 10.0.26200.0",
+    "execution_mode": "cli",
+    "duration_ms": 0
+  },
+  "input": {
+    "source_type": "csv",
+    "source_path": "input.csv",
+    "source_count": 1,
+    "collector": "Pal.Collectors.Csv",
+    "collector_version": "1.0.0"
+  },
+  "dataset": {
+    "dataset_id": "ds_92e93a509d0b3c8d",
+    "machine_name": "SERVER01",
+    "start_time_utc": "2026-04-23T08:00:00Z",
+    "end_time_utc": "2026-04-23T08:02:15Z",
+    "sample_interval_seconds": 15,
+    "series_count": 4,
+    "sample_count": 40,
+    "gap_count": 0
+  },
+  "packs": [
+    {
+      "pack_id": "windows-core",
+      "pack_name": "Windows Core",
+      "version": "1.0.0",
+      "resolution_mode": "auto"
+    }
+  ],
+  "warnings": [],
+  "summary": {
+    "overall_status": "critical",
+    "finding_counts": {
+      "critical": 1,
+      "warning": 3,
+      "informational": 0
+    },
+    "category_statuses": {
+      "memory": "critical"
+    },
+    "analysis_status": "completed"
+  },
+  "findings": [
+    {
+      "finding_id": "fd_b4dcmuyjxo3nqikl",
+      "pack_id": "windows-core",
+      "rule_id": "critical-low-available-memory",
+      "severity": "critical",
+      "category": "memory",
+      "title": "Critical memory exhaustion",
+      "summary": "Available memory dropped below 5% of installed RAM (minimum 64 MB).",
+      "explanation": "Available memory below 5% of installed RAM (with a 64 MB floor) represents near-total\nmemory exhaustion. At this level the OS is continuously paging and may begin failing\nmemory allocations, leading to OOM conditions or process crashes.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:02:15Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_002",
+            "canonical_metric": "memory.available_mbytes",
+            "statistics": {
+              "count": 10,
+              "min": 359,
+              "max": 512,
+              "avg": 435.5,
+              "median": 435.5,
+              "p90": 496.7,
+              "p95": 504.34999999999997,
+              "p99": 510.47,
+              "stddev": 48.82878249557324,
+              "trend_per_hour": -4080.0000000000005,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(memory.available_mbytes) \u003C 409.6 for \u003E= 5% of samples",
+                "result": true,
+                "actual_value": 435.5,
+                "expected_value": 409.6
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "add-memory",
+          "priority": "high",
+          "text": "Add physical memory to this server.",
+          "rationale": "Low available memory forces the OS to page to disk, causing severe performance degradation."
+        },
+        {
+          "id": "check-paging-activity",
+          "priority": "high",
+          "text": "Investigate what is causing paging. Check available memory, committed bytes, and per-process working sets.",
+          "rationale": "Excessive paging causes disk I/O that dramatically reduces throughput."
+        }
+      ]
+    },
+    {
+      "finding_id": "fd_ttdppuhcct3l4dct",
+      "pack_id": "windows-core",
+      "rule_id": "high-commit-pressure",
+      "severity": "warning",
+      "category": "memory",
+      "title": "High memory commit pressure",
+      "summary": "Committed Bytes In Use exceeded 80%, approaching the commit limit.",
+      "explanation": "The commit charge represents memory promised to all processes. When it exceeds 80% of the\ncommit limit (physical RAM \u002B page file), the system is close to the point where new\nallocations will fail. This precedes OOM conditions even if physical RAM is not yet\nexhausted.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:02:15Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_004",
+            "canonical_metric": "memory.percent_committed_bytes_in_use",
+            "statistics": {
+              "count": 10,
+              "min": 85.4,
+              "max": 91.7,
+              "avg": 88.55,
+              "median": 88.55000000000001,
+              "p90": 91.07,
+              "p95": 91.385,
+              "p99": 91.637,
+              "stddev": 2.01059692628831,
+              "trend_per_hour": 168.00000000000003,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(memory.percent_committed_bytes_in_use) \u003E 80 for \u003E= 20% of samples",
+                "result": true,
+                "actual_value": 88.55,
+                "expected_value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "check-committed-bytes",
+          "priority": "medium",
+          "text": "Identify which processes are committing the most virtual memory.",
+          "rationale": "High commit pressure may indicate a memory leak or over-provisioned application."
+        },
+        {
+          "id": "add-memory",
+          "priority": "high",
+          "text": "Add physical memory to this server.",
+          "rationale": "Low available memory forces the OS to page to disk, causing severe performance degradation."
+        }
+      ]
+    },
+    {
+      "finding_id": "fd_epzjpycbbhhrfhoy",
+      "pack_id": "windows-core",
+      "rule_id": "high-paging-activity",
+      "severity": "warning",
+      "category": "memory",
+      "title": "High paging activity",
+      "summary": "Pages/sec exceeded 1000, indicating heavy disk paging.",
+      "explanation": "Pages/sec above 1000 indicates the OS is actively paging memory to or from disk.\nWhile occasional paging is normal, sustained rates above 1000 pages/sec create\nsignificant disk I/O that competes with application reads and writes. Correlate with\nAvailable MBytes and disk latency counters.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:02:15Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_003",
+            "canonical_metric": "memory.pages_per_sec",
+            "statistics": {
+              "count": 10,
+              "min": 1200,
+              "max": 1810,
+              "avg": 1502,
+              "median": 1470,
+              "p90": 1729,
+              "p95": 1769.5,
+              "p99": 1801.9,
+              "stddev": 178.65049678072546,
+              "trend_per_hour": 10763.636363636324,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(memory.pages_per_sec) \u003E 1000 for \u003E= 10% of samples",
+                "result": true,
+                "actual_value": 1502,
+                "expected_value": 1000
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "check-paging-activity",
+          "priority": "high",
+          "text": "Investigate what is causing paging. Check available memory, committed bytes, and per-process working sets.",
+          "rationale": "Excessive paging causes disk I/O that dramatically reduces throughput."
+        },
+        {
+          "id": "add-memory",
+          "priority": "high",
+          "text": "Add physical memory to this server.",
+          "rationale": "Low available memory forces the OS to page to disk, causing severe performance degradation."
+        }
+      ]
+    },
+    {
+      "finding_id": "fd_2zcoubgnm4kfqxi3",
+      "pack_id": "windows-core",
+      "rule_id": "low-available-memory",
+      "severity": "warning",
+      "category": "memory",
+      "title": "Low available physical memory",
+      "summary": "Available memory dropped below 10% of installed RAM.",
+      "explanation": "When available memory falls below 10% of installed RAM, the OS begins aggressively paging\nworking sets to disk. This causes cascading latency: page faults increase, disk I/O rises,\nand CPU time spent on memory management grows. The critical threshold (5%) applies a floor\nof 64 MB to protect very small systems.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:02:15Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_002",
+            "canonical_metric": "memory.available_mbytes",
+            "statistics": {
+              "count": 10,
+              "min": 359,
+              "max": 512,
+              "avg": 435.5,
+              "median": 435.5,
+              "p90": 496.7,
+              "p95": 504.34999999999997,
+              "p99": 510.47,
+              "stddev": 48.82878249557324,
+              "trend_per_hour": -4080.0000000000005,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(memory.available_mbytes) \u003C 819.2 for \u003E= 10% of samples",
+                "result": true,
+                "actual_value": 435.5,
+                "expected_value": 819.2
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "add-memory",
+          "priority": "high",
+          "text": "Add physical memory to this server.",
+          "rationale": "Low available memory forces the OS to page to disk, causing severe performance degradation."
+        },
+        {
+          "id": "check-paging-activity",
+          "priority": "high",
+          "text": "Investigate what is causing paging. Check available memory, committed bytes, and per-process working sets.",
+          "rationale": "Excessive paging causes disk I/O that dramatically reduces throughput."
+        }
+      ]
+    }
+  ],
+  "series_index": [
+    {
+      "series_id": "ser_001",
+      "counter_path_original": "\u0022\\\\SERVER01\\Processor(_Total)\\% Processor Time\u0022",
+      "canonical_metric": "processor.percent_processor_time",
+      "statistics": {
+        "count": 10,
+        "min": 42.3,
+        "max": 51.1,
+        "avg": 46.940000000000005,
+        "median": 47.25,
+        "p90": 50.29,
+        "p95": 50.695,
+        "p99": 51.019,
+        "stddev": 2.7767607026893777,
+        "trend_per_hour": 61.090909090910095,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_002",
+      "counter_path_original": "\u0022\\\\SERVER01\\Memory\\Available MBytes\u0022",
+      "canonical_metric": "memory.available_mbytes",
+      "statistics": {
+        "count": 10,
+        "min": 359,
+        "max": 512,
+        "avg": 435.5,
+        "median": 435.5,
+        "p90": 496.7,
+        "p95": 504.34999999999997,
+        "p99": 510.47,
+        "stddev": 48.82878249557324,
+        "trend_per_hour": -4080.0000000000005,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_003",
+      "counter_path_original": "\u0022\\\\SERVER01\\Memory\\Pages/sec\u0022",
+      "canonical_metric": "memory.pages_per_sec",
+      "statistics": {
+        "count": 10,
+        "min": 1200,
+        "max": 1810,
+        "avg": 1502,
+        "median": 1470,
+        "p90": 1729,
+        "p95": 1769.5,
+        "p99": 1801.9,
+        "stddev": 178.65049678072546,
+        "trend_per_hour": 10763.636363636324,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_004",
+      "counter_path_original": "\u0022\\\\SERVER01\\Memory\\% Committed Bytes In Use\u0022",
+      "canonical_metric": "memory.percent_committed_bytes_in_use",
+      "statistics": {
+        "count": 10,
+        "min": 85.4,
+        "max": 91.7,
+        "avg": 88.55,
+        "median": 88.55000000000001,
+        "p90": 91.07,
+        "p95": 91.385,
+        "p99": 91.637,
+        "stddev": 2.01059692628831,
+        "trend_per_hour": 168.00000000000003,
+        "missing_sample_count": 0
+      }
+    }
+  ],
+  "artifacts": {
+    "json_report_path": "input.pal-report.json"
+  }
+}

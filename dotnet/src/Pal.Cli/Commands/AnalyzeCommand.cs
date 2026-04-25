@@ -194,7 +194,8 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
             OutputPath = jsonPath,
             HtmlReportPath = emitHtml ? htmlPath : null,
             DurationMs = settings.NowOverride is not null ? 0L : sw.ElapsedMilliseconds,
-            GeneratedAt = generatedAt
+            GeneratedAt = generatedAt,
+            InputDigest = result.InputDigest
         };
 
         try

@@ -29,6 +29,7 @@ public sealed class JsonReportWriter
         public required string? HtmlReportPath { get; init; }
         public required long DurationMs { get; init; }
         public required DateTimeOffset GeneratedAt { get; init; }
+        public required string InputDigest { get; init; }
     }
 
     public void Write(WriteInput input)
@@ -51,7 +52,7 @@ public sealed class JsonReportWriter
         var overall = StatusClassifier.ClassifyOverall(input.Findings);
         var byCategory = StatusClassifier.ClassifyByCategory(input.Findings);
 
-        string reportId = ComputeReportId(input.InputPath, input.PackResolutions);
+        string reportId = ComputeReportId(input.InputDigest, input.PackResolutions);
         string sourceType = Path.GetExtension(input.InputPath).TrimStart('.').ToLowerInvariant();
 
         var warnings = new List<object>();
@@ -80,7 +81,7 @@ public sealed class JsonReportWriter
             input = new
             {
                 source_type = sourceType,
-                source_path = input.InputPath,
+                source_path = Path.GetFileName(input.InputPath),
                 source_count = 1,
                 collector = $"Pal.Collectors.{char.ToUpperInvariant(sourceType[0])}{sourceType[1..]}",
                 collector_version = "1.0.0"
@@ -123,8 +124,8 @@ public sealed class JsonReportWriter
             series_index = input.Dataset.Series.Select(MapSeries).ToList(),
             artifacts = new
             {
-                json_report_path = input.OutputPath,
-                html_report_path = input.HtmlReportPath
+                json_report_path = Path.GetFileName(input.OutputPath),
+                html_report_path = input.HtmlReportPath is not null ? Path.GetFileName(input.HtmlReportPath) : null
             }
         };
     }
@@ -208,12 +209,12 @@ public sealed class JsonReportWriter
         return (c, w, i);
     }
 
-    private static string ComputeReportId(string inputPath, IReadOnlyList<PackResolutionInfo> packs)
+    private static string ComputeReportId(string inputDigest, IReadOnlyList<PackResolutionInfo> packs)
     {
-        var parts = new List<string> { Path.GetFullPath(inputPath) };
+        var parts = new List<string> { inputDigest };
         parts.AddRange(packs.OrderBy(p => p.PackId).Select(p => $"{p.PackId}@{p.Version}"));
-        var input = string.Join("|", parts);
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input));
+        var combined = string.Join("|", parts);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(combined));
         return "rep_" + Convert.ToHexString(hash[..10]).ToLowerInvariant();
     }
 }

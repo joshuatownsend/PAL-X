@@ -1,0 +1,148 @@
+{
+  "schema_version": "pal.report/v1",
+  "report_id": "rep_400da011b1fb15f48158",
+  "generated_at_utc": "2026-01-01T00:00:00Z",
+  "engine": {
+    "name": "PAL",
+    "version": "2026.1.0",
+    "runtime": ".NET 8.0",
+    "host_os": "Microsoft Windows NT 10.0.26200.0",
+    "execution_mode": "cli",
+    "duration_ms": 0
+  },
+  "input": {
+    "source_type": "csv",
+    "source_path": "input.csv",
+    "source_count": 1,
+    "collector": "Pal.Collectors.Csv",
+    "collector_version": "1.0.0"
+  },
+  "dataset": {
+    "dataset_id": "ds_9451fd7d2ea950e0",
+    "machine_name": "SERVER01",
+    "start_time_utc": "2026-04-23T08:00:00Z",
+    "end_time_utc": "2026-04-23T08:02:15Z",
+    "sample_interval_seconds": 15,
+    "series_count": 4,
+    "sample_count": 40,
+    "gap_count": 0
+  },
+  "packs": [
+    {
+      "pack_id": "windows-core",
+      "pack_name": "Windows Core",
+      "version": "1.0.0",
+      "resolution_mode": "auto"
+    }
+  ],
+  "warnings": [
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027low-available-memory\u0027 in pack \u0027windows-core\u0027 skipped: host_context.total_physical_memory_mb not provided.",
+      "severity": "informational"
+    },
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027critical-low-available-memory\u0027 in pack \u0027windows-core\u0027 skipped: host_context.total_physical_memory_mb not provided.",
+      "severity": "informational"
+    },
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027excessive-context-switches\u0027 in pack \u0027windows-core\u0027 skipped: host_context.logical_processor_count not provided.",
+      "severity": "informational"
+    },
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027high-processor-queue-length\u0027 in pack \u0027windows-core\u0027 skipped: host_context.logical_processor_count not provided.",
+      "severity": "informational"
+    }
+  ],
+  "summary": {
+    "overall_status": "healthy",
+    "finding_counts": {
+      "critical": 0,
+      "warning": 0,
+      "informational": 0
+    },
+    "category_statuses": {},
+    "analysis_status": "completed_with_warnings"
+  },
+  "findings": [],
+  "series_index": [
+    {
+      "series_id": "ser_001",
+      "counter_path_original": "\u0022\\\\SERVER01\\Processor(_Total)\\% Processor Time\u0022",
+      "canonical_metric": "processor.percent_processor_time",
+      "statistics": {
+        "count": 10,
+        "min": 17.9,
+        "max": 25.2,
+        "avg": 21.589999999999996,
+        "median": 21.950000000000003,
+        "p90": 24.75,
+        "p95": 24.974999999999998,
+        "p99": 25.155,
+        "stddev": 2.394347510283334,
+        "trend_per_hour": 26.3272727272726,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_002",
+      "counter_path_original": "\u0022\\\\SERVER01\\Processor(_Total)\\% Privileged Time\u0022",
+      "canonical_metric": "processor.percent_privileged_time",
+      "statistics": {
+        "count": 10,
+        "min": 2.7,
+        "max": 3.7,
+        "avg": 3.1599999999999997,
+        "median": 3.1500000000000004,
+        "p90": 3.61,
+        "p95": 3.6550000000000002,
+        "p99": 3.6910000000000003,
+        "stddev": 0.3136877428271625,
+        "trend_per_hour": 2.327272727272719,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_003",
+      "counter_path_original": "\u0022\\\\SERVER01\\Memory\\Available MBytes\u0022",
+      "canonical_metric": "memory.available_mbytes",
+      "statistics": {
+        "count": 10,
+        "min": 8180,
+        "max": 8192,
+        "avg": 8185.2,
+        "median": 8184.5,
+        "p90": 8190.2,
+        "p95": 8191.1,
+        "p99": 8191.82,
+        "stddev": 3.7629775444453557,
+        "trend_per_hour": -311.27272727264267,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_004",
+      "counter_path_original": "\u0022\\\\SERVER01\\PhysicalDisk(0 C:)\\Avg. Disk sec/Read\u0022",
+      "canonical_metric": "physicaldisk.avg_disk_sec_per_read",
+      "statistics": {
+        "count": 10,
+        "min": 0.004,
+        "max": 0.006,
+        "avg": 0.0049,
+        "median": 0.005,
+        "p90": 0.006,
+        "p95": 0.006,
+        "p99": 0.006,
+        "stddev": 0.0007,
+        "trend_per_hour": 0.0014545454545454156,
+        "missing_sample_count": 0
+      }
+    }
+  ],
+  "artifacts": {
+    "json_report_path": "input.pal-report.json"
+  }
+}

@@ -1,0 +1,211 @@
+{
+  "schema_version": "pal.report/v1",
+  "report_id": "rep_0c5830fe0c7f606f75fa",
+  "generated_at_utc": "2026-01-01T00:00:00Z",
+  "engine": {
+    "name": "PAL",
+    "version": "2026.1.0",
+    "runtime": ".NET 8.0",
+    "host_os": "Microsoft Windows NT 10.0.26200.0",
+    "execution_mode": "cli",
+    "duration_ms": 0
+  },
+  "input": {
+    "source_type": "csv",
+    "source_path": "input.csv",
+    "source_count": 1,
+    "collector": "Pal.Collectors.Csv",
+    "collector_version": "1.0.0"
+  },
+  "dataset": {
+    "dataset_id": "ds_812e485d54f87d80",
+    "machine_name": "SERVER01",
+    "start_time_utc": "2026-04-23T08:00:00Z",
+    "end_time_utc": "2026-04-23T08:04:45Z",
+    "sample_interval_seconds": 15,
+    "series_count": 4,
+    "sample_count": 80,
+    "gap_count": 0
+  },
+  "packs": [
+    {
+      "pack_id": "windows-core",
+      "pack_name": "Windows Core",
+      "version": "1.0.0",
+      "resolution_mode": "auto"
+    }
+  ],
+  "warnings": [
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027low-available-memory\u0027 in pack \u0027windows-core\u0027 skipped: host_context.total_physical_memory_mb not provided.",
+      "severity": "informational"
+    },
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027critical-low-available-memory\u0027 in pack \u0027windows-core\u0027 skipped: host_context.total_physical_memory_mb not provided.",
+      "severity": "informational"
+    },
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027excessive-context-switches\u0027 in pack \u0027windows-core\u0027 skipped: host_context.logical_processor_count not provided.",
+      "severity": "informational"
+    },
+    {
+      "code": "rule.host_context_unavailable",
+      "message": "Rule \u0027high-processor-queue-length\u0027 in pack \u0027windows-core\u0027 skipped: host_context.logical_processor_count not provided.",
+      "severity": "informational"
+    }
+  ],
+  "summary": {
+    "overall_status": "warning",
+    "finding_counts": {
+      "critical": 0,
+      "warning": 1,
+      "informational": 0
+    },
+    "category_statuses": {
+      "cpu": "warning"
+    },
+    "analysis_status": "completed_with_warnings"
+  },
+  "findings": [
+    {
+      "finding_id": "fd_nizsh4fdsffjmruw",
+      "pack_id": "windows-core",
+      "rule_id": "high-cpu-sustained",
+      "severity": "warning",
+      "category": "cpu",
+      "title": "Sustained high CPU utilization",
+      "summary": "Total processor time averaged above 80% for more than 20% of the capture window.",
+      "explanation": "Sustained CPU utilization above 80% leaves little headroom for burst workloads. When the\nprocessor is consistently near saturation, request queues grow, response times increase, and\nthe system becomes susceptible to latency spikes from any additional load. This rule fires\nwhen the _Total processor time averages above 80% for at least 20% of the sampled period.\nNote: 80% is a warning threshold \u2014 if utilization is this high consistently, investigate\nwhich processes are responsible before adding capacity.\n",
+      "time_window": {
+        "start_time_utc": "2026-04-23T08:00:00Z",
+        "end_time_utc": "2026-04-23T08:04:45Z"
+      },
+      "evidence": {
+        "metrics": [
+          {
+            "series_id": "ser_001",
+            "canonical_metric": "processor.percent_processor_time",
+            "statistics": {
+              "count": 20,
+              "min": 85.2,
+              "max": 94.1,
+              "avg": 89.405,
+              "median": 89.05000000000001,
+              "p90": 93.42,
+              "p95": 93.625,
+              "p99": 94.005,
+              "stddev": 2.626875520461523,
+              "trend_per_hour": 4.565413533835107,
+              "missing_sample_count": 0
+            },
+            "trigger_details": [
+              {
+                "expression": "avg(processor.percent_processor_time[_Total]) \u003E 80 for \u003E= 20% of samples",
+                "result": true,
+                "actual_value": 89.405,
+                "expected_value": 80
+              }
+            ]
+          }
+        ]
+      },
+      "recommendations": [
+        {
+          "id": "investigate-process-cpu",
+          "priority": "high",
+          "text": "Identify which process is consuming CPU using Process\\% Processor Time counters.",
+          "rationale": "Total CPU alone does not identify the responsible process.",
+          "links": [
+            "https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/typeperf"
+          ]
+        },
+        {
+          "id": "add-cpu-capacity",
+          "priority": "low",
+          "text": "Consider adding CPU capacity or distributing load if sustained utilization is expected.",
+          "rationale": "Sustained high CPU leaves no headroom for burst workloads."
+        }
+      ]
+    }
+  ],
+  "series_index": [
+    {
+      "series_id": "ser_001",
+      "counter_path_original": "\u0022\\\\SERVER01\\Processor(_Total)\\% Processor Time\u0022",
+      "canonical_metric": "processor.percent_processor_time",
+      "statistics": {
+        "count": 20,
+        "min": 85.2,
+        "max": 94.1,
+        "avg": 89.405,
+        "median": 89.05000000000001,
+        "p90": 93.42,
+        "p95": 93.625,
+        "p99": 94.005,
+        "stddev": 2.626875520461523,
+        "trend_per_hour": 4.565413533835107,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_002",
+      "counter_path_original": "\u0022\\\\SERVER01\\Processor(_Total)\\% Privileged Time\u0022",
+      "canonical_metric": "processor.percent_privileged_time",
+      "statistics": {
+        "count": 20,
+        "min": 12.1,
+        "max": 16.8,
+        "avg": 14.515,
+        "median": 14.6,
+        "p90": 16.12,
+        "p95": 16.325000000000003,
+        "p99": 16.705,
+        "stddev": 1.2207682007654035,
+        "trend_per_hour": 4.92631578947363,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_003",
+      "counter_path_original": "\u0022\\\\SERVER01\\Memory\\Available MBytes\u0022",
+      "canonical_metric": "memory.available_mbytes",
+      "statistics": {
+        "count": 20,
+        "min": 4031,
+        "max": 4096,
+        "avg": 4060.75,
+        "median": 4059.5,
+        "p90": 4085.5,
+        "p95": 4090.3,
+        "p99": 4094.86,
+        "stddev": 18.960155590078895,
+        "trend_per_hour": -787.3082706766174,
+        "missing_sample_count": 0
+      }
+    },
+    {
+      "series_id": "ser_004",
+      "counter_path_original": "\u0022\\\\SERVER01\\PhysicalDisk(0 C:)\\Avg. Disk sec/Read\u0022",
+      "canonical_metric": "physicaldisk.avg_disk_sec_per_read",
+      "statistics": {
+        "count": 20,
+        "min": 0.007,
+        "max": 0.011,
+        "avg": 0.00855,
+        "median": 0.0085,
+        "p90": 0.01,
+        "p95": 0.010050000000000002,
+        "p99": 0.010809999999999998,
+        "stddev": 0.0012031209415515963,
+        "trend_per_hour": 0.004150375939849644,
+        "missing_sample_count": 0
+      }
+    }
+  ],
+  "artifacts": {
+    "json_report_path": "input.pal-report.json"
+  }
+}

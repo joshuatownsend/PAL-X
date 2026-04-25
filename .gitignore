@@ -24,5 +24,6 @@ Thumbs.db
 
 # PAL output artifacts (not fixtures)
 *.pal-report.json
+!fixtures/**/golden.pal-report.json
 *.pal-report.html
 out/

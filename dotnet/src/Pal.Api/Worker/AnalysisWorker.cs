@@ -165,7 +165,8 @@ public sealed class AnalysisWorker : BackgroundService
             OutputPath = dummyJsonPath,
             HtmlReportPath = dummyHtmlPath,
             DurationMs = 0,
-            GeneratedAt = DateTimeOffset.UtcNow
+            GeneratedAt = DateTimeOffset.UtcNow,
+            InputDigest = result.InputDigest
         };
 
         using var jsonMs = new MemoryStream();

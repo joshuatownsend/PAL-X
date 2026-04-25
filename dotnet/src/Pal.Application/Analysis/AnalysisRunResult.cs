@@ -10,4 +10,5 @@ public sealed class AnalysisRunResult
     public required IReadOnlyList<PackResolutionInfo> PackResolutions { get; init; }
     public required IReadOnlyList<RuleEngine.EngineWarning> EngineWarnings { get; init; }
     public required IReadOnlyList<string> CollectorWarnings { get; init; }
+    public required string InputDigest { get; init; }
 }
