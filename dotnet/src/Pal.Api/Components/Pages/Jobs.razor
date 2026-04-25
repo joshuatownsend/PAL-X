@@ -41,7 +41,13 @@ else
             @foreach (var job in _jobs)
             {
                 <tr @onclick="() => NavTo(job.Id)" style="cursor:pointer">
-                    <td><code>@job.Id.ToString("N")[..8]</code></td>
+                    <td>
+                        <code>@job.Id.ToString("N")[..8]</code>
+                        @if (job.IsBaseline)
+                        {
+                            <span class="baseline-badge" title="@(job.BaselineLabel ?? "Baseline")">B</span>
+                        }
+                    </td>
                     <td><span class="status-badge status-@job.Status">@job.Status</span></td>
                     <td>@string.Join(", ", job.Packs.Select(p => p.PackId))</td>
                     <td>@job.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>

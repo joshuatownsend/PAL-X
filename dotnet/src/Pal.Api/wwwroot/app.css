@@ -33,3 +33,22 @@ h1 { margin-top: 0; }
 .job-meta { background: #fff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
 .report-links { margin-bottom: 1rem; }
 .healthy { color: #166534; font-weight: 600; }
+.baseline-badge { display: inline-block; margin-left: 0.4rem; padding: 0.1rem 0.45rem; background: #7c3aed; color: #fff; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
+.baseline-controls { margin-top: 0.75rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+.btn-primary { padding: 0.4rem 1rem; background: #2563eb; color: #fff; border: none; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 0.9rem; }
+.btn-secondary { padding: 0.4rem 1rem; background: #e2e8f0; color: #1e293b; border: none; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+.compare-form { background: #fff; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; }
+.compare-form .form-row { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; }
+.compare-form label { font-weight: 600; display: flex; flex-direction: column; gap: 0.25rem; }
+.compare-form select { padding: 0.4rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; min-width: 240px; }
+.compare-summary { background: #fff; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+.diff-counts { display: flex; gap: 1.5rem; margin-top: 0.5rem; font-weight: 600; }
+.diff-new { color: #dc2626; }
+.diff-resolved { color: #16a34a; }
+.diff-sev-changed { color: #d97706; }
+.diff-unchanged { color: #64748b; }
+.diff-badge { padding: 0.15rem 0.55rem; border-radius: 99px; font-size: 0.8rem; font-weight: 600; }
+.diff-badge.diff-new { background: #fee2e2; color: #991b1b; }
+.diff-badge.diff-resolved { background: #dcfce7; color: #166534; }
+.diff-badge.diff-severity_changed { background: #fef3c7; color: #92400e; }
+.diff-badge.diff-unchanged { background: #f1f5f9; color: #475569; }

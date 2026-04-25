@@ -12,7 +12,12 @@ else
 {
     <h1>Job <code>@_job.Id.ToString("N")[..8]</code></h1>
     <div class="job-meta">
-        <p>Status: <span class="status-badge status-@_job.Status">@_job.Status</span></p>
+        <p>Status: <span class="status-badge status-@_job.Status">@_job.Status</span>
+            @if (_job.IsBaseline)
+            {
+                <span class="baseline-badge">Baseline@(_job.BaselineLabel is not null ? $": {_job.BaselineLabel}" : "")</span>
+            }
+        </p>
         <p>Created: @_job.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")</p>
         @if (_job.StartedAt is not null)
         {
@@ -27,6 +32,20 @@ else
             <p class="error">Failure: @_job.FailureReason</p>
         }
         <p>Packs: @string.Join(", ", _job.Packs.Select(p => $"{p.PackId} v{p.PackVersion}"))</p>
+        @if (_job.Status == "completed")
+        {
+            <div class="baseline-controls">
+                @if (!_job.IsBaseline)
+                {
+                    <button class="btn-secondary" @onclick="SetAsBaseline">Set as Baseline</button>
+                }
+                else
+                {
+                    <button class="btn-secondary" @onclick="ClearBaseline">Clear Baseline</button>
+                    <a href="/compare?baseline=@_job.Id" class="btn-primary">Compare against this baseline</a>
+                }
+            </div>
+        }
     </div>
 
     @if (_job.Status == "completed" && _result is not null)
@@ -47,6 +66,7 @@ else
 
 @code {
     [Parameter] public Guid Id { get; set; }
+    [Inject] private NavigationManager Nav { get; set; } = null!;
 
     private AnalysisJobDto? _job;
     private AnalysisResultDto? _result;
@@ -73,6 +93,18 @@ else
             _timer?.Dispose();
             _timer = null;
         }
+    }
+
+    private async Task SetAsBaseline()
+    {
+        await AnalysisRepo.SetBaselineAsync(Id, true, null);
+        await RefreshAsync();
+    }
+
+    private async Task ClearBaseline()
+    {
+        await AnalysisRepo.SetBaselineAsync(Id, false, null);
+        await RefreshAsync();
     }
 
     public void Dispose() => _timer?.Dispose();

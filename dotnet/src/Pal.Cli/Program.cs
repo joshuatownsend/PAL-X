@@ -38,6 +38,9 @@ app.Configure(config =>
 
         remote.AddCommand<RemotePacksCommand>("packs")
             .WithDescription("List packs registered on the server");
+
+        remote.AddCommand<CompareCommand>("compare")
+            .WithDescription("Compare two completed analysis jobs and show a finding diff");
     });
 });
 

@@ -6,6 +6,7 @@ using Pal.Api.Endpoints;
 using Pal.Api.Services;
 using Pal.Api.Worker;
 using Pal.Application.Analysis;
+using Pal.Application.Compare;
 using Pal.Application.Persistence;
 using Pal.Application.Storage;
 using Pal.Persistence;
@@ -31,6 +32,8 @@ builder.Services.AddSingleton<IStorageProvider>(_ => new LocalDiskStorageProvide
 builder.Services.AddSingleton<IUploadRepository, UploadRepository>();
 builder.Services.AddSingleton<IAnalysisRepository, AnalysisRepository>();
 builder.Services.AddSingleton<IPackRepository, PackRepository>();
+builder.Services.AddSingleton<ICompareRepository, CompareRepository>();
+builder.Services.AddSingleton<CompareRunner>();
 
 // Analysis runner and worker channel
 builder.Services.AddSingleton<IAnalysisRunner, AnalysisRunner>();
@@ -76,6 +79,7 @@ app.MapHealthEndpoints();
 app.MapPackEndpoints();
 app.MapUploadEndpoints();
 app.MapAnalysisEndpoints();
+app.MapCompareEndpoints();
 
 // Blazor Server UI
 app.MapRazorComponents<App>()

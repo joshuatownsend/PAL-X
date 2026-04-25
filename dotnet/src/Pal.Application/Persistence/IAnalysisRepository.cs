@@ -22,4 +22,8 @@ public interface IAnalysisRepository
 
     // Pack version pinning: record which pack versions were used
     Task SetJobPackVersionsAsync(Guid jobId, IReadOnlyList<JobPackDto> packs, CancellationToken ct = default);
+
+    // Baseline designation
+    Task SetBaselineAsync(Guid jobId, bool isBaseline, string? label, CancellationToken ct = default);
+    Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(CancellationToken ct = default);
 }
