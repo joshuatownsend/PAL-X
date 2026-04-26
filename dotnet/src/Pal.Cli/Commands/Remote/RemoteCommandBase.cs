@@ -32,7 +32,7 @@ internal static class RemoteMarkup
     };
 
     internal static string FormatWindowDate(string raw) =>
-        DateTimeOffset.TryParse(raw, out var dt) ? dt.ToString("yyyy-MM-dd") : raw;
+        DateTimeOffset.TryParse(raw, out var dt) ? dt.ToString("yyyy-MM-dd") : Markup.Escape(raw);
 }
 
 internal static class RemoteCommand

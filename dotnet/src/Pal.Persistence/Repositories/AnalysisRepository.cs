@@ -147,8 +147,9 @@ public sealed class AnalysisRepository : IAnalysisRepository
 
     public async Task<IReadOnlyList<AnalysisResultDto>> GetResultsAsync(IEnumerable<Guid> jobIds, CancellationToken ct = default)
     {
-        await using var db = await _factory.CreateDbContextAsync(ct);
         var ids = jobIds.ToList();
+        if (ids.Count == 0) return [];
+        await using var db = await _factory.CreateDbContextAsync(ct);
         return await db.AnalysisResults
             .Where(r => ids.Contains(r.AnalysisJobId))
             .Select(r => new AnalysisResultDto

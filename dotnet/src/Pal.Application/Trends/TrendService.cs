@@ -23,13 +23,10 @@ public sealed class TrendService(IAnalysisRepository analysis, TrendAnalyzer ana
         var resultsByJob = resultsList.ToDictionary(r => r.AnalysisJobId);
 
         var entries = orderedOldestFirst
-            .Where(j => resultsByJob.ContainsKey(j.Id))
-            .Select(j => new TrendJobEntryDto
-            {
-                JobId = j.Id,
-                CompletedAt = j.CompletedAt ?? j.CreatedAt,
-                FindingsJson = resultsByJob[j.Id].FindingsJson
-            })
+            .Select(j => resultsByJob.TryGetValue(j.Id, out var r)
+                ? new TrendJobEntryDto { JobId = j.Id, CompletedAt = j.CompletedAt ?? j.CreatedAt, FindingsJson = r.FindingsJson }
+                : null)
+            .OfType<TrendJobEntryDto>()
             .ToList();
 
         return analyzer.Analyze(entries);

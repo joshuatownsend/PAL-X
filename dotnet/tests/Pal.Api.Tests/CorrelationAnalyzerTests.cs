@@ -163,13 +163,15 @@ public class CorrelationAnalyzerTests
     // ── ranking / sort order ─────────────────────────────────────────────
 
     [Fact]
-    public void Analyze_BothWorseningPairRankedBeforeOtherDirections()
+    public void Analyze_DirectionMatchedStablePairRankedBeforeMismatchedPairs()
     {
+        // cpu is "worsening"; mem and disk are "stable"
+        // mem+disk pair: direction-matched (both stable) → ranked before cpu+mem and cpu+disk (mismatched)
         var jobs = new[]
         {
-            Job(0, ("cpu", "warning", "processor.percent_processor_time"),  // worsening
-                    ("mem", "warning", "memory.available_mbytes"),           // stable
-                    ("disk", "warning", "physical_disk.avg_disk_sec_read")), // stable
+            Job(0, ("cpu", "warning", "processor.percent_processor_time"),
+                    ("mem", "warning", "memory.available_mbytes"),
+                    ("disk", "warning", "physical_disk.avg_disk_sec_read")),
             Job(1, ("cpu", "warning", "processor.percent_processor_time"),
                     ("mem", "warning", "memory.available_mbytes"),
                     ("disk", "warning", "physical_disk.avg_disk_sec_read")),
@@ -179,13 +181,11 @@ public class CorrelationAnalyzerTests
         };
         var result = _analyzer.Analyze(Trends(jobs));
 
-        // cpu:… is "worsening"; mem and disk are "stable"
-        // the cpu+something pairs should sort after the mem+disk pair IF both aren't worsening
-        // but cpu+mem pair: cpu=worsening, mem=stable → not both-worsening
-        // all pairs have directionMatch=false except mem+disk (both stable → match)
-        // so sorted: dirMatch=true pairs first (mem+disk), then dirMatch=false
         var first = result.Pairs[0];
-        Assert.Equal("mem:memory.available_mbytes", first.KeyA.Contains("mem") ? first.KeyA : first.KeyB);
+        bool isMemDiskPair =
+            (first.KeyA == "mem:memory.available_mbytes" && first.KeyB == "disk:physical_disk.avg_disk_sec_read")
+            || (first.KeyA == "disk:physical_disk.avg_disk_sec_read" && first.KeyB == "mem:memory.available_mbytes");
+        Assert.True(isMemDiskPair, "mem+disk (both stable, direction-matched) should be ranked first");
     }
 
     [Fact]
