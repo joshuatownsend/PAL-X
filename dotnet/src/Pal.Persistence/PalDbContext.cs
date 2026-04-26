@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Pal.Persistence.Entities;
 
 namespace Pal.Persistence;
 
-public sealed class PalDbContext : DbContext
+public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
 {
     public PalDbContext(DbContextOptions<PalDbContext> options) : base(options) { }
 
@@ -18,9 +20,22 @@ public sealed class PalDbContext : DbContext
     public DbSet<CompareResultEntity> CompareResults => Set<CompareResultEntity>();
     public DbSet<AlertEntity> Alerts => Set<AlertEntity>();
     public DbSet<WebhookSinkEntity> WebhookSinks => Set<WebhookSinkEntity>();
+    public DbSet<PersonalAccessTokenEntity> PersonalAccessTokens => Set<PersonalAccessTokenEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);  // must be first — registers Identity table configs
+
+        // Remap Identity tables to snake_case; UseSnakeCaseNamingConvention does not
+        // override the explicit ToTable() calls that IdentityDbContext.OnModelCreating sets.
+        modelBuilder.Entity<ApplicationUser>().ToTable("asp_net_users");
+        modelBuilder.Entity<IdentityRole>().ToTable("asp_net_roles");
+        modelBuilder.Entity<IdentityUserClaim<string>>().ToTable("asp_net_user_claims");
+        modelBuilder.Entity<IdentityUserRole<string>>().ToTable("asp_net_user_roles");
+        modelBuilder.Entity<IdentityUserLogin<string>>().ToTable("asp_net_user_logins");
+        modelBuilder.Entity<IdentityUserToken<string>>().ToTable("asp_net_user_tokens");
+        modelBuilder.Entity<IdentityRoleClaim<string>>().ToTable("asp_net_role_claims");
+
         modelBuilder.Entity<UploadEntity>(e =>
         {
             e.HasKey(x => x.Id);
@@ -106,6 +121,17 @@ public sealed class PalDbContext : DbContext
         modelBuilder.Entity<WebhookSinkEntity>(e =>
         {
             e.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<PersonalAccessTokenEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => x.UserId);
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

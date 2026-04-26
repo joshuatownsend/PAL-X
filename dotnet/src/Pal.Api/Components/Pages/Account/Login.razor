@@ -1,0 +1,39 @@
+@page "/account/login"
+@attribute [AllowAnonymous]
+
+<PageTitle>Sign in — PAL</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <h1>PAL</h1>
+        <h2>Sign in</h2>
+
+        @if (Error is not null)
+        {
+            <div class="alert-error">
+                @(Error == "locked" ? "Account locked out. Try again later." : "Invalid email or password.")
+            </div>
+        }
+
+        <form method="post" action="/account/login">
+            <div class="field">
+                <label>Email</label>
+                <input name="email" type="email" autocomplete="username" placeholder="admin@pal.local" required />
+            </div>
+            <div class="field">
+                <label>Password</label>
+                <input name="password" type="password" autocomplete="current-password" required />
+            </div>
+            <div class="field-inline">
+                <input name="rememberMe" type="checkbox" value="true" />
+                <label>Remember me</label>
+            </div>
+            <button type="submit" class="btn-primary">Sign in</button>
+        </form>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+}

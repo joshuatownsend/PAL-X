@@ -1,3 +1,4 @@
+using Pal.Api.Auth;
 using Pal.Application.Alerts;
 
 namespace Pal.Api.Endpoints;
@@ -32,7 +33,8 @@ public static class AlertEndpoints
             return ok ? Results.NoContent() : Results.Conflict("Alert is not in 'open' state");
         })
         .WithName("AcknowledgeAlert")
-        .WithTags("Alerts");
+        .WithTags("Alerts")
+        .RequireAuthorization(Roles.Analyst);
 
         app.MapPatch("/alerts/{id:guid}/resolve", async (Guid id, ResolveAlertRequest? req, IAlertService alerts) =>
         {
@@ -42,7 +44,8 @@ public static class AlertEndpoints
             return ok ? Results.NoContent() : Results.Conflict("Alert is already resolved");
         })
         .WithName("ResolveAlert")
-        .WithTags("Alerts");
+        .WithTags("Alerts")
+        .RequireAuthorization(Roles.Analyst);
     }
 
     private sealed record ResolveAlertRequest(string? Note);

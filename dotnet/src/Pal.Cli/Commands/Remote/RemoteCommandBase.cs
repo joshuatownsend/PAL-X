@@ -10,12 +10,22 @@ public abstract class RemoteSettings : CommandSettings
     [Description("Base URL of the PAL API server")]
     [DefaultValue("http://localhost:8080")]
     public string ApiBase { get; init; } = "http://localhost:8080";
+
+    [CommandOption("--api-key")]
+    [Description("Personal access token for authentication (pal_...)")]
+    public string? ApiKey { get; init; }
 }
 
 internal static class RemoteHttpClient
 {
-    public static HttpClient Create(string apiBase) =>
-        new() { BaseAddress = new Uri(apiBase.TrimEnd('/') + "/") };
+    public static HttpClient Create(string apiBase, string? apiKey = null)
+    {
+        var client = new HttpClient { BaseAddress = new Uri(apiBase.TrimEnd('/') + "/") };
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+        return client;
+    }
 }
 
 internal static class RemoteMarkup

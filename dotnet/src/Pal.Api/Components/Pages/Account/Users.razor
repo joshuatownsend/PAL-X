@@ -1,0 +1,118 @@
+@page "/account/users"
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Pal.Api.Auth
+@using Pal.Persistence.Entities
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>User Management — PAL</PageTitle>
+
+<h2>User Management</h2>
+
+<div class="toolbar">
+    <button class="btn-primary" @onclick="() => _showCreate = true">Add user</button>
+</div>
+
+@if (_users.Count == 0)
+{
+    <p>No users found.</p>
+}
+else
+{
+    <table class="data-table">
+        <thead><tr><th>Email</th><th>Display name</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var u in _users)
+        {
+            <tr>
+                <td>@u.Email</td>
+                <td>@u.DisplayName</td>
+                <td><button class="btn-danger-sm" @onclick="() => DeleteAsync(u.Id)">Remove</button></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (_showCreate)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <h3>Add user</h3>
+            @if (_createError is not null) { <div class="alert-error">@_createError</div> }
+            <div class="field"><label>Email</label><input type="email" @bind="_newEmail" /></div>
+            <div class="field"><label>Password</label><input type="password" @bind="_newPassword" /></div>
+            <div class="field">
+                <label>Role</label>
+                <select @bind="_newRole">
+                    <option value="Viewer">Viewer</option>
+                    <option value="Analyst">Analyst</option>
+                    <option value="Admin">Admin</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-primary" @onclick="CreateAsync">Create</button>
+                <button @onclick="() => _showCreate = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UserRow> _users = [];
+    private bool _showCreate;
+    private string _newEmail = "";
+    private string _newPassword = "";
+    private string _newRole = "Viewer";
+    private string? _createError;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _users = await UserManager.Users
+            .Select(u => new UserRow(u.Id, u.Email, u.DisplayName))
+            .ToListAsync();
+    }
+
+    private async Task CreateAsync()
+    {
+        _createError = null;
+        var role = Roles.All.Contains(_newRole) ? _newRole : Roles.Viewer;
+        var user = new ApplicationUser
+        {
+            UserName = _newEmail,
+            Email = _newEmail,
+            EmailConfirmed = true,
+        };
+
+        var createResult = await UserManager.CreateAsync(user, _newPassword);
+        if (!createResult.Succeeded)
+        {
+            _createError = string.Join("; ", createResult.Errors.Select(e => e.Description));
+            return;
+        }
+
+        var roleResult = await UserManager.AddToRoleAsync(user, role);
+        if (!roleResult.Succeeded)
+        {
+            _createError = string.Join("; ", roleResult.Errors.Select(e => e.Description));
+            return;
+        }
+
+        _showCreate = false;
+        _newEmail = _newPassword = "";
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(string id)
+    {
+        var user = await UserManager.FindByIdAsync(id);
+        if (user is not null)
+            await UserManager.DeleteAsync(user);
+        await LoadAsync();
+    }
+
+    private sealed record UserRow(string Id, string? Email, string? DisplayName);
+}

@@ -1,7 +1,13 @@
+using System.Security.Claims;
+using System.Text.Encodings.Web;
 using DotNet.Testcontainers.Builders;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Testcontainers.PostgreSql;
 
 namespace Pal.Api.Tests;
@@ -48,5 +54,63 @@ public sealed class PalApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
                 ["Packs:Directory"] = _packsRoot,
             });
         });
+
+        builder.ConfigureServices(services =>
+        {
+            // Register the test scheme handler.
+            services.AddAuthentication()
+                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { });
+
+            // PostConfigure runs AFTER all Configure<AuthenticationOptions> registrations, including
+            // those set by AddIdentity (which claims DefaultAuthenticateScheme/DefaultChallengeScheme).
+            // This guarantees our test scheme wins.
+            services.PostConfigure<AuthenticationOptions>(options =>
+            {
+                options.DefaultScheme = TestAuthHandler.SchemeName;
+                options.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
+                options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
+                options.DefaultSignInScheme = TestAuthHandler.SchemeName;
+                options.DefaultForbidScheme = TestAuthHandler.SchemeName;
+            });
+        });
+    }
+
+    /// <summary>Creates an authenticated client with the given role (default: Admin).</summary>
+    public HttpClient CreateClient(string role = "Admin")
+    {
+        var client = CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add(TestAuthHandler.RoleHeader, role);
+        return client;
+    }
+}
+
+/// <summary>
+/// In-process auth handler for integration tests. Reads role from a request header so tests
+/// can exercise different authorization levels without real Identity infrastructure.
+/// </summary>
+internal sealed class TestAuthHandler(
+    IOptionsMonitor<AuthenticationSchemeOptions> options,
+    ILoggerFactory logger,
+    UrlEncoder encoder)
+    : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    public const string SchemeName = "Test";
+    public const string RoleHeader = "X-Test-Role";
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var role = Request.Headers.TryGetValue(RoleHeader, out var v) ? v.ToString() : "Admin";
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "test-user-id"),
+            new Claim(ClaimTypes.Name, "test@pal.local"),
+            new Claim(ClaimTypes.Email, "test@pal.local"),
+            new Claim(ClaimTypes.Role, role),
+        };
+
+        var identity = new ClaimsIdentity(claims, SchemeName);
+        var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName);
+        return Task.FromResult(AuthenticateResult.Success(ticket));
     }
 }

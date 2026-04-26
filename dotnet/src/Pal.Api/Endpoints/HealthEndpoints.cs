@@ -6,6 +6,7 @@ public static class HealthEndpoints
     {
         app.MapGet("/health", () => Results.Ok(new { status = "ok", version = "2026.2.0" }))
            .WithName("GetHealth")
-           .WithTags("Health");
+           .WithTags("Health")
+           .AllowAnonymous();
     }
 }

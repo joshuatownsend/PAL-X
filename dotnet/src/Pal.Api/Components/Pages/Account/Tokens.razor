@@ -1,0 +1,102 @@
+@page "/account/tokens"
+@attribute [Authorize]
+@using System.Security.Claims
+@using System.Security.Cryptography
+@using Microsoft.AspNetCore.WebUtilities
+@using Pal.Api.Auth
+@using Pal.Application.Auth
+@inject ITokenRepository TokenRepo
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>API Tokens — PAL</PageTitle>
+
+<h2>Personal Access Tokens</h2>
+<p>Tokens let the <code>pal</code> CLI access the API. The raw token value is shown only once on creation.</p>
+
+<div class="toolbar">
+    <button class="btn-primary" @onclick="() => _showCreate = true">New token</button>
+</div>
+
+@if (_newTokenValue is not null)
+{
+    <div class="token-reveal">
+        <strong>Copy this token now — it won't be shown again:</strong>
+        <code>@_newTokenValue</code>
+        <button @onclick="() => _newTokenValue = null">Dismiss</button>
+    </div>
+}
+
+@if (_tokens.Count == 0)
+{
+    <p>No tokens yet.</p>
+}
+else
+{
+    <table class="data-table">
+        <thead><tr><th>Name</th><th>Created</th><th>Last used</th><th>Expires</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var t in _tokens)
+        {
+            <tr>
+                <td>@t.Name</td>
+                <td>@t.CreatedAt.ToString("yyyy-MM-dd")</td>
+                <td>@(t.LastUsedAt?.ToString("yyyy-MM-dd") ?? "—")</td>
+                <td>@(t.ExpiresAt?.ToString("yyyy-MM-dd") ?? "never")</td>
+                <td><button class="btn-danger-sm" @onclick="() => RevokeAsync(t.Id)">Revoke</button></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (_showCreate)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <h3>New token</h3>
+            <div class="field"><label>Name</label><input @bind="_newName" placeholder="e.g. laptop-ci" /></div>
+            <div class="modal-actions">
+                <button class="btn-primary" @onclick="CreateAsync">Create</button>
+                <button @onclick="() => _showCreate = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<TokenDto> _tokens = [];
+    private bool _showCreate;
+    private string _newName = "";
+    private string? _newTokenValue;
+    private string _userId = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        _userId = auth.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var list = await TokenRepo.ListByUserAsync(_userId);
+        _tokens = [.. list];
+    }
+
+    private async Task CreateAsync()
+    {
+        var rawToken = $"pal_{WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32))}";
+        var hash = TokenHasher.Hash(rawToken);
+        await TokenRepo.CreateAsync(_userId, _newName, hash, expiresAt: null);
+        _newTokenValue = rawToken;
+        _showCreate = false;
+        _newName = "";
+        await LoadAsync();
+    }
+
+    private async Task RevokeAsync(Guid id)
+    {
+        await TokenRepo.DeleteAsync(id, _userId);
+        await LoadAsync();
+    }
+}
