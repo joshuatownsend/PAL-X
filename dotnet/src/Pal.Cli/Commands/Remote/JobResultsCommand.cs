@@ -109,7 +109,8 @@ public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
                 var priority = r.TryGetProperty("priority", out var p) ? p.GetString() ?? "" : "";
                 var text = r.TryGetProperty("text", out var tx) ? tx.GetString() ?? "" : "";
                 string color = priority switch { "high" => "yellow", "medium" => "blue", _ => "grey" };
-                AnsiConsole.MarkupLine($"    [{color}][{priority.ToUpperInvariant()}][/] {Markup.Escape(text)}");
+                var priorityLabel = Markup.Escape(priority.ToUpperInvariant());
+                AnsiConsole.MarkupLine($"    [{color}]{priorityLabel}[/] {Markup.Escape(text)}");
             }
         }
     }
