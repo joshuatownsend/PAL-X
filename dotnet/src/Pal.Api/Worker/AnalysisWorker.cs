@@ -111,7 +111,8 @@ public sealed class AnalysisWorker : BackgroundService
             await _analysisRepo.SaveResultAsync(jobId, summaryJson, findingsJson, ct);
 
             await GenerateAndStoreReportsAsync(jobId, runResult, upload, ct);
-            await _alerts.EvaluateAsync(jobId, runResult.Findings, ct);
+            try { await _alerts.EvaluateAsync(jobId, runResult.Findings, ct); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Alert evaluation failed for job {JobId}; job completion continues", jobId); }
 
             await _analysisRepo.MarkCompletedAsync(jobId, ct);
             _logger.LogInformation("Job {JobId} completed: {Count} finding(s)", jobId, runResult.Findings.Count);

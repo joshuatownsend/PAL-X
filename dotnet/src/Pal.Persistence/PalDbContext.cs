@@ -96,7 +96,10 @@ public sealed class PalDbContext : DbContext
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Status, x.LastSeenAt });
-            e.HasIndex(x => x.RuleId);
+            // Prevents concurrent job evaluations from creating duplicate active alerts for the same rule.
+            e.HasIndex(x => x.RuleId)
+                .IsUnique()
+                .HasFilter("status <> 'resolved'");
         });
     }
 }

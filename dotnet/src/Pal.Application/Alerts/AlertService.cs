@@ -12,12 +12,15 @@ public sealed class AlertService : IAlertService
     public async Task EvaluateAsync(Guid jobId, IReadOnlyList<Finding> findings, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
-        var seen = new HashSet<string>();
 
-        foreach (var f in findings)
+        // When the same rule fires multiple times in one job, use the highest severity.
+        var deduplicated = findings
+            .GroupBy(f => f.RuleId)
+            .Select(g => g.OrderByDescending(f => SeverityRank(f.Severity)).First())
+            .ToList();
+
+        foreach (var f in deduplicated)
         {
-            if (!seen.Add(f.RuleId)) continue;
-
             var existing = await _repo.FindActiveByRuleIdAsync(f.RuleId, ct);
             if (existing is not null)
             {

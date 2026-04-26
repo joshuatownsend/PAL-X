@@ -92,7 +92,7 @@ public class AlertServiceTests
     // ── duplicate rule within one job ─────────────────────────────────────
 
     [Fact]
-    public async Task Evaluate_DuplicateRuleIdInSameJob_CreatesOnlyOneAlert()
+    public async Task Evaluate_DuplicateRuleIdInSameJob_CreatesOnlyOneAlertWithHighestSeverity()
     {
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo);
@@ -102,7 +102,8 @@ public class AlertServiceTests
             MakeFinding("cpu-high", "critical"),
         ]);
 
-        Assert.Single(await svc.ListAsync());
+        var a = Assert.Single(await svc.ListAsync());
+        Assert.Equal("critical", a.Severity);
     }
 
     // ── multiple distinct rules → multiple alerts ─────────────────────────

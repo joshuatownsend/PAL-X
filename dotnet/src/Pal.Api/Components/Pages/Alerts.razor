@@ -1,6 +1,6 @@
 @page "/alerts"
 @inject IAlertService AlertService
-@implements IDisposable
+@implements IAsyncDisposable
 
 <PageTitle>Alerts</PageTitle>
 <h1>Alerts</h1>
@@ -93,7 +93,7 @@ else
     private List<AlertDto>? _alerts;
     private string _statusFilter = "open";
     private string _severityFilter = "";
-    private Timer? _timer;
+    private readonly CancellationTokenSource _cts = new();
 
     private Guid? _resolveId;
     private string _resolveNote = "";
@@ -103,11 +103,21 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
-        _timer = new Timer(async _ =>
+        _ = PollAsync(_cts.Token);
+    }
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(10));
+        try
         {
-            await LoadAsync();
-            await InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
     }
 
     private async Task LoadAsync()
@@ -143,5 +153,9 @@ else
         _resolveNote = "";
     }
 
-    public void Dispose() => _timer?.Dispose();
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync();
+        _cts.Dispose();
+    }
 }
