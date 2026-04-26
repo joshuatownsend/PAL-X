@@ -27,6 +27,8 @@ services:
       Storage__LocalRoot: /data/storage
       Packs__Directory: /app/packs/thresholds
       PAL_BOOTSTRAP_ADMIN_PASSWORD: "${PAL_BOOTSTRAP_ADMIN_PASSWORD:-}"
+      Retention__JobRetentionDays: "${RETENTION_JOB_DAYS:-0}"
+      Retention__AuditEventRetentionDays: "${RETENTION_AUDIT_DAYS:-0}"
     volumes:
       - api_data:/data/storage
     depends_on:

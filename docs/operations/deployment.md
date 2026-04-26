@@ -31,6 +31,8 @@ The API is available at `http://localhost:8080`.  Swagger UI is served at `http:
 | `Storage__LocalRoot` | no | `data/storage` | Where uploaded files are stored. Mount a volume here. |
 | `Packs__Directory` | no | `packs/thresholds` | Directory of threshold pack YAML files. Bundled packs are at `/app/packs/thresholds` inside the image. |
 | `ASPNETCORE_ENVIRONMENT` | no | `Production` | Set to `Development` to enable Swagger UI and verbose EF logging. |
+| `Retention__JobRetentionDays` | no | `0` (disabled) | Automatically purge completed/failed jobs older than this many days. Baselines are never purged. `0` disables. |
+| `Retention__AuditEventRetentionDays` | no | `0` (disabled) | Purge audit events older than this many days. `0` disables. |
 
 ## Data persistence
 

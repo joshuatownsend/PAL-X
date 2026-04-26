@@ -66,4 +66,18 @@ public sealed class LocalDiskStorageProvider : IStorageProvider
     public Stream OpenReport(string relativePath) => File.OpenRead(Path.Combine(_root, relativePath));
 
     public void DeleteTemp(string tempPath) => File.Delete(tempPath);
+
+    public void DeleteJobReportDirectory(Guid jobId)
+    {
+        var dir = Path.Combine(_root, "reports", jobId.ToString("N"));
+        if (Directory.Exists(dir))
+            Directory.Delete(dir, recursive: true);
+    }
+
+    public void DeleteUploadDirectory(string sha256)
+    {
+        var dir = Path.Combine(_root, "uploads", sha256);
+        if (Directory.Exists(dir))
+            Directory.Delete(dir, recursive: true);
+    }
 }
