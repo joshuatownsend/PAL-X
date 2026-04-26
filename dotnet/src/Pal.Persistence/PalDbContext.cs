@@ -16,6 +16,7 @@ public sealed class PalDbContext : DbContext
     public DbSet<PackVersionEntity> PackVersions => Set<PackVersionEntity>();
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<CompareResultEntity> CompareResults => Set<CompareResultEntity>();
+    public DbSet<AlertEntity> Alerts => Set<AlertEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -89,6 +90,16 @@ public sealed class PalDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(x => x.CandidateJobId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AlertEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.Status, x.LastSeenAt });
+            // Prevents concurrent job evaluations from creating duplicate active alerts for the same rule.
+            e.HasIndex(x => x.RuleId)
+                .IsUnique()
+                .HasFilter("status <> 'resolved'");
         });
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pal.Persistence;
@@ -11,9 +12,11 @@ using Pal.Persistence;
 namespace Pal.Persistence.Migrations
 {
     [DbContext(typeof(PalDbContext))]
-    partial class PalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260426023941_Phase4Alerting")]
+    partial class Phase4Alerting
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -86,9 +89,7 @@ namespace Pal.Persistence.Migrations
                         .HasName("pk_alerts");
 
                     b.HasIndex("RuleId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_alerts_rule_id")
-                        .HasFilter("status <> 'resolved'");
+                        .HasDatabaseName("ix_alerts_rule_id");
 
                     b.HasIndex("Status", "LastSeenAt")
                         .HasDatabaseName("ix_alerts_status_last_seen_at");
