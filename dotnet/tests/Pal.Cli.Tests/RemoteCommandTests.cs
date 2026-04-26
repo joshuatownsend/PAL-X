@@ -104,6 +104,15 @@ public class RemoteCommandTests
         Assert.Equal(ExitCodes.Success, code);
     }
 
+    [Fact]
+    public async Task JobResults_Verbose_WithRecommendations_Success()
+    {
+        await using var server = await StubApiServer.StartAsync();
+        var code = await new CommandApp<JobResultsCommand>().RunAsync(
+            [StubApiServer.KnownJobWithRecsId.ToString(), "--verbose", "--api", server.BaseUrl]);
+        Assert.Equal(ExitCodes.Success, code);
+    }
+
     // ─── report ──────────────────────────────────────────────────────────────
 
     [Fact]
@@ -127,6 +136,7 @@ public class RemoteCommandTests
 internal sealed class StubApiServer : IAsyncDisposable
 {
     public static readonly Guid KnownJobId = new("aaaaaaaa-0000-0000-0000-000000000000");
+    public static readonly Guid KnownJobWithRecsId = new("bbbbbbbb-0000-0000-0000-000000000000");
 
     private readonly WebApplication _app;
     public string BaseUrl { get; }
@@ -162,14 +172,25 @@ internal sealed class StubApiServer : IAsyncDisposable
         }));
 
         app.MapGet("/analysis/{id}", (string id) =>
-            Guid.TryParse(id, out var guid) && guid == KnownJobId
+            Guid.TryParse(id, out var guid) && (guid == KnownJobId || guid == KnownJobWithRecsId)
                 ? Results.Ok(new { status = "completed" })
                 : Results.NotFound());
 
         app.MapGet("/analysis/{id}/results", (string id) =>
-            Guid.TryParse(id, out var guid) && guid == KnownJobId
-                ? Results.Ok(new { summaryJson = "{\"status\":\"healthy\"}", findingsJson = "[]" })
-                : Results.Conflict());
+        {
+            if (!Guid.TryParse(id, out var guid)) return Results.Conflict();
+            if (guid == KnownJobId)
+                return Results.Ok(new { summaryJson = "{\"status\":\"healthy\"}", findingsJson = "[]" });
+            if (guid == KnownJobWithRecsId)
+            {
+                const string findingsWithRecs =
+                    "[{\"severity\":\"warning\",\"category\":\"cpu\",\"title\":\"High CPU\"," +
+                    "\"pack_id\":\"windows-core\",\"summary\":\"CPU usage is high.\"," +
+                    "\"recommendations\":[{\"priority\":\"high\",\"text\":\"Identify top processes.\"}]}]";
+                return Results.Ok(new { summaryJson = "{\"status\":\"warning\"}", findingsJson = findingsWithRecs });
+            }
+            return Results.Conflict();
+        });
 
         app.MapGet("/analysis/{id}/report", (string id, string? format) =>
             Guid.TryParse(id, out var guid) && guid == KnownJobId
