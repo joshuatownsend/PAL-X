@@ -59,7 +59,26 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 builder.Services.AddAuthentication()
     .AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(
-        ApiKeyAuthenticationHandler.SchemeName, _ => { });
+        ApiKeyAuthenticationHandler.SchemeName, _ => { })
+    .AddPolicyScheme("CookieOrApiKey", "Cookie or API key", options =>
+    {
+        // ForwardDefaultSelector applies to all operations (authenticate, challenge, forbid)
+        // when no per-operation override is set.
+        options.ForwardDefaultSelector = ctx =>
+            ctx.Request.Headers.Authorization.ToString()
+               .StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                ? ApiKeyAuthenticationHandler.SchemeName
+                : IdentityConstants.ApplicationScheme;
+    });
+
+// PostConfigure wins over AddIdentity's defaults; keep DefaultSignInScheme untouched
+// so SignInManager.PasswordSignInAsync can still write the cookie.
+builder.Services.PostConfigure<AuthenticationOptions>(options =>
+{
+    options.DefaultScheme = "CookieOrApiKey";
+    options.DefaultAuthenticateScheme = "CookieOrApiKey";
+    options.DefaultChallengeScheme = "CookieOrApiKey";
+});
 
 // Authorization policies — no explicit scheme list so the active default scheme is used,
 // which lets tests swap in TestAuthHandler without touching policy registration.

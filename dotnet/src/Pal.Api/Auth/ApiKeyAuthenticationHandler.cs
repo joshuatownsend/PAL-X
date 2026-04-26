@@ -58,9 +58,14 @@ public sealed class ApiKeyAuthenticationHandler(
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, SchemeName);
 
-        _ = tokens.TouchLastUsedAsync(token.Id, DateTimeOffset.UtcNow);
+        await tokens.TouchLastUsedAsync(token.Id, DateTimeOffset.UtcNow);
 
         return AuthenticateResult.Success(ticket);
     }
 
+    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+    {
+        Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    }
 }

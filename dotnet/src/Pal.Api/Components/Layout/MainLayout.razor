@@ -24,7 +24,7 @@
             <AuthorizeView>
                 <Authorized>
                     <span class="nav-user">@context.User.Identity?.Name</span>
-                    <button class="btn-logout" @onclick="LogoutAsync">Sign out</button>
+                    <button class="btn-logout" @onclick="Logout">Sign out</button>
                 </Authorized>
             </AuthorizeView>
         </div>
@@ -35,10 +35,5 @@
 </div>
 
 @code {
-    private async Task LogoutAsync()
-    {
-        using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
-        await http.PostAsync("/account/logout", null);
-        Nav.NavigateTo("/account/login", forceLoad: true);
-    }
+    private void Logout() => Nav.NavigateTo("/account/logout", forceLoad: true);
 }

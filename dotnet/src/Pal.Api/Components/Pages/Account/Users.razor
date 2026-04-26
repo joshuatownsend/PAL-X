@@ -1,7 +1,10 @@
 @page "/account/users"
 @attribute [Authorize(Roles = "Admin")]
-@using System.Net.Http.Json
-@inject NavigationManager Nav
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using Pal.Api.Auth
+@using Pal.Persistence.Entities
+@inject UserManager<ApplicationUser> UserManager
 
 <PageTitle>User Management — PAL</PageTitle>
 
@@ -68,40 +71,46 @@ else
 
     private async Task LoadAsync()
     {
-        using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
-        var resp = await http.GetFromJsonAsync<List<UserRow>>("/account/users");
-        _users = resp ?? [];
+        _users = await UserManager.Users
+            .Select(u => new UserRow(u.Id, u.Email, u.DisplayName))
+            .ToListAsync();
     }
 
     private async Task CreateAsync()
     {
         _createError = null;
-        using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
-        var resp = await http.PostAsJsonAsync("/account/users", new
+        var role = Roles.All.Contains(_newRole) ? _newRole : Roles.Viewer;
+        var user = new ApplicationUser
         {
-            email = _newEmail,
-            password = _newPassword,
-            role = _newRole,
-            displayName = (string?)null,
-        });
+            UserName = _newEmail,
+            Email = _newEmail,
+            EmailConfirmed = true,
+        };
 
-        if (resp.IsSuccessStatusCode)
+        var createResult = await UserManager.CreateAsync(user, _newPassword);
+        if (!createResult.Succeeded)
         {
-            _showCreate = false;
-            _newEmail = _newPassword = "";
-            await LoadAsync();
+            _createError = string.Join("; ", createResult.Errors.Select(e => e.Description));
+            return;
         }
-        else
+
+        var roleResult = await UserManager.AddToRoleAsync(user, role);
+        if (!roleResult.Succeeded)
         {
-            var body = await resp.Content.ReadAsStringAsync();
-            _createError = $"Failed to create user ({(int)resp.StatusCode})";
+            _createError = string.Join("; ", roleResult.Errors.Select(e => e.Description));
+            return;
         }
+
+        _showCreate = false;
+        _newEmail = _newPassword = "";
+        await LoadAsync();
     }
 
     private async Task DeleteAsync(string id)
     {
-        using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
-        await http.DeleteAsync($"/account/users/{id}");
+        var user = await UserManager.FindByIdAsync(id);
+        if (user is not null)
+            await UserManager.DeleteAsync(user);
         await LoadAsync();
     }
 
