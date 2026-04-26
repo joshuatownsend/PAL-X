@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: pal
       POSTGRES_USER: pal
-      POSTGRES_PASSWORD: paldev
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-paldev}"
     ports:
       - "5432:5432"
     volumes:
@@ -22,14 +22,22 @@ services:
     ports:
       - "8080:8080"
     environment:
-      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=pal;Username=pal;Password=paldev"
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=pal;Username=pal;Password=${POSTGRES_PASSWORD:-paldev}"
       Storage__LocalRoot: /data/storage
       Packs__Directory: /app/packs/thresholds
+      PAL_BOOTSTRAP_ADMIN_PASSWORD: "${PAL_BOOTSTRAP_ADMIN_PASSWORD:-}"
     volumes:
       - api_data:/data/storage
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
 volumes:
   postgres_data:
