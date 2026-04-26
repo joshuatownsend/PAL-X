@@ -55,6 +55,16 @@ dotnet run --project dotnet/src/Pal.Cli -- analyze `
   --output "C:\PerfLogs\out"
 ```
 
+## Running the API (Docker)
+
+To run the full API + Blazor UI locally, see `docs/operations/deployment.md`.  The short version:
+
+```bash
+cp .env.example .env  # edit to set passwords
+docker compose up -d
+open http://localhost:8080
+```
+
 ## Project Structure
 
 See `docs/architecture/dotnet-layout.md` for the full project dependency graph and key types.

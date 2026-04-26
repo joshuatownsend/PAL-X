@@ -37,4 +37,16 @@ public interface IStorageProvider
     /// Deletes a temp file (called when SHA-256 dedup finds an existing upload).
     /// </summary>
     void DeleteTemp(string tempPath);
+
+    /// <summary>
+    /// Deletes the report directory for a completed job (reports/{jobId:N}/).
+    /// No-ops if the directory does not exist.
+    /// </summary>
+    void DeleteJobReportDirectory(Guid jobId);
+
+    /// <summary>
+    /// Deletes the upload directory for a given SHA-256 (uploads/{sha256}/).
+    /// No-ops if the directory does not exist.
+    /// </summary>
+    void DeleteUploadDirectory(string sha256);
 }

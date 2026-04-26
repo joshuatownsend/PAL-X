@@ -97,3 +97,14 @@ jobs:
 
       - name: Test
         run: dotnet test dotnet/tests/Pal.Api.Tests/Pal.Api.Tests.csproj -c Release --no-build --logger "console;verbosity=normal"
+
+  docker-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Build API image
+        run: docker build -f infra/docker/api.Dockerfile -t pal-api:ci .
