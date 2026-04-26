@@ -1,0 +1,147 @@
+@page "/alerts"
+@inject IAlertService AlertService
+@implements IDisposable
+
+<PageTitle>Alerts</PageTitle>
+<h1>Alerts</h1>
+
+<div class="filter-row">
+    <label>Status:
+        <select @bind="_statusFilter" @bind:after="LoadAsync">
+            <option value="">All</option>
+            <option value="open">Open</option>
+            <option value="acknowledged">Acknowledged</option>
+            <option value="resolved">Resolved</option>
+        </select>
+    </label>
+    &nbsp;
+    <label>Severity:
+        <select @bind="_severityFilter" @bind:after="LoadAsync">
+            <option value="">All</option>
+            <option value="critical">Critical</option>
+            <option value="warning">Warning</option>
+            <option value="informational">Informational</option>
+        </select>
+    </label>
+</div>
+
+@if (_alerts is null)
+{
+    <p>Loading...</p>
+}
+else if (_alerts.Count == 0)
+{
+    <p class="healthy">No alerts match the current filter.</p>
+}
+else
+{
+    <table class="jobs-table">
+        <thead>
+            <tr>
+                <th>Severity</th>
+                <th>Rule</th>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Triggered</th>
+                <th>Last Seen</th>
+                <th>Job</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in _alerts)
+            {
+                <tr>
+                    <td><span class="sev-badge sev-@a.Severity">@a.Severity</span></td>
+                    <td><code>@a.RuleId</code></td>
+                    <td>@a.Title</td>
+                    <td><span class="status-badge alert-@a.Status">@a.Status</span></td>
+                    <td title="@a.TriggeredAt.ToString("u")">@a.TriggeredAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td title="@a.LastSeenAt.ToString("u")">@a.LastSeenAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td><a href="/jobs/@a.LatestJobId">@a.LatestJobId.ToString("N")[..8]</a></td>
+                    <td class="alert-actions">
+                        @if (a.Status == "open")
+                        {
+                            <button class="btn-secondary" @onclick="() => AcknowledgeAsync(a.Id)">Ack</button>
+                        }
+                        @if (a.Status != "resolved")
+                        {
+                            <button class="btn-secondary" @onclick="() => BeginResolve(a.Id)">Resolve</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (_resolveId is not null)
+{
+    <div class="resolve-dialog">
+        <strong>Resolve alert</strong>
+        <label>Note (optional):
+            <input type="text" @bind="_resolveNote" placeholder="Optional resolution note" />
+        </label>
+        <div class="resolve-actions">
+            <button class="btn-primary" @onclick="ConfirmResolveAsync">Confirm</button>
+            <button class="btn-secondary" @onclick="CancelResolve">Cancel</button>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AlertDto>? _alerts;
+    private string _statusFilter = "open";
+    private string _severityFilter = "";
+    private Timer? _timer;
+
+    private Guid? _resolveId;
+    private string _resolveNote = "";
+
+    [Inject] private NavigationManager Nav { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _timer = new Timer(async _ =>
+        {
+            await LoadAsync();
+            await InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+    }
+
+    private async Task LoadAsync()
+    {
+        var status = string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter;
+        var severity = string.IsNullOrEmpty(_severityFilter) ? null : _severityFilter;
+        _alerts = (await AlertService.ListAsync(status, severity)).ToList();
+    }
+
+    private async Task AcknowledgeAsync(Guid id)
+    {
+        await AlertService.AcknowledgeAsync(id);
+        await LoadAsync();
+    }
+
+    private void BeginResolve(Guid id)
+    {
+        _resolveId = id;
+        _resolveNote = "";
+    }
+
+    private async Task ConfirmResolveAsync()
+    {
+        if (_resolveId is null) return;
+        await AlertService.ResolveAsync(_resolveId.Value, string.IsNullOrWhiteSpace(_resolveNote) ? null : _resolveNote);
+        _resolveId = null;
+        await LoadAsync();
+    }
+
+    private void CancelResolve()
+    {
+        _resolveId = null;
+        _resolveNote = "";
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

@@ -155,3 +155,20 @@ public sealed class CorrelationResultDto
     public required DateTimeOffset WindowEnd { get; init; }
     public required IReadOnlyList<CorrelationPairDto> Pairs { get; init; }
 }
+
+public sealed class AlertDto
+{
+    public required Guid Id { get; init; }
+    public required string RuleId { get; init; }
+    public required string Severity { get; init; }
+    public required string Category { get; init; }
+    public required string Title { get; init; }
+    public required string Status { get; init; } // "open" | "acknowledged" | "resolved"
+    public required Guid TriggeringJobId { get; init; }
+    public required Guid LatestJobId { get; init; }
+    public required DateTimeOffset TriggeredAt { get; init; }
+    public required DateTimeOffset LastSeenAt { get; init; }
+    public DateTimeOffset? AcknowledgedAt { get; init; }
+    public DateTimeOffset? ResolvedAt { get; init; }
+    public string? ResolutionNote { get; init; }
+}

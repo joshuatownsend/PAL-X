@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
+using Pal.Application.Alerts;
 using Pal.Application.Analysis;
 using Pal.Application.Persistence;
 using Pal.Application.Storage;
@@ -20,6 +21,7 @@ public sealed class AnalysisWorker : BackgroundService
     private readonly IUploadRepository _uploadRepo;
     private readonly IStorageProvider _storage;
     private readonly IAnalysisRunner _runner;
+    private readonly IAlertService _alerts;
     private readonly string _packsDirectory;
     private readonly ILogger<AnalysisWorker> _logger;
 
@@ -29,6 +31,7 @@ public sealed class AnalysisWorker : BackgroundService
         IUploadRepository uploadRepo,
         IStorageProvider storage,
         IAnalysisRunner runner,
+        IAlertService alerts,
         IConfiguration config,
         ILogger<AnalysisWorker> logger)
     {
@@ -37,6 +40,7 @@ public sealed class AnalysisWorker : BackgroundService
         _uploadRepo = uploadRepo;
         _storage = storage;
         _runner = runner;
+        _alerts = alerts;
         _packsDirectory = config["Packs:Directory"] ?? "packs/thresholds";
         _logger = logger;
     }
@@ -107,6 +111,7 @@ public sealed class AnalysisWorker : BackgroundService
             await _analysisRepo.SaveResultAsync(jobId, summaryJson, findingsJson, ct);
 
             await GenerateAndStoreReportsAsync(jobId, runResult, upload, ct);
+            await _alerts.EvaluateAsync(jobId, runResult.Findings, ct);
 
             await _analysisRepo.MarkCompletedAsync(jobId, ct);
             _logger.LogInformation("Job {JobId} completed: {Count} finding(s)", jobId, runResult.Findings.Count);

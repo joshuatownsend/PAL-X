@@ -5,6 +5,7 @@ using Pal.Api.Components;
 using Pal.Api.Endpoints;
 using Pal.Api.Services;
 using Pal.Api.Worker;
+using Pal.Application.Alerts;
 using Pal.Application.Analysis;
 using Pal.Application.Compare;
 using Pal.Application.Persistence;
@@ -35,6 +36,8 @@ builder.Services.AddSingleton<IUploadRepository, UploadRepository>();
 builder.Services.AddSingleton<IAnalysisRepository, AnalysisRepository>();
 builder.Services.AddSingleton<IPackRepository, PackRepository>();
 builder.Services.AddSingleton<ICompareRepository, CompareRepository>();
+builder.Services.AddSingleton<IAlertRepository, AlertRepository>();
+builder.Services.AddSingleton<IAlertService, AlertService>();
 builder.Services.AddSingleton<CompareRunner>();
 builder.Services.AddSingleton<TrendAnalyzer>();
 builder.Services.AddSingleton<TrendService>();
@@ -88,6 +91,7 @@ app.MapAnalysisEndpoints();
 app.MapCompareEndpoints();
 app.MapTrendEndpoints();
 app.MapCorrelationEndpoints();
+app.MapAlertEndpoints();
 
 // Blazor Server UI
 app.MapRazorComponents<App>()
