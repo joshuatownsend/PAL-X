@@ -18,6 +18,23 @@ internal static class RemoteHttpClient
         new() { BaseAddress = new Uri(apiBase.TrimEnd('/') + "/") };
 }
 
+internal static class RemoteMarkup
+{
+    internal static string FormatDirection(string dir) => dir switch
+    {
+        "worsening" => $"[red]{dir}[/]",
+        "appearing" => $"[red]{dir}[/]",
+        "stable" => $"[yellow]{dir}[/]",
+        "intermittent" => $"[yellow]{dir}[/]",
+        "de-escalating" => $"[green]{dir}[/]",
+        "resolving" => $"[green]{dir}[/]",
+        _ => Markup.Escape(dir)
+    };
+
+    internal static string FormatWindowDate(string raw) =>
+        DateTimeOffset.TryParse(raw, out var dt) ? dt.ToString("yyyy-MM-dd") : raw;
+}
+
 internal static class RemoteCommand
 {
     internal static async Task<int> RunAsync(Func<Task<int>> body)

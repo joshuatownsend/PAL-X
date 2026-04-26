@@ -44,6 +44,9 @@ app.Configure(config =>
 
         remote.AddCommand<TrendsCommand>("trends")
             .WithDescription("Show finding trends across the last N completed analysis jobs");
+
+        remote.AddCommand<CorrelationsCommand>("correlations")
+            .WithDescription("Show co-occurring finding pairs across the last N completed analysis jobs");
     });
 });
 

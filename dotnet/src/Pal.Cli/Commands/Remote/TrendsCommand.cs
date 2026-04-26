@@ -42,10 +42,8 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
                 return ExitCodes.Success;
             }
 
-            string startRaw = doc.GetProperty("windowStart").GetString() ?? "";
-            string endRaw = doc.GetProperty("windowEnd").GetString() ?? "";
-            string start = DateTimeOffset.TryParse(startRaw, out var s) ? s.ToString("yyyy-MM-dd") : startRaw;
-            string end = DateTimeOffset.TryParse(endRaw, out var e) ? e.ToString("yyyy-MM-dd") : endRaw;
+            string start = RemoteMarkup.FormatWindowDate(doc.GetProperty("windowStart").GetString() ?? "");
+            string end = RemoteMarkup.FormatWindowDate(doc.GetProperty("windowEnd").GetString() ?? "");
             AnsiConsole.MarkupLine($"[bold]Trends[/]  {jobCount} runs  {start} → {end}");
 
             var trends = doc.GetProperty("trends");
@@ -74,18 +72,7 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
                 int runCount = t.GetProperty("runCount").GetInt32();
                 int totalRuns = t.GetProperty("totalRuns").GetInt32();
 
-                string dirMarkup = dir switch
-                {
-                    "worsening" => $"[red]{dir}[/]",
-                    "appearing" => $"[red]{dir}[/]",
-                    "stable" => $"[yellow]{dir}[/]",
-                    "intermittent" => $"[yellow]{dir}[/]",
-                    "de-escalating" => $"[green]{dir}[/]",
-                    "resolving" => $"[green]{dir}[/]",
-                    _ => Markup.Escape(dir)
-                };
-
-                table.AddRow(dirMarkup, Markup.Escape(rule), Markup.Escape(metric),
+                table.AddRow(RemoteMarkup.FormatDirection(dir), Markup.Escape(rule), Markup.Escape(metric),
                     Markup.Escape(latestSev), $"{runCount}/{totalRuns}");
             }
 
