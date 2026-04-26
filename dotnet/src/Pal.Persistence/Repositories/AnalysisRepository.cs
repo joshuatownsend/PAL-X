@@ -145,6 +145,23 @@ public sealed class AnalysisRepository : IAnalysisRepository
         };
     }
 
+    public async Task<IReadOnlyList<AnalysisResultDto>> GetResultsAsync(IEnumerable<Guid> jobIds, CancellationToken ct = default)
+    {
+        var ids = jobIds.ToList();
+        if (ids.Count == 0) return [];
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        return await db.AnalysisResults
+            .Where(r => ids.Contains(r.AnalysisJobId))
+            .Select(r => new AnalysisResultDto
+            {
+                AnalysisJobId = r.AnalysisJobId,
+                SummaryJson = r.SummaryJson,
+                FindingsJson = r.FindingsJson,
+                GeneratedAt = r.GeneratedAt
+            })
+            .ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<AnalysisReportDto>> GetReportsAsync(Guid jobId, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);

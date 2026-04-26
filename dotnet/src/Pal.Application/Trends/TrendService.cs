@@ -17,22 +17,16 @@ public sealed class TrendService(IAnalysisRepository analysis, TrendAnalyzer ana
         if (recent.Count == 0)
             return new TrendResultDto { JobCount = 0, WindowStart = default, WindowEnd = default, Trends = [] };
 
-        // Load results concurrently; reverse so entries are oldest→newest for the analyzer
+        // Reverse so entries are oldest→newest for the analyzer
         var orderedOldestFirst = Enumerable.Reverse(recent).ToList();
-        var loaded = await Task.WhenAll(orderedOldestFirst.Select(async job => new
-        {
-            Job = job,
-            Result = await analysis.GetResultAsync(job.Id, ct)
-        }));
+        var resultsList = await analysis.GetResultsAsync(orderedOldestFirst.Select(j => j.Id), ct);
+        var resultsByJob = resultsList.ToDictionary(r => r.AnalysisJobId);
 
-        var entries = loaded
-            .Where(x => x.Result is not null)
-            .Select(x => new TrendJobEntryDto
-            {
-                JobId = x.Job.Id,
-                CompletedAt = x.Job.CompletedAt ?? x.Job.CreatedAt,
-                FindingsJson = x.Result!.FindingsJson
-            })
+        var entries = orderedOldestFirst
+            .Select(j => resultsByJob.TryGetValue(j.Id, out var r)
+                ? new TrendJobEntryDto { JobId = j.Id, CompletedAt = j.CompletedAt ?? j.CreatedAt, FindingsJson = r.FindingsJson }
+                : null)
+            .OfType<TrendJobEntryDto>()
             .ToList();
 
         return analyzer.Analyze(entries);

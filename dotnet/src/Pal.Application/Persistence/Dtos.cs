@@ -136,3 +136,22 @@ public sealed class TrendResultDto
     public required DateTimeOffset WindowEnd { get; init; }
     public required IReadOnlyList<TrendFindingDto> Trends { get; init; }
 }
+
+public sealed class CorrelationPairDto
+{
+    public required string KeyA { get; init; }
+    public required string KeyB { get; init; }
+    public required string DirectionA { get; init; }
+    public required string DirectionB { get; init; }
+    public required int CoRunCount { get; init; }
+    public required int TotalRuns { get; init; }
+    public required double CoScore { get; init; }
+}
+
+public sealed class CorrelationResultDto
+{
+    public required int JobCount { get; init; }
+    public required DateTimeOffset WindowStart { get; init; }
+    public required DateTimeOffset WindowEnd { get; init; }
+    public required IReadOnlyList<CorrelationPairDto> Pairs { get; init; }
+}

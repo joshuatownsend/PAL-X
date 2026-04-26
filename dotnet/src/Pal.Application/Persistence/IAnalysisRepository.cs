@@ -18,6 +18,7 @@ public interface IAnalysisRepository
     Task SaveResultAsync(Guid jobId, string summaryJson, string findingsJson, CancellationToken ct = default);
     Task SaveReportAsync(Guid jobId, string format, string storagePath, long sizeBytes, CancellationToken ct = default);
     Task<AnalysisResultDto?> GetResultAsync(Guid jobId, CancellationToken ct = default);
+    Task<IReadOnlyList<AnalysisResultDto>> GetResultsAsync(IEnumerable<Guid> jobIds, CancellationToken ct = default);
     Task<IReadOnlyList<AnalysisReportDto>> GetReportsAsync(Guid jobId, CancellationToken ct = default);
 
     // Pack version pinning: record which pack versions were used
