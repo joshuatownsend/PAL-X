@@ -1,0 +1,195 @@
+@page "/webhooks"
+@inject IWebhookSinkService WebhookService
+@inject INotificationService NotificationService
+
+<PageTitle>Webhooks</PageTitle>
+<h1>Webhooks</h1>
+
+<p class="version">Configure HTTP endpoints to receive alert events. Secrets are stored in plaintext — avoid using sensitive credentials.</p>
+
+@if (!_showForm)
+{
+    <button class="btn-primary" @onclick="() => _showForm = true">Add Webhook</button>
+}
+else
+{
+    <div class="webhook-form">
+        <strong>@(_editId is null ? "New Webhook" : "Edit Webhook")</strong>
+        <label>Name <input type="text" @bind="_formName" placeholder="e.g. PagerDuty" /></label>
+        <label>URL <input type="url" @bind="_formUrl" placeholder="https://..." /></label>
+        <label>Secret
+            <input type="password" @bind="_formSecret"
+                placeholder="@(_editId is null ? "Optional HMAC signing secret" : "Leave blank to keep existing secret")" />
+        </label>
+        <label class="inline-label"><input type="checkbox" @bind="_formEnabled" /> Enabled</label>
+        <fieldset>
+            <legend>Events</legend>
+            @foreach (var ev in AllEvents)
+            {
+                <label class="inline-label">
+                    <input type="checkbox" checked="@_formEvents.Contains(ev)" @onchange="e => ToggleEvent(ev, (bool)e.Value!)" />
+                    @ev
+                </label>
+            }
+        </fieldset>
+        @if (!string.IsNullOrEmpty(_formError))
+        {
+            <p class="error">@_formError</p>
+        }
+        <div class="resolve-actions">
+            <button class="btn-primary" @onclick="SaveAsync">Save</button>
+            <button class="btn-secondary" @onclick="CancelForm">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (_sinks is null)
+{
+    <p>Loading...</p>
+}
+else if (_sinks.Count == 0 && !_showForm)
+{
+    <p class="version">No webhooks configured.</p>
+}
+else if (_sinks.Count > 0)
+{
+    <table class="jobs-table" style="margin-top:1rem">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>URL</th>
+                <th>Events</th>
+                <th>Enabled</th>
+                <th>Updated</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in _sinks)
+            {
+                <tr>
+                    <td>@s.Name</td>
+                    <td class="version" title="@s.Url">@(s.Url.Length > 50 ? s.Url[..50] + "…" : s.Url)</td>
+                    <td>
+                        <div class="event-tags">
+                            @foreach (var ev in s.Events)
+                            {
+                                <span class="event-tag">@ev</span>
+                            }
+                        </div>
+                    </td>
+                    <td>@(s.Enabled ? "Yes" : "No")</td>
+                    <td title="@s.UpdatedAt.ToString("u")">@s.UpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td class="alert-actions">
+                        <button class="btn-secondary" @onclick="() => BeginEdit(s)">Edit</button>
+                        <button class="btn-secondary" @onclick="() => TestAsync(s.Id)">Test</button>
+                        <button class="btn-secondary" @onclick="() => DeleteAsync(s.Id)">Delete</button>
+                    </td>
+                </tr>
+                @if (_testResults.TryGetValue(s.Id, out var result))
+                {
+                    <tr>
+                        <td colspan="6" class="@(result.StartsWith("✓") ? "healthy" : "error")">@result</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private static readonly string[] AllEvents = ["alert.created", "alert.escalated", "alert.acknowledged", "alert.resolved"];
+
+    private List<WebhookSinkDto>? _sinks;
+    private bool _showForm;
+    private Guid? _editId;
+    private string _formName = "";
+    private string _formUrl = "";
+    private string _formSecret = "";
+    private bool _formEnabled = true;
+    private HashSet<string> _formEvents = [..AllEvents];
+    private string _formError = "";
+    private Dictionary<Guid, string> _testResults = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _sinks = (await WebhookService.ListAsync()).ToList();
+    }
+
+    private void BeginEdit(WebhookSinkDto s)
+    {
+        _editId = s.Id;
+        _formName = s.Name;
+        _formUrl = s.Url;
+        _formSecret = ""; // never pre-fill — secret is write-only; leave blank to keep existing
+        _formEnabled = s.Enabled;
+        _formEvents = [..s.Events];
+        _formError = "";
+        _showForm = true;
+    }
+
+    private void CancelForm()
+    {
+        _showForm = false;
+        _editId = null;
+        _formName = _formUrl = _formSecret = _formError = "";
+        _formEnabled = true;
+        _formEvents = [..AllEvents];
+    }
+
+    private void ToggleEvent(string ev, bool add)
+    {
+        if (add) _formEvents.Add(ev);
+        else _formEvents.Remove(ev);
+    }
+
+    private async Task SaveAsync()
+    {
+        _formError = "";
+        if (string.IsNullOrWhiteSpace(_formName)) { _formError = "Name is required."; return; }
+        if (string.IsNullOrWhiteSpace(_formUrl)) { _formError = "URL is required."; return; }
+        if (_formEvents.Count == 0) { _formError = "Select at least one event."; return; }
+
+        var secret = string.IsNullOrWhiteSpace(_formSecret) ? null : _formSecret;
+        var events = (IReadOnlyList<string>)_formEvents.ToList();
+
+        if (_editId is null)
+        {
+            await WebhookService.CreateAsync(_formName, _formUrl, secret, _formEnabled, events);
+        }
+        else
+        {
+            // updateSecret=true only when user typed a new value; otherwise keep existing in DB.
+            var updateSecret = !string.IsNullOrWhiteSpace(_formSecret);
+            await WebhookService.UpdateAsync(_editId.Value, _formName, _formUrl, secret, _formEnabled, events, updateSecret);
+        }
+
+        CancelForm();
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        await WebhookService.DeleteAsync(id);
+        _testResults.Remove(id);
+        await LoadAsync();
+    }
+
+    private async Task TestAsync(Guid id)
+    {
+        _testResults.Remove(id);
+        try
+        {
+            var status = await NotificationService.TestAsync(id);
+            _testResults[id] = status is >= 200 and < 300
+                ? $"✓ Delivered (HTTP {status})"
+                : $"✗ Endpoint returned HTTP {status}";
+        }
+        catch (Exception ex)
+        {
+            _testResults[id] = $"✗ Delivery error: {ex.Message}";
+        }
+    }
+}

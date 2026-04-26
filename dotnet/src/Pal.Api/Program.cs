@@ -12,6 +12,7 @@ using Pal.Application.Persistence;
 using Pal.Application.Correlation;
 using Pal.Application.Trends;
 using Pal.Application.Storage;
+using Pal.Application.Webhooks;
 using Pal.Persistence;
 using Pal.Persistence.Repositories;
 
@@ -37,6 +38,11 @@ builder.Services.AddSingleton<IAnalysisRepository, AnalysisRepository>();
 builder.Services.AddSingleton<IPackRepository, PackRepository>();
 builder.Services.AddSingleton<ICompareRepository, CompareRepository>();
 builder.Services.AddSingleton<IAlertRepository, AlertRepository>();
+builder.Services.AddSingleton<IWebhookSinkRepository, WebhookSinkRepository>();
+builder.Services.AddSingleton<IWebhookSinkService, WebhookSinkService>();
+builder.Services.AddHttpClient("pal-webhook")
+    .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddSingleton<INotificationService, NotificationService>();
 builder.Services.AddSingleton<IAlertService, AlertService>();
 builder.Services.AddSingleton<CompareRunner>();
 builder.Services.AddSingleton<TrendAnalyzer>();
@@ -92,6 +98,7 @@ app.MapCompareEndpoints();
 app.MapTrendEndpoints();
 app.MapCorrelationEndpoints();
 app.MapAlertEndpoints();
+app.MapWebhookEndpoints();
 
 // Blazor Server UI
 app.MapRazorComponents<App>()

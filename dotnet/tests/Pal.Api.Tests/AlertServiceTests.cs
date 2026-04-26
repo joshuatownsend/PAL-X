@@ -1,5 +1,6 @@
 using Pal.Application.Alerts;
 using Pal.Application.Persistence;
+using Pal.Application.Webhooks;
 using Pal.Engine.Model;
 using Xunit;
 
@@ -31,7 +32,8 @@ public class AlertServiceTests
     public async Task Evaluate_NewFinding_CreatesOpenAlert()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications);
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
 
@@ -42,6 +44,7 @@ public class AlertServiceTests
         Assert.Equal("open", a.Status);
         Assert.Equal(Job1, a.TriggeringJobId);
         Assert.Equal(Job1, a.LatestJobId);
+        Assert.Single(notifications.Calls, c => c.Event == "alert.created");
     }
 
     // ── same finding in second run → updates existing alert ───────────────
@@ -50,7 +53,7 @@ public class AlertServiceTests
     public async Task Evaluate_SameFindingSecondRun_UpdatesLastSeen()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var svc = new AlertService(repo, new FakeNotificationService());
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         await svc.EvaluateAsync(Job2, [MakeFinding("cpu-high", "warning")]);
@@ -67,20 +70,22 @@ public class AlertServiceTests
     public async Task Evaluate_HigherSeverityInSecondRun_EscalatesAlert()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications);
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         await svc.EvaluateAsync(Job2, [MakeFinding("cpu-high", "critical")]);
 
         var a = Assert.Single(await svc.ListAsync());
         Assert.Equal("critical", a.Severity);
+        Assert.Single(notifications.Calls, c => c.Event == "alert.escalated");
     }
 
     [Fact]
     public async Task Evaluate_LowerSeverityInSecondRun_DoesNotDowngrade()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var svc = new AlertService(repo, new FakeNotificationService());
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "critical")]);
         await svc.EvaluateAsync(Job2, [MakeFinding("cpu-high", "warning")]);
@@ -95,7 +100,7 @@ public class AlertServiceTests
     public async Task Evaluate_DuplicateRuleIdInSameJob_CreatesOnlyOneAlertWithHighestSeverity()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var svc = new AlertService(repo, new FakeNotificationService());
 
         await svc.EvaluateAsync(Job1, [
             MakeFinding("cpu-high", "warning"),
@@ -112,7 +117,7 @@ public class AlertServiceTests
     public async Task Evaluate_MultipleDistinctRules_CreatesOneAlertEach()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var svc = new AlertService(repo, new FakeNotificationService());
 
         await svc.EvaluateAsync(Job1, [
             MakeFinding("cpu-high", "warning"),
@@ -128,7 +133,8 @@ public class AlertServiceTests
     public async Task Acknowledge_OpenAlert_TransitionsToAcknowledged()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications);
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -139,13 +145,14 @@ public class AlertServiceTests
         var a = await svc.GetAsync(id);
         Assert.Equal("acknowledged", a!.Status);
         Assert.NotNull(a.AcknowledgedAt);
+        Assert.Single(notifications.Calls, c => c.Event == "alert.acknowledged");
     }
 
     [Fact]
     public async Task Acknowledge_AlreadyAcknowledged_ReturnsFalse()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var svc = new AlertService(repo, new FakeNotificationService());
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -161,7 +168,8 @@ public class AlertServiceTests
     public async Task Resolve_OpenAlert_TransitionsToResolved()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications);
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -173,13 +181,14 @@ public class AlertServiceTests
         Assert.Equal("resolved", a!.Status);
         Assert.Equal("fixed by reboot", a.ResolutionNote);
         Assert.NotNull(a.ResolvedAt);
+        Assert.Single(notifications.Calls, c => c.Event == "alert.resolved");
     }
 
     [Fact]
     public async Task Resolve_AcknowledgedAlert_Succeeds()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var svc = new AlertService(repo, new FakeNotificationService());
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -194,7 +203,7 @@ public class AlertServiceTests
     public async Task Resolve_AlreadyResolved_ReturnsFalse()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var svc = new AlertService(repo, new FakeNotificationService());
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -210,7 +219,7 @@ public class AlertServiceTests
     public async Task Evaluate_ResolvedAlert_CreatesNewOpenAlert()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo);
+        var svc = new AlertService(repo, new FakeNotificationService());
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -236,6 +245,22 @@ public class AlertServiceTests
     {
         Assert.Equal(expected, AlertService.SeverityRank(sev));
     }
+}
+
+// ── Fake notification service (no-op, records calls) ─────────────────────────
+
+internal sealed class FakeNotificationService : INotificationService
+{
+    public List<(string Event, AlertDto Alert)> Calls { get; } = [];
+
+    public Task NotifyAsync(string @event, AlertDto alert, CancellationToken ct = default)
+    {
+        Calls.Add((@event, alert));
+        return Task.CompletedTask;
+    }
+
+    public Task<int?> TestAsync(Guid sinkId, CancellationToken ct = default)
+        => Task.FromResult<int?>(200);
 }
 
 // ── Fake repository (in-memory, no EF) ───────────────────────────────────────
