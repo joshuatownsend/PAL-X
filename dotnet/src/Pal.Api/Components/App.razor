@@ -10,7 +10,9 @@
     <HeadOutlet @rendermode="RenderMode.InteractiveServer" />
 </head>
 <body>
-    <Routes @rendermode="RenderMode.InteractiveServer" />
+    <CascadingAuthenticationState>
+        <Routes @rendermode="RenderMode.InteractiveServer" />
+    </CascadingAuthenticationState>
     <script src="_framework/blazor.server.js"></script>
 </body>
 </html>

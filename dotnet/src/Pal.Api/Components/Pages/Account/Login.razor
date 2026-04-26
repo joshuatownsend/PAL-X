@@ -1,0 +1,77 @@
+@page "/account/login"
+@using System.Net.Http.Json
+@inject NavigationManager Nav
+
+<PageTitle>Sign in — PAL</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <h1>PAL</h1>
+        <h2>Sign in</h2>
+
+        @if (_error is not null)
+        {
+            <div class="alert-error">@_error</div>
+        }
+
+        <EditForm Model="_form" OnValidSubmit="SignInAsync">
+            <div class="field">
+                <label>Email</label>
+                <InputText @bind-Value="_form.Email" type="email" autocomplete="username" placeholder="admin@pal.local" />
+            </div>
+            <div class="field">
+                <label>Password</label>
+                <InputText @bind-Value="_form.Password" type="password" autocomplete="current-password" />
+            </div>
+            <div class="field-inline">
+                <InputCheckbox @bind-Value="_form.RememberMe" />
+                <label>Remember me</label>
+            </div>
+            <button type="submit" class="btn-primary" disabled="@_busy">
+                @(_busy ? "Signing in…" : "Sign in")
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private readonly LoginModel _form = new();
+    private string? _error;
+    private bool _busy;
+
+    private async Task SignInAsync()
+    {
+        _busy = true;
+        _error = null;
+
+        using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
+        var resp = await http.PostAsJsonAsync("/account/login", new
+        {
+            email = _form.Email,
+            password = _form.Password,
+            rememberMe = _form.RememberMe,
+        });
+
+        if (resp.IsSuccessStatusCode)
+        {
+            Nav.NavigateTo("/jobs", forceLoad: true);
+        }
+        else if (resp.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+        {
+            _error = "Account locked out. Try again later.";
+        }
+        else
+        {
+            _error = "Invalid email or password.";
+        }
+
+        _busy = false;
+    }
+
+    private sealed class LoginModel
+    {
+        public string Email { get; set; } = "";
+        public string Password { get; set; } = "";
+        public bool RememberMe { get; set; }
+    }
+}

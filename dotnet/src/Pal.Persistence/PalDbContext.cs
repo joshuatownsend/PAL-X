@@ -1,9 +1,10 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Pal.Persistence.Entities;
 
 namespace Pal.Persistence;
 
-public sealed class PalDbContext : DbContext
+public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
 {
     public PalDbContext(DbContextOptions<PalDbContext> options) : base(options) { }
 
@@ -18,9 +19,11 @@ public sealed class PalDbContext : DbContext
     public DbSet<CompareResultEntity> CompareResults => Set<CompareResultEntity>();
     public DbSet<AlertEntity> Alerts => Set<AlertEntity>();
     public DbSet<WebhookSinkEntity> WebhookSinks => Set<WebhookSinkEntity>();
+    public DbSet<PersonalAccessTokenEntity> PersonalAccessTokens => Set<PersonalAccessTokenEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);  // must be first — registers Identity table configs
         modelBuilder.Entity<UploadEntity>(e =>
         {
             e.HasKey(x => x.Id);
@@ -106,6 +109,13 @@ public sealed class PalDbContext : DbContext
         modelBuilder.Entity<WebhookSinkEntity>(e =>
         {
             e.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<PersonalAccessTokenEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.HasIndex(x => x.UserId);
         });
     }
 }

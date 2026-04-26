@@ -27,7 +27,7 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
                 return ExitCodes.InvalidArguments;
             }
 
-            using var client = RemoteHttpClient.Create(settings.ApiBase);
+            using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
 
             Guid uploadId;
             await using (var fs = System.IO.File.OpenRead(settings.File))

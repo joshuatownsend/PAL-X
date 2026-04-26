@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Nav
 
 <div class="page">
     <nav class="sidebar">
@@ -12,8 +13,32 @@
             <li><NavLink href="/alerts">Alerts</NavLink></li>
             <li><NavLink href="/webhooks">Webhooks</NavLink></li>
         </ul>
+
+        <div class="nav-footer">
+            <AuthorizeView Roles="Admin">
+                <Authorized>
+                    <NavLink href="/account/users" class="nav-admin-link">Users</NavLink>
+                </Authorized>
+            </AuthorizeView>
+            <NavLink href="/account/tokens" class="nav-admin-link">API Tokens</NavLink>
+            <AuthorizeView>
+                <Authorized>
+                    <span class="nav-user">@context.User.Identity?.Name</span>
+                    <button class="btn-logout" @onclick="LogoutAsync">Sign out</button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
     </nav>
     <main class="content">
         @Body
     </main>
 </div>
+
+@code {
+    private async Task LogoutAsync()
+    {
+        using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
+        await http.PostAsync("/account/logout", null);
+        Nav.NavigateTo("/account/login", forceLoad: true);
+    }
+}

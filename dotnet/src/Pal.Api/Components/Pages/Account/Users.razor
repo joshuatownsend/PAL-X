@@ -1,0 +1,109 @@
+@page "/account/users"
+@attribute [Authorize(Roles = "Admin")]
+@using System.Net.Http.Json
+@inject NavigationManager Nav
+
+<PageTitle>User Management — PAL</PageTitle>
+
+<h2>User Management</h2>
+
+<div class="toolbar">
+    <button class="btn-primary" @onclick="() => _showCreate = true">Add user</button>
+</div>
+
+@if (_users.Count == 0)
+{
+    <p>No users found.</p>
+}
+else
+{
+    <table class="data-table">
+        <thead><tr><th>Email</th><th>Display name</th><th></th></tr></thead>
+        <tbody>
+        @foreach (var u in _users)
+        {
+            <tr>
+                <td>@u.Email</td>
+                <td>@u.DisplayName</td>
+                <td><button class="btn-danger-sm" @onclick="() => DeleteAsync(u.Id)">Remove</button></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@if (_showCreate)
+{
+    <div class="modal-backdrop">
+        <div class="modal">
+            <h3>Add user</h3>
+            @if (_createError is not null) { <div class="alert-error">@_createError</div> }
+            <div class="field"><label>Email</label><input type="email" @bind="_newEmail" /></div>
+            <div class="field"><label>Password</label><input type="password" @bind="_newPassword" /></div>
+            <div class="field">
+                <label>Role</label>
+                <select @bind="_newRole">
+                    <option value="Viewer">Viewer</option>
+                    <option value="Analyst">Analyst</option>
+                    <option value="Admin">Admin</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-primary" @onclick="CreateAsync">Create</button>
+                <button @onclick="() => _showCreate = false">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UserRow> _users = [];
+    private bool _showCreate;
+    private string _newEmail = "";
+    private string _newPassword = "";
+    private string _newRole = "Viewer";
+    private string? _createError;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
+        var resp = await http.GetFromJsonAsync<List<UserRow>>("/account/users");
+        _users = resp ?? [];
+    }
+
+    private async Task CreateAsync()
+    {
+        _createError = null;
+        using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
+        var resp = await http.PostAsJsonAsync("/account/users", new
+        {
+            email = _newEmail,
+            password = _newPassword,
+            role = _newRole,
+            displayName = (string?)null,
+        });
+
+        if (resp.IsSuccessStatusCode)
+        {
+            _showCreate = false;
+            _newEmail = _newPassword = "";
+            await LoadAsync();
+        }
+        else
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            _createError = $"Failed to create user ({(int)resp.StatusCode})";
+        }
+    }
+
+    private async Task DeleteAsync(string id)
+    {
+        using var http = new HttpClient { BaseAddress = new Uri(Nav.BaseUri) };
+        await http.DeleteAsync($"/account/users/{id}");
+        await LoadAsync();
+    }
+
+    private sealed record UserRow(string Id, string? Email, string? DisplayName);
+}

@@ -23,7 +23,7 @@ public sealed class CorrelationsCommand : AsyncCommand<CorrelationsCommand.Setti
     public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
         => RemoteCommand.RunAsync(async () =>
         {
-            using var client = RemoteHttpClient.Create(settings.ApiBase);
+            using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
             var resp = await client.GetAsync($"correlations/data?last={settings.Last}");
             resp.EnsureSuccessStatusCode();
 

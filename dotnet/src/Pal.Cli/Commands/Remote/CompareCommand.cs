@@ -33,7 +33,7 @@ public sealed class CompareCommand : AsyncCommand<CompareCommand.Settings>
                 return ExitCodes.InvalidArguments;
             }
 
-            using var client = RemoteHttpClient.Create(settings.ApiBase);
+            using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
             var body = JsonSerializer.Serialize(new
             {
                 baselineJobId = baselineId,

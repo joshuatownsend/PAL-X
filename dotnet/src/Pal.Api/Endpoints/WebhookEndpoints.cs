@@ -1,3 +1,4 @@
+using Pal.Api.Auth;
 using Pal.Application.Webhooks;
 
 namespace Pal.Api.Endpoints;
@@ -29,7 +30,8 @@ public static class WebhookEndpoints
             return Results.Created($"/webhooks/{sink.Id}", ToResponse(sink));
         })
         .WithName("CreateWebhook")
-        .WithTags("Webhooks");
+        .WithTags("Webhooks")
+        .RequireAuthorization(Roles.Admin);
 
         app.MapPut("/webhooks/{id:guid}", async (Guid id, UpdateWebhookRequest req, IWebhookSinkService webhooks) =>
         {
@@ -41,7 +43,8 @@ public static class WebhookEndpoints
             return ok ? Results.NoContent() : Results.NotFound();
         })
         .WithName("UpdateWebhook")
-        .WithTags("Webhooks");
+        .WithTags("Webhooks")
+        .RequireAuthorization(Roles.Admin);
 
         app.MapDelete("/webhooks/{id:guid}", async (Guid id, IWebhookSinkService webhooks) =>
         {
@@ -49,7 +52,8 @@ public static class WebhookEndpoints
             return ok ? Results.NoContent() : Results.NotFound();
         })
         .WithName("DeleteWebhook")
-        .WithTags("Webhooks");
+        .WithTags("Webhooks")
+        .RequireAuthorization(Roles.Admin);
 
         app.MapPost("/webhooks/{id:guid}/test", async (Guid id, INotificationService notifications) =>
         {
@@ -70,7 +74,8 @@ public static class WebhookEndpoints
                 : Results.Problem($"Webhook endpoint returned HTTP {status}", statusCode: StatusCodes.Status502BadGateway);
         })
         .WithName("TestWebhook")
-        .WithTags("Webhooks");
+        .WithTags("Webhooks")
+        .RequireAuthorization(Roles.Admin);
     }
 
     private static string? ValidateRequest(string? name, string? url, IReadOnlyList<string>? events)
