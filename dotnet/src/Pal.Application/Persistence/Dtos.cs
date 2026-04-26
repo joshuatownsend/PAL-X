@@ -156,6 +156,18 @@ public sealed class CorrelationResultDto
     public required IReadOnlyList<CorrelationPairDto> Pairs { get; init; }
 }
 
+public sealed class WebhookSinkDto
+{
+    public required Guid Id { get; init; }
+    public required string Name { get; init; }
+    public required string Url { get; init; }
+    public string? Secret { get; init; }
+    public required bool Enabled { get; init; }
+    public required IReadOnlyList<string> Events { get; init; }
+    public required DateTimeOffset CreatedAt { get; init; }
+    public required DateTimeOffset UpdatedAt { get; init; }
+}
+
 public sealed class AlertDto
 {
     public required Guid Id { get; init; }

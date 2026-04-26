@@ -17,6 +17,7 @@ public sealed class PalDbContext : DbContext
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
     public DbSet<CompareResultEntity> CompareResults => Set<CompareResultEntity>();
     public DbSet<AlertEntity> Alerts => Set<AlertEntity>();
+    public DbSet<WebhookSinkEntity> WebhookSinks => Set<WebhookSinkEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -100,6 +101,11 @@ public sealed class PalDbContext : DbContext
             e.HasIndex(x => x.RuleId)
                 .IsUnique()
                 .HasFilter("status <> 'resolved'");
+        });
+
+        modelBuilder.Entity<WebhookSinkEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
         });
     }
 }

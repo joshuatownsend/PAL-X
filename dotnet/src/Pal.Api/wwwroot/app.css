@@ -66,3 +66,11 @@ h1 { margin-top: 0; }
 .resolve-dialog { margin-top: 1.5rem; background: #fff; padding: 1rem; border-radius: 8px; max-width: 480px; display: flex; flex-direction: column; gap: 0.75rem; }
 .resolve-dialog input { width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; }
 .resolve-actions { display: flex; gap: 0.5rem; }
+.webhook-form { background: #fff; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; max-width: 560px; display: flex; flex-direction: column; gap: 0.75rem; }
+.webhook-form label { font-weight: 600; display: flex; flex-direction: column; gap: 0.25rem; }
+.webhook-form input[type="text"], .webhook-form input[type="url"], .webhook-form input[type="password"] { padding: 0.4rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; }
+.webhook-form fieldset { border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.5rem 0.75rem; }
+.webhook-form legend { font-weight: 600; padding: 0 0.25rem; }
+.inline-label { flex-direction: row !important; align-items: center; gap: 0.4rem; font-weight: normal !important; }
+.event-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.event-tag { background: #e0f2fe; color: #075985; padding: 0.1rem 0.5rem; border-radius: 99px; font-size: 0.78rem; }
