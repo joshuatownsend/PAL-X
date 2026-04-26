@@ -37,7 +37,7 @@ public sealed class AlertService : IAlertService
                 {
                     var updated = await _repo.GetAsync(existing.Id, ct);
                     if (updated is not null)
-                        await _notifications.NotifyAsync("alert.escalated", updated, ct);
+                        _ = _notifications.NotifyAsync("alert.escalated", updated, CancellationToken.None);
                 }
             }
             else
@@ -50,7 +50,7 @@ public sealed class AlertService : IAlertService
                     TriggeredAt = now, LastSeenAt = now,
                 };
                 await _repo.CreateAsync(newAlert, ct);
-                await _notifications.NotifyAsync("alert.created", newAlert, ct);
+                _ = _notifications.NotifyAsync("alert.created", newAlert, CancellationToken.None);
             }
         }
     }
@@ -68,7 +68,7 @@ public sealed class AlertService : IAlertService
         {
             var alert = await _repo.GetAsync(id, ct);
             if (alert is not null)
-                await _notifications.NotifyAsync("alert.acknowledged", alert, ct);
+                _ = _notifications.NotifyAsync("alert.acknowledged", alert, CancellationToken.None);
         }
         return ok;
     }
@@ -80,7 +80,7 @@ public sealed class AlertService : IAlertService
         {
             var alert = await _repo.GetAsync(id, ct);
             if (alert is not null)
-                await _notifications.NotifyAsync("alert.resolved", alert, ct);
+                _ = _notifications.NotifyAsync("alert.resolved", alert, CancellationToken.None);
         }
         return ok;
     }

@@ -190,11 +190,23 @@ internal sealed class FakeWebhookSinkRepository(params WebhookSinkDto[] sinks) :
         return Task.CompletedTask;
     }
 
-    public Task<bool> UpdateAsync(WebhookSinkDto sink, CancellationToken ct = default)
+    public Task<bool> UpdateAsync(WebhookSinkDto sink, bool updateSecret, CancellationToken ct = default)
     {
         var idx = _store.FindIndex(s => s.Id == sink.Id);
         if (idx < 0) return Task.FromResult(false);
-        _store[idx] = sink;
+        if (!updateSecret)
+        {
+            var existing = _store[idx];
+            _store[idx] = new WebhookSinkDto
+            {
+                Id = sink.Id, Name = sink.Name, Url = sink.Url, Secret = existing.Secret,
+                Enabled = sink.Enabled, Events = sink.Events, CreatedAt = sink.CreatedAt, UpdatedAt = sink.UpdatedAt,
+            };
+        }
+        else
+        {
+            _store[idx] = sink;
+        }
         return Task.FromResult(true);
     }
 

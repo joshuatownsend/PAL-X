@@ -32,7 +32,8 @@ public class AlertServiceTests
     public async Task Evaluate_NewFinding_CreatesOpenAlert()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications);
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
 
@@ -43,6 +44,7 @@ public class AlertServiceTests
         Assert.Equal("open", a.Status);
         Assert.Equal(Job1, a.TriggeringJobId);
         Assert.Equal(Job1, a.LatestJobId);
+        Assert.Single(notifications.Calls, c => c.Event == "alert.created");
     }
 
     // ── same finding in second run → updates existing alert ───────────────
@@ -68,13 +70,15 @@ public class AlertServiceTests
     public async Task Evaluate_HigherSeverityInSecondRun_EscalatesAlert()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications);
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         await svc.EvaluateAsync(Job2, [MakeFinding("cpu-high", "critical")]);
 
         var a = Assert.Single(await svc.ListAsync());
         Assert.Equal("critical", a.Severity);
+        Assert.Single(notifications.Calls, c => c.Event == "alert.escalated");
     }
 
     [Fact]
@@ -129,7 +133,8 @@ public class AlertServiceTests
     public async Task Acknowledge_OpenAlert_TransitionsToAcknowledged()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications);
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -140,6 +145,7 @@ public class AlertServiceTests
         var a = await svc.GetAsync(id);
         Assert.Equal("acknowledged", a!.Status);
         Assert.NotNull(a.AcknowledgedAt);
+        Assert.Single(notifications.Calls, c => c.Event == "alert.acknowledged");
     }
 
     [Fact]
@@ -162,7 +168,8 @@ public class AlertServiceTests
     public async Task Resolve_OpenAlert_TransitionsToResolved()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications);
 
         await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -174,6 +181,7 @@ public class AlertServiceTests
         Assert.Equal("resolved", a!.Status);
         Assert.Equal("fixed by reboot", a.ResolutionNote);
         Assert.NotNull(a.ResolvedAt);
+        Assert.Single(notifications.Calls, c => c.Event == "alert.resolved");
     }
 
     [Fact]

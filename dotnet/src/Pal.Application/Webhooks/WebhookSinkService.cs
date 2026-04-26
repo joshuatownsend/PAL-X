@@ -24,7 +24,7 @@ public sealed class WebhookSinkService : IWebhookSinkService
         return sink;
     }
 
-    public async Task<bool> UpdateAsync(Guid id, string name, string url, string? secret, bool enabled, IReadOnlyList<string> events, CancellationToken ct = default)
+    public async Task<bool> UpdateAsync(Guid id, string name, string url, string? secret, bool enabled, IReadOnlyList<string> events, bool updateSecret = true, CancellationToken ct = default)
     {
         var existing = await _repo.GetAsync(id, ct);
         if (existing is null) return false;
@@ -33,7 +33,7 @@ public sealed class WebhookSinkService : IWebhookSinkService
             Id = id, Name = name, Url = url, Secret = secret,
             Enabled = enabled, Events = events,
             CreatedAt = existing.CreatedAt, UpdatedAt = DateTimeOffset.UtcNow,
-        }, ct);
+        }, updateSecret, ct);
     }
 
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct = default) => _repo.DeleteAsync(id, ct);

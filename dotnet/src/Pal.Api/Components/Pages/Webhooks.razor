@@ -17,7 +17,10 @@ else
         <strong>@(_editId is null ? "New Webhook" : "Edit Webhook")</strong>
         <label>Name <input type="text" @bind="_formName" placeholder="e.g. PagerDuty" /></label>
         <label>URL <input type="url" @bind="_formUrl" placeholder="https://..." /></label>
-        <label>Secret <input type="password" @bind="_formSecret" placeholder="Optional HMAC signing secret" /></label>
+        <label>Secret
+            <input type="password" @bind="_formSecret"
+                placeholder="@(_editId is null ? "Optional HMAC signing secret" : "Leave blank to keep existing secret")" />
+        </label>
         <label class="inline-label"><input type="checkbox" @bind="_formEnabled" /> Enabled</label>
         <fieldset>
             <legend>Events</legend>
@@ -120,7 +123,7 @@ else if (_sinks.Count > 0)
         _editId = s.Id;
         _formName = s.Name;
         _formUrl = s.Url;
-        _formSecret = s.Secret ?? "";
+        _formSecret = ""; // never pre-fill — secret is write-only; leave blank to keep existing
         _formEnabled = s.Enabled;
         _formEvents = [..s.Events];
         _formError = "";
@@ -153,9 +156,15 @@ else if (_sinks.Count > 0)
         var events = (IReadOnlyList<string>)_formEvents.ToList();
 
         if (_editId is null)
+        {
             await WebhookService.CreateAsync(_formName, _formUrl, secret, _formEnabled, events);
+        }
         else
-            await WebhookService.UpdateAsync(_editId.Value, _formName, _formUrl, secret, _formEnabled, events);
+        {
+            // updateSecret=true only when user typed a new value; otherwise keep existing in DB.
+            var updateSecret = !string.IsNullOrWhiteSpace(_formSecret);
+            await WebhookService.UpdateAsync(_editId.Value, _formName, _formUrl, secret, _formEnabled, events, updateSecret);
+        }
 
         CancelForm();
         await LoadAsync();
