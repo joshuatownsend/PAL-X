@@ -42,6 +42,20 @@
                             <td colspan="4">@f.Summary</td>
                         </tr>
                     }
+                    @if (f.Recommendations.Count > 0)
+                    {
+                        <tr class="finding-recommendations">
+                            <td colspan="4">
+                                <strong>Recommendations</strong>
+                                <ol class="recommendation-list">
+                                    @foreach (var r in f.Recommendations)
+                                    {
+                                        <li><span class="rec-priority rec-@r.Priority">@r.Priority.ToUpperInvariant()</span> @r.Text</li>
+                                    }
+                                </ol>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
@@ -77,5 +91,12 @@
         public string Title { get; set; } = "";
         public string? Summary { get; set; }
         public string PackId { get; set; } = "";
+        public List<RecommendationRow> Recommendations { get; set; } = [];
+    }
+
+    private sealed class RecommendationRow
+    {
+        public string Priority { get; set; } = "";
+        public string Text { get; set; } = "";
     }
 }

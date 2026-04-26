@@ -18,6 +18,10 @@ public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
         [CommandOption("--json")]
         [Description("Print raw findings JSON")]
         public bool Json { get; init; }
+
+        [CommandOption("--verbose")]
+        [Description("Show recommendations for each finding")]
+        public bool Verbose { get; init; }
     }
 
     public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
@@ -77,10 +81,38 @@ public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
                     table.AddRow($"[{StatusColor(sev)}]{sev}[/]", cat, title);
                 }
                 AnsiConsole.Write(table);
+
+                if (settings.Verbose)
+                    RenderRecommendations(findings);
             }
 
             return ExitCodes.Success;
         });
+
+    private static void RenderRecommendations(JsonElement[] findings)
+    {
+        bool any = false;
+        foreach (var f in findings)
+        {
+            if (!f.TryGetProperty("recommendations", out var recs) || recs.GetArrayLength() == 0)
+                continue;
+            if (!any)
+            {
+                AnsiConsole.WriteLine();
+                AnsiConsole.MarkupLine("[bold]Recommendations[/]");
+                any = true;
+            }
+            var title = f.TryGetProperty("title", out var t) ? t.GetString() ?? "" : "";
+            AnsiConsole.MarkupLine($"  [bold]{Markup.Escape(title)}[/]");
+            foreach (var r in recs.EnumerateArray())
+            {
+                var priority = r.TryGetProperty("priority", out var p) ? p.GetString() ?? "" : "";
+                var text = r.TryGetProperty("text", out var tx) ? tx.GetString() ?? "" : "";
+                string color = priority switch { "high" => "yellow", "medium" => "blue", _ => "grey" };
+                AnsiConsole.MarkupLine($"    [{color}][{priority.ToUpperInvariant()}][/] {Markup.Escape(text)}");
+            }
+        }
+    }
 
     private static string StatusColor(string? s) => s switch
     {
