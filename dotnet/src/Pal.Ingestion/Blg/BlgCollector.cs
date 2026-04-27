@@ -17,6 +17,11 @@ public sealed class BlgCollector : IDatasetCollector
 
     public CollectResult Collect(string filePath, string? machineName = null, string? timeZone = null)
     {
+        // PDH_FMT_COUNTERVALUE uses FieldOffset(8) for the double — only valid in a 64-bit process.
+        if (IntPtr.Size != 8)
+            throw new PlatformNotSupportedException(
+                "BLG ingestion requires a 64-bit process. Re-run with the x64 runtime.");
+
         int hr = PdhInterop.PdhBindInputDataSourceW(out IntPtr hDataSource, filePath);
         PdhInterop.ThrowIfFailed(hr, "PdhBindInputDataSourceW");
 
@@ -170,7 +175,7 @@ public sealed class BlgCollector : IDatasetCollector
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         ExpandWildcard(hDataSource, @"\*\*", paths, warnings);
         ExpandWildcard(hDataSource, @"\*(*)\*", paths, warnings);
-        return paths.ToList();
+        return [.. paths.Order(StringComparer.OrdinalIgnoreCase)];
     }
 
     private static void ExpandWildcard(IntPtr hDataSource, string wildcard, HashSet<string> paths, List<string> warnings)

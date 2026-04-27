@@ -87,7 +87,7 @@ public class PackSigningTests : IDisposable
 
         pub.Dispose();
         Assert.False(result.IsValid);
-        Assert.Equal("KeyNotTrusted", result.FailureReason);
+        Assert.Equal("InvalidSignature", result.FailureReason);
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public class PackSigningTests : IDisposable
         var result = verifier.Verify(_tempDir, [untrustedKey]);
 
         Assert.False(result.IsValid);
-        Assert.Equal("KeyNotTrusted", result.FailureReason);
+        Assert.Equal("InvalidSignature", result.FailureReason);
     }
 
     [Fact]

@@ -85,8 +85,12 @@ public sealed class PackValidator
                         errors.Add($"{prefix}, metric '{cond.Metric}': aggregation '{cond.Aggregation}' is not supported with 'window' (trend is not windowed)");
                     if (cond.Window.DurationSeconds < 30)
                         errors.Add($"{prefix}, metric '{cond.Metric}': window.duration_seconds must be >= 30");
+                    if (cond.Window.StepSeconds.HasValue && cond.Window.StepSeconds.Value < 1)
+                        errors.Add($"{prefix}, metric '{cond.Metric}': window.step_seconds must be >= 1");
                     if (cond.Window.StepSeconds.HasValue && cond.Window.StepSeconds.Value > cond.Window.DurationSeconds)
                         errors.Add($"{prefix}, metric '{cond.Metric}': window.step_seconds must be <= duration_seconds");
+                    if (cond.Window.MinSamples < 1)
+                        errors.Add($"{prefix}, metric '{cond.Metric}': window.min_samples must be >= 1");
                 }
             }
 

@@ -13,6 +13,11 @@ public static class RollingWindowAggregator
         string aggregation,
         int minSamples)
     {
+        if (windowDuration <= TimeSpan.Zero)
+            throw new ArgumentException("windowDuration must be positive", nameof(windowDuration));
+        if (minSamples < 1)
+            throw new ArgumentException("minSamples must be >= 1", nameof(minSamples));
+
         if (samples.Count == 0)
             return [];
 
@@ -24,7 +29,9 @@ public static class RollingWindowAggregator
         if (validSamples.Count == 0)
             return [];
 
-        var windowStep = step ?? EstimateInterval(validSamples);
+        var windowStep = (step.HasValue && step.Value > TimeSpan.Zero)
+            ? step.Value
+            : EstimateInterval(validSamples);
 
         var results = new List<WindowResult>();
         var windowStart = validSamples[0].Timestamp;

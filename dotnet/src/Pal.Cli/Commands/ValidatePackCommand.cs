@@ -39,10 +39,10 @@ public sealed class ValidatePackCommand : Command<ValidatePackSettings>
 
         string packPath = settings.Path;
 
+        var trustedKeys = TrustedKeys.DefaultTrusted(settings.TrustKeyPath);
         try
         {
             var sigReq = settings.RequireSignature ? SignatureRequirement.Required : SignatureRequirement.Optional;
-            var trustedKeys = TrustedKeys.DefaultTrusted(settings.TrustKeyPath);
 
             var pack = File.Exists(packPath) && packPath.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase)
                 ? loader.Load(packPath, sigReq, trustedKeys)
@@ -103,6 +103,10 @@ public sealed class ValidatePackCommand : Command<ValidatePackSettings>
         {
             AnsiConsole.MarkupLine($"[red]ERROR:[/] {ex.Message}");
             return ExitCodes.PackValidationFailure;
+        }
+        finally
+        {
+            foreach (var key in trustedKeys) key.Dispose();
         }
     }
 }

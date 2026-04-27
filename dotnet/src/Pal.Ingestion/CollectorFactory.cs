@@ -6,11 +6,12 @@ namespace Pal.Ingestion;
 
 public static class CollectorFactory
 {
-    public static IDatasetCollector Create(string format, MetricAliasRegistry registry) => format switch
-    {
-        "blg" => CreateBlgCollector(registry),
-        _ => new CsvCollector(registry)
-    };
+    public static IDatasetCollector Create(string format, MetricAliasRegistry registry) =>
+        format.Trim().ToLowerInvariant() switch
+        {
+            "blg" => CreateBlgCollector(registry),
+            _ => new CsvCollector(registry)
+        };
 
     private static IDatasetCollector CreateBlgCollector(MetricAliasRegistry registry)
     {

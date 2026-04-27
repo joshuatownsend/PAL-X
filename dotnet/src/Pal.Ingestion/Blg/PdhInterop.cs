@@ -22,7 +22,7 @@ internal static class PdhInterop
 
     // PDH_FMT_COUNTERVALUE — x64 layout: CStatus at offset 0, doubleValue at offset 8.
     // The 4-byte padding between CStatus and the 8-byte union is required by x64 ABI alignment.
-    // If this code ever runs as x86, offset 8 shifts to 4 — but .NET 8 on Windows is x64-only.
+    // x86 layout differs (offset 4); BlgCollector.Collect() guards against running as a 32-bit process.
     [StructLayout(LayoutKind.Explicit)]
     internal struct PdhFmtCountervalue
     {

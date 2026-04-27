@@ -15,7 +15,17 @@ public sealed class PackVerifier
             return new VerificationResult(false, null, "MissingSignature");
 
         string sidecar = File.ReadAllText(sigPath).Trim();
-        var (keyId, signatureBase64) = ParseSidecar(sigPath, sidecar);
+
+        string? keyId;
+        string signatureBase64;
+        try
+        {
+            (keyId, signatureBase64) = ParseSidecar(sigPath, sidecar);
+        }
+        catch (PackSignatureException)
+        {
+            return new VerificationResult(false, null, "MalformedSignature");
+        }
 
         byte[] signature;
         try
@@ -29,14 +39,17 @@ public sealed class PackVerifier
 
         byte[] packBytes = File.ReadAllBytes(packYaml);
 
+        if (trustedKeys.Count == 0)
+            return new VerificationResult(false, keyId, "NoTrustedKeys");
+
         foreach (var key in trustedKeys)
         {
             if (key.VerifyData(packBytes, signature, HashAlgorithmName.SHA256, RSASignaturePadding.Pss))
                 return new VerificationResult(true, keyId, null);
         }
 
-        return new VerificationResult(false, keyId,
-            trustedKeys.Count == 0 ? "NoTrustedKeys" : "KeyNotTrusted");
+        // Tried all trusted keys; signature doesn't verify against any of them
+        return new VerificationResult(false, keyId, "InvalidSignature");
     }
 
     private static (string? keyId, string signatureBase64) ParseSidecar(string path, string sidecar)

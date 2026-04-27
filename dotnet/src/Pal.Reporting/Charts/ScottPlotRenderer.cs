@@ -19,8 +19,7 @@ public static class ScottPlotRenderer
         string title,
         IReadOnlyList<(DateTimeOffset ts, double value)> series,
         double? warningThreshold = null,
-        double? criticalThreshold = null,
-        bool thresholdInverted = false)
+        double? criticalThreshold = null)
     {
         var prevCulture = CultureInfo.CurrentCulture;
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -39,10 +38,9 @@ public static class ScottPlotRenderer
         IReadOnlyList<(DateTimeOffset ts, double value)> series,
         string outputPath,
         double? warningThreshold = null,
-        double? criticalThreshold = null,
-        bool thresholdInverted = false)
+        double? criticalThreshold = null)
     {
-        string svg = Render(title, series, warningThreshold, criticalThreshold, thresholdInverted);
+        string svg = Render(title, series, warningThreshold, criticalThreshold);
         File.WriteAllText(outputPath, svg, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 

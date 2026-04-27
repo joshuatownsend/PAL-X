@@ -104,10 +104,14 @@ public static class RuleEvaluator
 
         bool fired = windows.Any(w => Compare(w.Value, condition.Operator, thresholdValue));
 
-        // Report the "worst" window value: highest for gt/ge, lowest for lt/le
-        double worstValue = condition.Operator is "gt" or "ge"
-            ? windows.Max(w => w.Value)
-            : windows.Min(w => w.Value);
+        // Report the "worst" window value: highest for gt/ge, lowest for lt/le, first match for eq
+        double worstValue = condition.Operator switch
+        {
+            "gt" or "ge" => windows.Max(w => w.Value),
+            "lt" or "le" => windows.Min(w => w.Value),
+            _ => windows.FirstOrDefault(w => Compare(w.Value, condition.Operator, thresholdValue))?.Value
+                 ?? windows[0].Value
+        };
 
         return new Result
         {
@@ -146,7 +150,9 @@ public static class RuleEvaluator
     {
         string metric = c.Instance is not null ? $"{c.Metric}[{c.Instance}]" : c.Metric;
         int secs = c.Window!.DurationSeconds;
-        string windowLabel = secs >= 3600 ? $"{secs / 3600}h" : secs >= 60 ? $"{secs / 60}m" : $"{secs}s";
+        string windowLabel = secs % 3600 == 0 ? $"{secs / 3600}h"
+            : secs % 60 == 0 ? $"{secs / 60}m"
+            : $"{secs}s";
         return $"{c.Aggregation}({metric}) over {windowLabel} rolling window {OperatorSymbol(c.Operator)} {resolvedThreshold:G}";
     }
 }
