@@ -7,8 +7,13 @@ namespace Pal.Persistence.Repositories;
 public sealed class WebhookSinkRepository : IWebhookSinkRepository
 {
     private readonly IDbContextFactory<PalDbContext> _factory;
+    private readonly ITenantContext _tenant;
 
-    public WebhookSinkRepository(IDbContextFactory<PalDbContext> factory) => _factory = factory;
+    public WebhookSinkRepository(IDbContextFactory<PalDbContext> factory, ITenantContext tenant)
+    {
+        _factory = factory;
+        _tenant = tenant;
+    }
 
     public async Task<IReadOnlyList<WebhookSinkDto>> ListAsync(CancellationToken ct = default)
     {
@@ -28,7 +33,8 @@ public sealed class WebhookSinkRepository : IWebhookSinkRepository
         await using var db = await _factory.CreateDbContextAsync(ct);
         db.WebhookSinks.Add(new WebhookSinkEntity
         {
-            Id = sink.Id, Name = sink.Name, Url = sink.Url, Secret = sink.Secret,
+            Id = sink.Id, WorkspaceId = _tenant.WorkspaceId ?? DefaultTenant.WorkspaceId,
+            Name = sink.Name, Url = sink.Url, Secret = sink.Secret,
             Enabled = sink.Enabled, Events = string.Join(",", sink.Events),
             CreatedAt = sink.CreatedAt, UpdatedAt = sink.UpdatedAt,
         });
@@ -59,11 +65,15 @@ public sealed class WebhookSinkRepository : IWebhookSinkRepository
         return rows > 0;
     }
 
-    public async Task<IReadOnlyList<WebhookSinkDto>> ListEnabledForEventAsync(string eventName, CancellationToken ct = default)
+    public async Task<IReadOnlyList<WebhookSinkDto>> ListEnabledForEventAsync(string eventName, Guid workspaceId, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
-        // Load enabled sinks and filter in-memory: expected <20 rows, simpler than a DB-side string split.
-        var enabled = await db.WebhookSinks.Where(s => s.Enabled).ToListAsync(ct);
+        // IgnoreQueryFilters because this is called from the alert notification path, which may run in
+        // the analysis worker context (no tenant set). Scope manually via workspaceId.
+        var enabled = await db.WebhookSinks
+            .IgnoreQueryFilters()
+            .Where(s => s.WorkspaceId == workspaceId && s.Enabled)
+            .ToListAsync(ct);
         return enabled
             .Where(s => s.Events.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(eventName))
             .Select(ToDto)
