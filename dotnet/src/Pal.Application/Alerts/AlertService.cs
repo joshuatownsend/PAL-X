@@ -15,7 +15,7 @@ public sealed class AlertService : IAlertService
         _notifications = notifications;
     }
 
-    public async Task EvaluateAsync(Guid jobId, IReadOnlyList<Finding> findings, CancellationToken ct = default)
+    public async Task EvaluateAsync(Guid jobId, Guid workspaceId, IReadOnlyList<Finding> findings, CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -27,7 +27,7 @@ public sealed class AlertService : IAlertService
 
         foreach (var f in deduplicated)
         {
-            var existing = await _repo.FindActiveByRuleIdAsync(f.RuleId, ct);
+            var existing = await _repo.FindActiveByRuleIdAsync(f.RuleId, workspaceId, ct);
             if (existing is not null)
             {
                 var escalated = SeverityRank(f.Severity) > SeverityRank(existing.Severity);
@@ -44,8 +44,8 @@ public sealed class AlertService : IAlertService
             {
                 var newAlert = new AlertDto
                 {
-                    Id = Guid.NewGuid(), RuleId = f.RuleId, Severity = f.Severity,
-                    Category = f.Category, Title = f.Title, Status = "open",
+                    Id = Guid.NewGuid(), WorkspaceId = workspaceId, RuleId = f.RuleId,
+                    Severity = f.Severity, Category = f.Category, Title = f.Title, Status = "open",
                     TriggeringJobId = jobId, LatestJobId = jobId,
                     TriggeredAt = now, LastSeenAt = now,
                 };

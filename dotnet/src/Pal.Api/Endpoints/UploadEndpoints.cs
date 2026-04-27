@@ -7,7 +7,7 @@ public static class UploadEndpoints
 {
     public static void MapUploadEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/uploads", async (HttpRequest request, IStorageProvider storage, IUploadRepository uploads) =>
+        app.MapPost("/uploads", async (HttpRequest request, Guid workspaceId, IStorageProvider storage, IUploadRepository uploads) =>
         {
             if (!request.HasFormContentType)
                 return Results.BadRequest("Expected multipart/form-data");
@@ -34,7 +34,7 @@ public static class UploadEndpoints
             var relativePath = await storage.CommitUploadAsync(tempPath, sha256, file.FileName);
             var upload = await uploads.CreateAsync(file.FileName, sourceType, sizeBytes, sha256, relativePath);
 
-            return Results.Created($"/uploads/{upload.Id}", new
+            return Results.Created($"/api/workspaces/{workspaceId}/uploads/{upload.Id}", new
             {
                 uploadId = upload.Id,
                 fileName = upload.FileName,

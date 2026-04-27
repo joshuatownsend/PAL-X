@@ -10,11 +10,14 @@ public sealed class AlertRepository : IAlertRepository
 
     public AlertRepository(IDbContextFactory<PalDbContext> factory) => _factory = factory;
 
-    public async Task<AlertDto?> FindActiveByRuleIdAsync(string ruleId, CancellationToken ct = default)
+    public async Task<AlertDto?> FindActiveByRuleIdAsync(string ruleId, Guid workspaceId, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
+        // IgnoreQueryFilters because this is called from the analysis worker (no tenant context set).
+        // We scope manually via workspaceId so cross-workspace rule IDs don't collide.
         var entity = await db.Alerts
-            .Where(a => a.RuleId == ruleId && a.Status != "resolved")
+            .IgnoreQueryFilters()
+            .Where(a => a.WorkspaceId == workspaceId && a.RuleId == ruleId && a.Status != "resolved")
             .FirstOrDefaultAsync(ct);
         return entity is null ? null : ToDto(entity);
     }
@@ -25,6 +28,7 @@ public sealed class AlertRepository : IAlertRepository
         db.Alerts.Add(new AlertEntity
         {
             Id = alert.Id,
+            WorkspaceId = alert.WorkspaceId,
             RuleId = alert.RuleId,
             Severity = alert.Severity,
             Category = alert.Category,
@@ -95,6 +99,7 @@ public sealed class AlertRepository : IAlertRepository
     private static AlertDto ToDto(AlertEntity e) => new()
     {
         Id = e.Id,
+        WorkspaceId = e.WorkspaceId,
         RuleId = e.RuleId,
         Severity = e.Severity,
         Category = e.Category,

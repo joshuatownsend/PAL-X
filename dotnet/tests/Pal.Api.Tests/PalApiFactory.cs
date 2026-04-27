@@ -3,17 +3,24 @@ using System.Text.Encodings.Web;
 using DotNet.Testcontainers.Builders;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Pal.Application.Persistence;
+using Pal.Persistence;
+using Pal.Persistence.Entities;
 using Testcontainers.PostgreSql;
 
 namespace Pal.Api.Tests;
 
 public sealed class PalApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    public const string TestUserId = "test-user-id";
+    public static readonly string WsBase = $"/api/workspaces/{DefaultTenant.WorkspaceId}";
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
         .WithImage("postgres:16-alpine")
         .WithDatabase("pal_test")
@@ -75,6 +82,39 @@ public sealed class PalApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         });
     }
 
+    // Seed the test auth identity user + org membership after migrations have run.
+    protected override IHost CreateHost(IHostBuilder builder)
+    {
+        var host = base.CreateHost(builder);
+        SeedTestUserAsync(host.Services).GetAwaiter().GetResult();
+        return host;
+    }
+
+    private static async Task SeedTestUserAsync(IServiceProvider services)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+
+        var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
+        if (await userManager.FindByIdAsync(TestUserId) is null)
+        {
+            var user = new ApplicationUser
+            {
+                Id = TestUserId,
+                UserName = "test@pal.local",
+                Email = "test@pal.local",
+                EmailConfirmed = true,
+            };
+            var result = await userManager.CreateAsync(user);
+            if (!result.Succeeded)
+                throw new InvalidOperationException(
+                    $"Test user seed failed: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+        }
+
+        var orgRepo = sp.GetRequiredService<IOrgRepository>();
+        await orgRepo.UpsertMembershipAsync(DefaultTenant.OrgId, TestUserId, "admin");
+    }
+
     /// <summary>Creates an authenticated client with the given role (default: Admin).</summary>
     public HttpClient CreateClient(string role = "Admin")
     {
@@ -103,7 +143,7 @@ internal sealed class TestAuthHandler(
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.NameIdentifier, "test-user-id"),
+            new Claim(ClaimTypes.NameIdentifier, PalApiFactory.TestUserId),
             new Claim(ClaimTypes.Name, "test@pal.local"),
             new Claim(ClaimTypes.Email, "test@pal.local"),
             new Claim(ClaimTypes.Role, role),

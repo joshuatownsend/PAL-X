@@ -81,6 +81,7 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
         var compare = new CompareResultEntity
         {
             Id = Guid.NewGuid(),
+            WorkspaceId = DefaultTenant.WorkspaceId,
             BaselineJobId = baselineJob.Id,
             CandidateJobId = candidateJob.Id,
             ResultJson = "{}",
@@ -196,6 +197,7 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
     private static UploadEntity MakeUpload() => new()
     {
         Id = Guid.NewGuid(),
+        WorkspaceId = DefaultTenant.WorkspaceId,
         FileName = $"test-{Guid.NewGuid():N}.csv",
         SourceType = "csv",
         SizeBytes = 100,
@@ -211,6 +213,7 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
         return new AnalysisJobEntity
         {
             Id = Guid.NewGuid(),
+            WorkspaceId = DefaultTenant.WorkspaceId,
             UploadId = uploadId,
             Status = status,
             CreatedAt = now.AddDays(-(completedDaysAgo ?? 0) - 1),

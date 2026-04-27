@@ -8,8 +8,13 @@ namespace Pal.Persistence.Repositories;
 public sealed class AnalysisRepository : IAnalysisRepository
 {
     private readonly IDbContextFactory<PalDbContext> _factory;
+    private readonly ITenantContext _tenant;
 
-    public AnalysisRepository(IDbContextFactory<PalDbContext> factory) => _factory = factory;
+    public AnalysisRepository(IDbContextFactory<PalDbContext> factory, ITenantContext tenant)
+    {
+        _factory = factory;
+        _tenant = tenant;
+    }
 
     public async Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, CancellationToken ct = default)
     {
@@ -17,6 +22,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
         var job = new AnalysisJobEntity
         {
             Id = Guid.NewGuid(),
+            WorkspaceId = _tenant.WorkspaceId ?? throw new InvalidOperationException("Tenant workspace is not set. Ensure the request passes through the workspace route group."),
             UploadId = uploadId,
             Status = "queued",
             OptionsJson = JsonSerializer.Serialize(new { requestedPacks = packIds }),
@@ -219,6 +225,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
     private static AnalysisJobDto ToDto(AnalysisJobEntity j, IReadOnlyList<JobPackDto> packs) => new()
     {
         Id = j.Id,
+        WorkspaceId = j.WorkspaceId,
         UploadId = j.UploadId,
         Status = j.Status,
         OptionsJson = j.OptionsJson,

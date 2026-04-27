@@ -1,9 +1,9 @@
 namespace Pal.Persistence.Entities;
 
-public sealed class AuditEventEntity
+public sealed class WorkspaceAuditEventEntity
 {
     public Guid Id { get; set; }
-    public Guid? OrgId { get; set; }  // null for system-generated events (retention runs, etc.)
+    public Guid WorkspaceId { get; set; }
     public required string EventType { get; set; }
     public required string EntityId { get; set; }
     public required string EventJson { get; set; }

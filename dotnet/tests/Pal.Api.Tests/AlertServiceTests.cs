@@ -25,6 +25,7 @@ public class AlertServiceTests
 
     private static Guid Job1 => new("aaaaaaaa-0000-0000-0000-000000000001");
     private static Guid Job2 => new("aaaaaaaa-0000-0000-0000-000000000002");
+    private static Guid WsId => new("bbbbbbbb-0000-0000-0000-000000000001");
 
     // ── new finding → new open alert ──────────────────────────────────────
 
@@ -35,7 +36,7 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications);
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
 
         var alerts = await svc.ListAsync();
         var a = Assert.Single(alerts);
@@ -55,8 +56,8 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService());
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
-        await svc.EvaluateAsync(Job2, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
 
         var alerts = await svc.ListAsync();
         var a = Assert.Single(alerts);
@@ -73,8 +74,8 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications);
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
-        await svc.EvaluateAsync(Job2, [MakeFinding("cpu-high", "critical")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
 
         var a = Assert.Single(await svc.ListAsync());
         Assert.Equal("critical", a.Severity);
@@ -87,8 +88,8 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService());
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "critical")]);
-        await svc.EvaluateAsync(Job2, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "critical")]);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
 
         var a = Assert.Single(await svc.ListAsync());
         Assert.Equal("critical", a.Severity);
@@ -102,7 +103,7 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService());
 
-        await svc.EvaluateAsync(Job1, [
+        await svc.EvaluateAsync(Job1, WsId, [
             MakeFinding("cpu-high", "warning"),
             MakeFinding("cpu-high", "critical"),
         ]);
@@ -119,7 +120,7 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService());
 
-        await svc.EvaluateAsync(Job1, [
+        await svc.EvaluateAsync(Job1, WsId, [
             MakeFinding("cpu-high", "warning"),
             MakeFinding("mem-low", "critical"),
         ]);
@@ -136,7 +137,7 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications);
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
 
         var ok = await svc.AcknowledgeAsync(id);
@@ -154,7 +155,7 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService());
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
         await svc.AcknowledgeAsync(id);
 
@@ -171,7 +172,7 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications);
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
 
         var ok = await svc.ResolveAsync(id, "fixed by reboot");
@@ -190,7 +191,7 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService());
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
         await svc.AcknowledgeAsync(id);
 
@@ -205,7 +206,7 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService());
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
         await svc.ResolveAsync(id, null);
 
@@ -221,12 +222,12 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService());
 
-        await svc.EvaluateAsync(Job1, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
         await svc.ResolveAsync(id, null);
 
         // Same finding reappears — should create a fresh alert, not reuse the resolved one
-        await svc.EvaluateAsync(Job2, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
 
         var all = await svc.ListAsync(status: null);
         Assert.Equal(2, all.Count);
@@ -269,9 +270,9 @@ internal sealed class FakeAlertRepository : IAlertRepository
 {
     private readonly List<AlertDto> _store = [];
 
-    public Task<AlertDto?> FindActiveByRuleIdAsync(string ruleId, CancellationToken ct = default)
+    public Task<AlertDto?> FindActiveByRuleIdAsync(string ruleId, Guid workspaceId, CancellationToken ct = default)
     {
-        var match = _store.FirstOrDefault(a => a.RuleId == ruleId && a.Status != "resolved");
+        var match = _store.FirstOrDefault(a => a.WorkspaceId == workspaceId && a.RuleId == ruleId && a.Status != "resolved");
         return Task.FromResult(match);
     }
 
@@ -288,7 +289,7 @@ internal sealed class FakeAlertRepository : IAlertRepository
         var a = _store[idx];
         _store[idx] = new AlertDto
         {
-            Id = a.Id, RuleId = a.RuleId, Category = a.Category, Title = a.Title,
+            Id = a.Id, WorkspaceId = a.WorkspaceId, RuleId = a.RuleId, Category = a.Category, Title = a.Title,
             Status = a.Status, TriggeringJobId = a.TriggeringJobId,
             LatestJobId = latestJobId, Severity = severity,
             TriggeredAt = a.TriggeredAt, LastSeenAt = lastSeenAt,
@@ -315,7 +316,8 @@ internal sealed class FakeAlertRepository : IAlertRepository
         var a = _store[idx];
         _store[idx] = new AlertDto
         {
-            Id = a.Id, RuleId = a.RuleId, Severity = a.Severity, Category = a.Category, Title = a.Title,
+            Id = a.Id, WorkspaceId = a.WorkspaceId, RuleId = a.RuleId, Severity = a.Severity,
+            Category = a.Category, Title = a.Title,
             Status = "acknowledged", TriggeringJobId = a.TriggeringJobId, LatestJobId = a.LatestJobId,
             TriggeredAt = a.TriggeredAt, LastSeenAt = a.LastSeenAt,
             AcknowledgedAt = now, ResolvedAt = a.ResolvedAt, ResolutionNote = a.ResolutionNote,
@@ -330,7 +332,8 @@ internal sealed class FakeAlertRepository : IAlertRepository
         var a = _store[idx];
         _store[idx] = new AlertDto
         {
-            Id = a.Id, RuleId = a.RuleId, Severity = a.Severity, Category = a.Category, Title = a.Title,
+            Id = a.Id, WorkspaceId = a.WorkspaceId, RuleId = a.RuleId, Severity = a.Severity,
+            Category = a.Category, Title = a.Title,
             Status = "resolved", TriggeringJobId = a.TriggeringJobId, LatestJobId = a.LatestJobId,
             TriggeredAt = a.TriggeredAt, LastSeenAt = a.LastSeenAt,
             AcknowledgedAt = a.AcknowledgedAt, ResolvedAt = now, ResolutionNote = note,

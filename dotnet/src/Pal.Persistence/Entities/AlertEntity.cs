@@ -3,6 +3,7 @@ namespace Pal.Persistence.Entities;
 public sealed class AlertEntity
 {
     public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
     public required string RuleId { get; set; }
     public required string Severity { get; set; }
     public required string Category { get; set; }

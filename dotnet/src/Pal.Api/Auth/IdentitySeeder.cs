@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Identity;
+using Pal.Application.Persistence;
+using Pal.Persistence;
 using Pal.Persistence.Entities;
 
 namespace Pal.Api.Auth;
@@ -53,6 +55,8 @@ public static class IdentitySeeder
         }
 
         await userManager.AddToRoleAsync(admin, Roles.Admin);
+        await services.GetRequiredService<IOrgRepository>()
+            .UpsertMembershipAsync(DefaultTenant.OrgId, admin.Id, "admin");
         logger.LogInformation("Bootstrap admin account created: {Email}", adminEmail);
     }
 }

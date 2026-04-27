@@ -2,7 +2,7 @@ namespace Pal.Application.Persistence;
 
 public interface IAlertRepository
 {
-    Task<AlertDto?> FindActiveByRuleIdAsync(string ruleId, CancellationToken ct = default);
+    Task<AlertDto?> FindActiveByRuleIdAsync(string ruleId, Guid workspaceId, CancellationToken ct = default);
     Task CreateAsync(AlertDto alert, CancellationToken ct = default);
     Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, CancellationToken ct = default);
     Task<IReadOnlyList<AlertDto>> ListAsync(string? status, string? severity, CancellationToken ct = default);

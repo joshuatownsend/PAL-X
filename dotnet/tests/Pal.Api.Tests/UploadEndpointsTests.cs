@@ -8,13 +8,14 @@ namespace Pal.Api.Tests;
 public sealed class UploadEndpointsTests(PalApiFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
+    private static readonly string Uploads = $"{PalApiFactory.WsBase}/uploads";
 
     [Fact]
     public async Task Post_Upload_Returns201_WithUploadId()
     {
         var content = MakeCsvContent("test.csv", "small,data\n1,2");
 
-        var resp = await _client.PostAsync("/uploads", content);
+        var resp = await _client.PostAsync(Uploads, content);
 
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
@@ -27,12 +28,12 @@ public sealed class UploadEndpointsTests(PalApiFactory factory)
     {
         var csv = "dupe,file\n42,99";
 
-        var resp1 = await _client.PostAsync("/uploads", MakeCsvContent("dupe.csv", csv));
+        var resp1 = await _client.PostAsync(Uploads, MakeCsvContent("dupe.csv", csv));
         Assert.Equal(HttpStatusCode.Created, resp1.StatusCode);
         var body1 = await resp1.Content.ReadFromJsonAsync<JsonElement>();
         var id1 = body1.GetProperty("uploadId").GetString();
 
-        var resp2 = await _client.PostAsync("/uploads", MakeCsvContent("dupe.csv", csv));
+        var resp2 = await _client.PostAsync(Uploads, MakeCsvContent("dupe.csv", csv));
         Assert.Equal(HttpStatusCode.OK, resp2.StatusCode);
         var body2 = await resp2.Content.ReadFromJsonAsync<JsonElement>();
         var id2 = body2.GetProperty("uploadId").GetString();
@@ -46,7 +47,7 @@ public sealed class UploadEndpointsTests(PalApiFactory factory)
         // Send a well-formed multipart body that has no "file" field
         var form = new MultipartFormDataContent();
         form.Add(new StringContent("csv"), "sourceType");
-        var resp = await _client.PostAsync("/uploads", form);
+        var resp = await _client.PostAsync(Uploads, form);
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
 

@@ -111,8 +111,15 @@ public sealed class RetentionRepository : IRetentionRepository
 
         var cutoff = DateTimeOffset.UtcNow.AddDays(-auditRetentionDays);
         await using var db = await _factory.CreateDbContextAsync(ct);
-        return await db.AuditEvents
+
+        var orgDeleted = await db.AuditEvents
             .Where(e => e.CreatedAt < cutoff)
             .ExecuteDeleteAsync(ct);
+
+        var wsDeleted = await db.WorkspaceAuditEvents
+            .Where(e => e.CreatedAt < cutoff)
+            .ExecuteDeleteAsync(ct);
+
+        return orgDeleted + wsDeleted;
     }
 }
