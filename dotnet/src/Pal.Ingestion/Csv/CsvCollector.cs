@@ -43,8 +43,8 @@ public sealed class CsvCollector : IDatasetCollector
         for (int col = 1; col < headers.Count; col++)
         {
             string path = headers[col];
-            string canonical = _registry.Resolve(path) ?? "unknown." + SanitizePath(path);
-            string? instance = ExtractInstance(path);
+            string canonical = _registry.Resolve(path) ?? "unknown." + CounterPathHelper.SanitizePath(path);
+            string? instance = CounterPathHelper.ExtractInstance(path);
             seriesBuilders.Add((path, canonical, instance, []));
         }
 
@@ -99,7 +99,7 @@ public sealed class CsvCollector : IDatasetCollector
             })
             .ToList();
 
-        string datasetId = "ds_" + inputDigest[..16];
+        string datasetId = CounterPathHelper.MakeDatasetId(inputDigest);
 
         var dataset = new Dataset
         {
@@ -131,30 +131,12 @@ public sealed class CsvCollector : IDatasetCollector
                 if (cells.Count > 1)
                 {
                     var path = cells[1].Trim('"');
-                    machineName = ExtractMachineFromPath(path);
+                    machineName = CounterPathHelper.ExtractMachineFromPath(path);
                 }
             }
         }
 
         return (cells, machineName);
-    }
-
-    private static string? ExtractMachineFromPath(string counterPath)
-    {
-        // Format: \\MACHINE\Object\Counter or \Object\Counter
-        if (!counterPath.StartsWith(@"\\")) return null;
-        var rest = counterPath[2..];
-        var slash = rest.IndexOf('\\');
-        return slash > 0 ? rest[..slash] : null;
-    }
-
-    private static string? ExtractInstance(string counterPath)
-    {
-        var open = counterPath.LastIndexOf('(');
-        var close = counterPath.LastIndexOf(')');
-        if (open < 0 || close <= open) return null;
-        var inst = counterPath[(open + 1)..close];
-        return string.IsNullOrEmpty(inst) ? null : inst;
     }
 
     private static bool TryParseTimestamp(string raw, out DateTimeOffset result)
@@ -208,8 +190,5 @@ public sealed class CsvCollector : IDatasetCollector
         return lines;
     }
 
-    private static string SanitizePath(string path) =>
-        new string(path.Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '_').ToArray())
-            .Trim('_');
-
 }
+

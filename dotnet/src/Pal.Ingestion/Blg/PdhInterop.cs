@@ -52,11 +52,7 @@ internal static class PdhInterop
     internal static extern int PdhGetFormattedCounterValue(
         IntPtr hCounter, int dwFormat, out int lpdwType, out PdhFmtCountervalue pValue);
 
-    // Two-wildcard enumeration strategy:
-    //   \*\*        → non-instanced counters (Memory, System, etc.)
-    //   \*(*)\*     → instanced counters (Processor(_Total), PhysicalDisk(_Total), etc.)
-    // Probe call returns PDH_INSUFFICIENT_BUFFER (0x800007D2) with the required size;
-    // the fill call (with correctly-sized buffer) returns 0.
+    // Two-call probe pattern: pass null buffer to get required size (returns PDH_INSUFFICIENT_BUFFER), then fill.
     [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
     internal static extern int PdhExpandWildCardPathHW(
         IntPtr hDataSource,

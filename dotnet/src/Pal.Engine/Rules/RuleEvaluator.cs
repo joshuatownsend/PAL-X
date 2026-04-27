@@ -128,11 +128,15 @@ public static class RuleEvaluator
         _ => throw new ArgumentException($"Unknown operator: {op}")
     };
 
+    private static string OperatorSymbol(string op) => op switch
+    {
+        "gt" => ">", "ge" => ">=", "lt" => "<", "le" => "<=", "eq" => "==", _ => op
+    };
+
     private static string BuildExpression(Condition c, double resolvedThreshold)
     {
         string metric = c.Instance is not null ? $"{c.Metric}[{c.Instance}]" : c.Metric;
-        string op = c.Operator switch { "gt" => ">", "ge" => ">=", "lt" => "<", "le" => "<=", "eq" => "==", _ => c.Operator };
-        string expr = $"{c.Aggregation}({metric}) {op} {resolvedThreshold:G}";
+        string expr = $"{c.Aggregation}({metric}) {OperatorSymbol(c.Operator)} {resolvedThreshold:G}";
         if (c.DurationPercent > 1.0)
             expr += $" for >= {c.DurationPercent:G}% of samples";
         return expr;
@@ -141,9 +145,8 @@ public static class RuleEvaluator
     private static string BuildWindowExpression(Condition c, double resolvedThreshold)
     {
         string metric = c.Instance is not null ? $"{c.Metric}[{c.Instance}]" : c.Metric;
-        string op = c.Operator switch { "gt" => ">", "ge" => ">=", "lt" => "<", "le" => "<=", "eq" => "==", _ => c.Operator };
         int secs = c.Window!.DurationSeconds;
         string windowLabel = secs >= 3600 ? $"{secs / 3600}h" : secs >= 60 ? $"{secs / 60}m" : $"{secs}s";
-        return $"{c.Aggregation}({metric}) over {windowLabel} rolling window {op} {resolvedThreshold:G}";
+        return $"{c.Aggregation}({metric}) over {windowLabel} rolling window {OperatorSymbol(c.Operator)} {resolvedThreshold:G}";
     }
 }

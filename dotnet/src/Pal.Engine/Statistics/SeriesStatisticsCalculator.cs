@@ -56,7 +56,7 @@ public static class SeriesStatisticsCalculator
         _ => throw new ArgumentException($"Unknown aggregation: {aggregation}")
     };
 
-    private static double Percentile(List<double> sorted, double percentile)
+    internal static double Percentile(List<double> sorted, double percentile)
     {
         if (sorted.Count == 1) return sorted[0];
         double rank = percentile / 100.0 * (sorted.Count - 1);

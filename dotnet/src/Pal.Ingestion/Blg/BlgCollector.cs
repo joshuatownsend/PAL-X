@@ -60,8 +60,8 @@ public sealed class BlgCollector : IDatasetCollector
                 warnings.Add($"Skipped counter '{path}': 0x{hr:X8}");
                 continue;
             }
-            string canonical = _registry.Resolve(path) ?? "unknown." + SanitizePath(path);
-            string? instance = ExtractInstance(path);
+            string canonical = _registry.Resolve(path) ?? "unknown." + CounterPathHelper.SanitizePath(path);
+            string? instance = CounterPathHelper.ExtractInstance(path);
             counters.Add((path, hCounter, canonical, instance, []));
         }
 
@@ -128,7 +128,7 @@ public sealed class BlgCollector : IDatasetCollector
         }
 
         if (machineName is null && counters.Count > 0)
-            machineName = ExtractMachineFromPath(counters[0].path);
+            machineName = CounterPathHelper.ExtractMachineFromPath(counters[0].path);
 
         var allSeries = counters
             .Select((c, idx) => new TimeSeries
@@ -146,7 +146,7 @@ public sealed class BlgCollector : IDatasetCollector
         {
             Dataset = new Dataset
             {
-                DatasetId = "ds_" + inputDigest[..16],
+                DatasetId = CounterPathHelper.MakeDatasetId(inputDigest),
                 MachineName = machineName,
                 TimeZone = timeZone,
                 StartTimeUtc = firstTs.Value,
@@ -215,24 +215,4 @@ public sealed class BlgCollector : IDatasetCollector
         return result;
     }
 
-    private static string? ExtractMachineFromPath(string counterPath)
-    {
-        if (!counterPath.StartsWith(@"\\")) return null;
-        var rest = counterPath[2..];
-        int slash = rest.IndexOf('\\');
-        return slash > 0 ? rest[..slash] : null;
-    }
-
-    private static string? ExtractInstance(string counterPath)
-    {
-        int open = counterPath.LastIndexOf('(');
-        int close = counterPath.LastIndexOf(')');
-        if (open < 0 || close <= open) return null;
-        string inst = counterPath[(open + 1)..close];
-        return string.IsNullOrEmpty(inst) ? null : inst;
-    }
-
-    private static string SanitizePath(string path) =>
-        new string(path.Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '_').ToArray())
-            .Trim('_');
 }

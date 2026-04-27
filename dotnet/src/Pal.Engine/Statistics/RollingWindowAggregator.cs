@@ -52,27 +52,23 @@ public static class RollingWindowAggregator
 
     private static double Aggregate(List<double> values, string aggregation)
     {
-        values.Sort();
+        if (aggregation is "p90" or "p95" or "p99")
+        {
+            values.Sort();
+            return aggregation switch
+            {
+                "p90" => SeriesStatisticsCalculator.Percentile(values, 90),
+                "p95" => SeriesStatisticsCalculator.Percentile(values, 95),
+                _ => SeriesStatisticsCalculator.Percentile(values, 99)
+            };
+        }
         return aggregation switch
         {
             "avg" => values.Average(),
-            "min" => values[0],
-            "max" => values[^1],
-            "p90" => Percentile(values, 90),
-            "p95" => Percentile(values, 95),
-            "p99" => Percentile(values, 99),
+            "min" => values.Min(),
+            "max" => values.Max(),
             _ => throw new ArgumentException($"Aggregation '{aggregation}' is not supported for rolling windows")
         };
-    }
-
-    private static double Percentile(List<double> sorted, double pct)
-    {
-        if (sorted.Count == 1) return sorted[0];
-        double rank = pct / 100.0 * (sorted.Count - 1);
-        int lower = (int)rank;
-        double frac = rank - lower;
-        if (lower + 1 >= sorted.Count) return sorted[^1];
-        return sorted[lower] + frac * (sorted[lower + 1] - sorted[lower]);
     }
 
     private static TimeSpan EstimateInterval(List<Sample> sorted)
