@@ -22,6 +22,10 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Claude Code runtime files
+.claude/scheduled_tasks.lock
+INSIGHTS.md
+
 # PAL output artifacts (not fixtures)
 *.pal-report.json
 !fixtures/**/golden.pal-report.json
