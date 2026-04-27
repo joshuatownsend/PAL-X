@@ -63,7 +63,7 @@ public sealed class MarkdownReportWriter
                 sb.AppendLine($"|---|---|");
                 sb.AppendLine($"| Rule | `{f.RuleId}` |");
                 sb.AppendLine($"| Pack | `{f.PackId}` |");
-                sb.AppendLine($"| Category | {f.Category} |");
+                sb.AppendLine($"| Category | {EscapePipe(f.Category)} |");
                 sb.AppendLine();
                 sb.AppendLine(f.Summary);
                 sb.AppendLine();

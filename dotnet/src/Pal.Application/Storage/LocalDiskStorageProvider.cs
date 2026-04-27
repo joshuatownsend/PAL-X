@@ -86,7 +86,7 @@ public sealed class LocalDiskStorageProvider : IStorageProvider
         var dir = Path.Combine(_root, "datasets", jobId.ToString("N"));
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, "dataset.json.gz");
-        await using var fs = File.Create(path);
+        await using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true);
         await writer(fs, ct);
         return Path.GetRelativePath(_root, path);
     }

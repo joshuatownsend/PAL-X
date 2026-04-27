@@ -86,7 +86,11 @@ public static class AnalysisEndpoints
         .WithName("GetReport")
         .WithTags("Analysis");
 
-        app.MapGet("/analysis/{id:guid}/dataset", async (Guid id, IAnalysisRepository analysis, IStorageProvider storage) =>
+        app.MapGet("/analysis/{id:guid}/dataset", async (
+            Guid id,
+            IAnalysisRepository analysis,
+            IStorageProvider storage,
+            ILogger<Program> logger) =>
         {
             var job = await analysis.GetJobAsync(id);
             if (job is null) return Results.NotFound();
@@ -96,10 +100,18 @@ public static class AnalysisEndpoints
             if (artifact is null)
                 return Results.NotFound("No dataset artifact for this job (submit with includeDataset: true to generate one)");
 
-            var stream = storage.OpenDataset(artifact.StoragePath);
-            string contentType = artifact.Compressed ? "application/gzip" : "application/json; charset=utf-8";
-            string fileName = artifact.Compressed ? $"pal-dataset-{id:N}.json.gz" : $"pal-dataset-{id:N}.json";
-            return Results.Stream(stream, contentType, fileDownloadName: fileName);
+            try
+            {
+                var stream = storage.OpenDataset(artifact.StoragePath);
+                string contentType = artifact.Compressed ? "application/gzip" : "application/json; charset=utf-8";
+                string fileName = artifact.Compressed ? $"pal-dataset-{id:N}.json.gz" : $"pal-dataset-{id:N}.json";
+                return Results.Stream(stream, contentType, fileDownloadName: fileName);
+            }
+            catch (FileNotFoundException ex)
+            {
+                logger.LogWarning(ex, "Dataset file missing for job {JobId}; artifact metadata exists but file not found", id);
+                return Results.NotFound("Dataset artifact file not found — it may have been cleaned up or moved");
+            }
         })
         .WithName("GetDataset")
         .WithTags("Analysis");

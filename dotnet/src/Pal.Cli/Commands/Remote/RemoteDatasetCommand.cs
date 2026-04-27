@@ -27,7 +27,7 @@ public sealed class RemoteDatasetCommand : AsyncCommand<RemoteDatasetCommand.Set
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync($"analysis/{id}/dataset");
+            var resp = await client.GetAsync($"analysis/{id}/dataset", HttpCompletionOption.ResponseHeadersRead);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -42,9 +42,12 @@ public sealed class RemoteDatasetCommand : AsyncCommand<RemoteDatasetCommand.Set
             }
             resp.EnsureSuccessStatusCode();
 
-            var bytes = await resp.Content.ReadAsByteArrayAsync();
-            await File.WriteAllBytesAsync(settings.OutputPath, bytes);
-            AnsiConsole.MarkupLine($"[green]Saved:[/] {settings.OutputPath} ({bytes.Length:N0} bytes)");
+            await using var responseStream = await resp.Content.ReadAsStreamAsync();
+            await using (var fs = new FileStream(settings.OutputPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+                await responseStream.CopyToAsync(fs);
+
+            var savedBytes = new FileInfo(settings.OutputPath).Length;
+            AnsiConsole.MarkupLine($"[green]Saved:[/] {settings.OutputPath} ({savedBytes:N0} bytes)");
 
             return ExitCodes.Success;
         });

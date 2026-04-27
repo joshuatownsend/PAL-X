@@ -158,7 +158,11 @@ public sealed class AnalysisWorker : BackgroundService
             var doc = JsonSerializer.Deserialize<JsonElement>(job.OptionsJson);
             return doc.TryGetProperty("includeDataset", out var v) && v.GetBoolean();
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse OptionsJson for job {JobId}", job.Id);
+            return false;
+        }
     }
 
     private async Task PersistDatasetAsync(Guid jobId, Dataset dataset, CancellationToken ct)

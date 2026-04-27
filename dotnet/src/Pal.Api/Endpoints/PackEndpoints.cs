@@ -19,12 +19,21 @@ public static class PackEndpoints
         app.MapGet("/packs/{id}/versions", async (string id, IPackRepository packs) =>
         {
             var versions = await packs.ListVersionsAsync(id);
-            return versions.Count == 0 ? Results.NotFound() : Results.Ok(new { items = versions });
+            if (versions.Count == 0) return Results.NotFound();
+            // Project to a public DTO — StoragePath is a server-local path and must not be exposed.
+            return Results.Ok(new
+            {
+                items = versions.Select(v => new { v.PackId, v.Version, v.CreatedAt })
+            });
         })
         .WithName("ListPackVersions")
         .WithTags("Packs");
 
-        app.MapGet("/packs/{id}/versions/{version}/validation", async (string id, string version, IPackRepository packs) =>
+        app.MapGet("/packs/{id}/versions/{version}/validation", async (
+            string id,
+            string version,
+            IPackRepository packs,
+            ILogger<Program> logger) =>
         {
             var yamlPath = await packs.GetVersionYamlPathAsync(id, version);
             if (yamlPath is null) return Results.NotFound();
@@ -42,7 +51,8 @@ public static class PackEndpoints
             }
             catch (Exception ex)
             {
-                return Results.Problem($"Failed to load pack for validation: {ex.Message}", statusCode: 422);
+                logger.LogWarning(ex, "Failed to load pack for validation: {PackId} v{Version}", id, version);
+                return Results.Problem("Pack could not be loaded for validation", statusCode: 422);
             }
         })
         .WithName("ValidatePackVersion")
