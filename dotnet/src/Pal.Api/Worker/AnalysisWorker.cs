@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -5,9 +6,11 @@ using Pal.Application.Alerts;
 using Pal.Application.Analysis;
 using Pal.Application.Persistence;
 using Pal.Application.Storage;
+using Pal.Engine.Model;
 using Pal.Engine.Scoring;
 using Pal.Reporting.Html;
 using Pal.Reporting.Json;
+using Pal.Reporting.Markdown;
 
 namespace Pal.Api.Worker;
 
@@ -111,6 +114,13 @@ public sealed class AnalysisWorker : BackgroundService
             await _analysisRepo.SaveResultAsync(jobId, summaryJson, findingsJson, ct);
 
             await GenerateAndStoreReportsAsync(jobId, runResult, upload, ct);
+
+            if (ParseIncludeDataset(job))
+            {
+                try { await PersistDatasetAsync(jobId, runResult.Dataset, ct); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Dataset artifact persistence failed for job {JobId}; job completion continues", jobId); }
+            }
+
             try { await _alerts.EvaluateAsync(jobId, job.WorkspaceId, runResult.Findings, ct); }
             catch (Exception ex) { _logger.LogWarning(ex, "Alert evaluation failed for job {JobId}; job completion continues", jobId); }
 
@@ -138,6 +148,37 @@ public sealed class AnalysisWorker : BackgroundService
             _logger.LogWarning(ex, "Failed to parse OptionsJson for job {JobId}", job.Id);
         }
         return [];
+    }
+
+    private bool ParseIncludeDataset(AnalysisJobDto job)
+    {
+        if (job.OptionsJson is null) return false;
+        try
+        {
+            var doc = JsonSerializer.Deserialize<JsonElement>(job.OptionsJson);
+            return doc.TryGetProperty("includeDataset", out var v) && v.GetBoolean();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse OptionsJson for job {JobId}", job.Id);
+            return false;
+        }
+    }
+
+    private async Task PersistDatasetAsync(Guid jobId, Dataset dataset, CancellationToken ct)
+    {
+        long byteLength = 0;
+        var path = await _storage.WriteDatasetAsync(jobId, async (stream, token) =>
+        {
+            await using var gz = new GZipStream(stream, CompressionLevel.Fastest, leaveOpen: true);
+            await JsonSerializer.SerializeAsync(gz, dataset, FindingsJsonOptions, token);
+            await gz.FlushAsync(token);
+        }, ct);
+
+        // Resolve actual byte length from the written file
+        byteLength = new FileInfo(_storage.GetAbsolutePath(path)).Length;
+        await _analysisRepo.SaveDatasetArtifactAsync(jobId, path, byteLength, compressed: true, ct);
+        _logger.LogDebug("Dataset artifact written for job {JobId}: {Path} ({Bytes} bytes)", jobId, path, byteLength);
     }
 
     private static string BuildSummaryJson(AnalysisRunResult result)
@@ -186,5 +227,11 @@ public sealed class AnalysisWorker : BackgroundService
         var htmlBytes = htmlMs.ToArray();
         var htmlPath = await _storage.WriteReportAsync(jobId, "html", htmlBytes, ct);
         await _analysisRepo.SaveReportAsync(jobId, "html", htmlPath, htmlBytes.Length, ct);
+
+        using var mdMs = new MemoryStream();
+        new MarkdownReportWriter().WriteToStream(writeInput, mdMs);
+        var mdBytes = mdMs.ToArray();
+        var mdPath = await _storage.WriteReportAsync(jobId, "markdown", mdBytes, ct);
+        await _analysisRepo.SaveReportAsync(jobId, "markdown", mdPath, mdBytes.Length, ct);
     }
 }

@@ -1,6 +1,8 @@
+using System.IO.Compression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pal.Application.Persistence;
+using Pal.Application.Storage;
 using Pal.Persistence;
 using Pal.Persistence.Entities;
 
@@ -188,6 +190,68 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
         await using var verify = await DbFactory.CreateDbContextAsync();
         Assert.Null(await verify.AuditEvents.FindAsync(old.Id));
         Assert.NotNull(await verify.AuditEvents.FindAsync(recent.Id));
+    }
+
+    // -------------------------------------------------------------------------
+    // Dataset artifact retention
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task PurgeJobs_WithDatasetArtifact_ClearsResultRowOnCascade()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var upload = MakeUpload();
+        var job = MakeJob(upload.Id, "completed", completedDaysAgo: 10);
+        db.Uploads.Add(upload);
+        db.AnalysisJobs.Add(job);
+        await db.SaveChangesAsync();
+
+        var storage = factory.Services.GetRequiredService<IStorageProvider>();
+        var dsPath = await storage.WriteDatasetAsync(job.Id, async (stream, ct) =>
+        {
+            await using var gz = new GZipStream(stream, CompressionLevel.Fastest, leaveOpen: true);
+            await gz.WriteAsync("{\"series\":[]}"u8.ToArray(), ct);
+            await gz.FlushAsync(ct);
+        }, default);
+
+        db.AnalysisResults.Add(new AnalysisResultEntity
+        {
+            AnalysisJobId = job.Id,
+            SummaryJson = "{}",
+            FindingsJson = "[]",
+            GeneratedAt = DateTimeOffset.UtcNow,
+            DatasetStoragePath = dsPath,
+            DatasetByteLength = 20,
+            DatasetCompressed = true
+        });
+        await db.SaveChangesAsync();
+
+        await Repo.PurgeJobsAsync(jobRetentionDays: 5);
+
+        await using var verify = await DbFactory.CreateDbContextAsync();
+        Assert.Null(await verify.AnalysisJobs.FindAsync(job.Id));
+        Assert.Null(await verify.AnalysisResults.FindAsync(job.Id));
+    }
+
+    [Fact]
+    public async Task DeleteJobDatasetDirectory_RemovesGzFile()
+    {
+        var storage = factory.Services.GetRequiredService<IStorageProvider>();
+        var jobId = Guid.NewGuid();
+
+        var dsPath = await storage.WriteDatasetAsync(jobId, async (stream, ct) =>
+        {
+            await using var gz = new GZipStream(stream, CompressionLevel.Fastest, leaveOpen: true);
+            await gz.WriteAsync("{\"series\":[]}"u8.ToArray(), ct);
+            await gz.FlushAsync(ct);
+        }, default);
+
+        var absPath = storage.GetAbsolutePath(dsPath);
+        Assert.True(File.Exists(absPath), "Dataset gz file should exist before deletion");
+
+        storage.DeleteJobDatasetDirectory(jobId);
+        Assert.False(File.Exists(absPath), "Dataset gz file should be removed after DeleteJobDatasetDirectory");
     }
 
     // -------------------------------------------------------------------------

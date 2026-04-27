@@ -16,6 +16,10 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
         [CommandOption("-p|--pack")]
         [Description("Pack ID(s) to run (repeatable)")]
         public string[] Packs { get; init; } = ["windows-core"];
+
+        [CommandOption("--include-dataset")]
+        [Description("Persist normalized dataset artifact for later download")]
+        public bool IncludeDataset { get; init; }
     }
 
     public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
@@ -51,7 +55,8 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
             var jobResp = await client.PostAsJsonAsync("analysis", new
             {
                 uploadId,
-                packs = settings.Packs
+                packs = settings.Packs,
+                includeDataset = settings.IncludeDataset
             });
 
             if (!jobResp.IsSuccessStatusCode)

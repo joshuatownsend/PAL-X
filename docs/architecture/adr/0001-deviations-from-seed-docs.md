@@ -146,3 +146,16 @@ that unblocks users while Phase 1.5 adds the real implementation.
 **Reversibility:** High. Replace `BlgCollectorStub.ThrowNotSupported()` with a real PDH implementation.  
 **Status (2026-04-27):** Phase 1.5 scope — see plan file. `IDatasetCollector` interface introduced;
 `CollectorFactory` dispatches to `BlgCollector` (Windows PDH) or `CsvCollector` by file extension.
+
+---
+
+## Phase 2 Closure Note (2026-04-27)
+
+Phase 2 ("Headless diagnostics platform") is complete. The following PRD §8.3–§8.5 capabilities were
+delivered on `feature/phase-2-closure`:
+
+- **Markdown report format** (`Pal.Reporting.Markdown.MarkdownReportWriter`) — third artifact alongside JSON/HTML.
+- **Raw dataset download** — opt-in `IncludeDataset` flag on job submission; GZip-compressed JSON streamed via `GET /analysis/{id}/dataset`; purged by `RetentionWorker`.
+- **Pack version listing** — `GET /packs/{id}/versions` exposes the version history stored by `PackRegistrySyncService`.
+- **Pack validation API** — `GET /packs/{id}/versions/{version}/validation` runs `PackLoader` + `PackValidator` against stored YAML.
+- **CLI parity** — `remote validate-pack`, `remote dataset`, `remote report --format markdown`, `remote submit --include-dataset` added to `Pal.Cli`.

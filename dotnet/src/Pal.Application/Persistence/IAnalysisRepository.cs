@@ -2,7 +2,7 @@ namespace Pal.Application.Persistence;
 
 public interface IAnalysisRepository
 {
-    Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, CancellationToken ct = default);
+    Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, bool includeDataset = false, CancellationToken ct = default);
     Task<AnalysisJobDto?> GetJobAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(string? statusFilter, CancellationToken ct = default);
     Task<IReadOnlyList<Guid>> GetQueuedJobIdsAsync(CancellationToken ct = default);
@@ -27,4 +27,8 @@ public interface IAnalysisRepository
     // Baseline designation
     Task SetBaselineAsync(Guid jobId, bool isBaseline, string? label, CancellationToken ct = default);
     Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(CancellationToken ct = default);
+
+    // Dataset artifact (optional, only present when job was submitted with IncludeDataset=true)
+    Task SaveDatasetArtifactAsync(Guid jobId, string storagePath, long byteLength, bool compressed, CancellationToken ct = default);
+    Task<DatasetArtifactDto?> GetDatasetArtifactAsync(Guid jobId, CancellationToken ct = default);
 }

@@ -87,6 +87,9 @@ public sealed class RetentionWorker : BackgroundService
     {
         try { _storage.DeleteJobReportDirectory(jobId); }
         catch (Exception ex) { _logger.LogWarning(ex, "RetentionWorker: failed to delete report dir for job {JobId}", jobId); }
+
+        try { _storage.DeleteJobDatasetDirectory(jobId); }
+        catch (Exception ex) { _logger.LogWarning(ex, "RetentionWorker: failed to delete dataset dir for job {JobId}", jobId); }
     }
 
     private void TryDeleteUploadStorage(string sha256)

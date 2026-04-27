@@ -52,6 +52,18 @@ Packs can be signed using RSA-PSS-SHA256 via `pal packs sign --pack <dir> --key 
 
 Pack conditions can specify a `window:` block (requires `schema_version: "pal.pack/v1.1"`) to evaluate aggregations over a rolling window rather than the full series. Supported aggregations: avg, min, max, p90, p95, p99 (not `trend`). See ADR 0004. `PackValidator` enforces the version gate.
 
+## Markdown reports
+
+`MarkdownReportWriter` in `Pal.Reporting/Markdown/` emits findings as GFM tables using the same `JsonReportWriter.WriteInput` shape as the HTML and JSON writers. Enabled with `--markdown` on the local CLI (`pal analyze`), `?format=markdown` on the API report endpoint, and `--format markdown` on `pal remote report`.
+
+## Dataset download artifact
+
+Jobs submitted with `includeDataset: true` (API) or `--include-dataset` (CLI) persist a gzip-compressed JSON dataset artifact to `data/storage/datasets/<jobId>/dataset.json.gz`. The artifact is retrieved via `GET /api/workspaces/{id}/analysis/{jobId}/dataset` or `pal remote dataset <jobId> --output <path>`. `RetentionWorker` cleans it alongside reports.
+
+## Pack validation API
+
+`GET /packs/{id}/versions/{version}/validation` runs `PackValidator` against the stored pack YAML and returns `{ isValid, errors, warnings }`. This is a global (non-workspace-scoped) endpoint reachable as `pal remote validate-pack <pack-id> <version>`.
+
 ## Test determinism
 
 Golden fixture tests use `--now <ISO>` to override `generated_at_utc` so the output is byte-identical across runs. ScottPlot SVG tests assert byte-identical output on two renders of the same data.

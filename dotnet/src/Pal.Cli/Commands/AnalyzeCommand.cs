@@ -5,6 +5,7 @@ using Spectre.Console.Cli;
 using Pal.Application.Analysis;
 using Pal.Engine.Rules;
 using Pal.Reporting.Json;
+using Pal.Reporting.Markdown;
 
 namespace Pal.Cli.Commands;
 
@@ -41,6 +42,10 @@ public sealed class AnalyzeSettings : CommandSettings
     [CommandOption("--json")]
     [Description("Emit JSON report (default: true)")]
     public bool Json { get; init; } = true;
+
+    [CommandOption("--markdown")]
+    [Description("Emit Markdown report")]
+    public bool Markdown { get; init; }
 
     [CommandOption("--html-only")]
     [Description("Emit HTML only (mutually exclusive with --json-only)")]
@@ -181,9 +186,11 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
         string stem = settings.ReportName ?? Path.GetFileNameWithoutExtension(settings.Input);
         string jsonPath = Path.Combine(settings.Output, $"{stem}.pal-report.json");
         string htmlPath = Path.Combine(settings.Output, $"{stem}.pal-report.html");
+        string mdPath   = Path.Combine(settings.Output, $"{stem}.pal-report.md");
 
         bool emitJson = !settings.HtmlOnly;
         bool emitHtml = !settings.JsonOnly;
+        bool emitMarkdown = settings.Markdown;
 
         sw.Stop();
         var writeInput = new JsonReportWriter.WriteInput
@@ -213,6 +220,12 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
             {
                 Pal.Reporting.Html.HtmlReportWriter.Write(writeInput, htmlPath);
                 AnsiConsole.MarkupLine($"       [cyan]{htmlPath}[/]");
+            }
+
+            if (emitMarkdown)
+            {
+                new MarkdownReportWriter().Write(writeInput, mdPath);
+                AnsiConsole.MarkupLine($"       [cyan]{mdPath}[/]");
             }
         }
         catch (Exception ex)

@@ -64,6 +64,14 @@ public sealed class PackVersionDto
     public required string PackId { get; init; }
     public required string Version { get; init; }
     public required string StoragePath { get; init; }
+    public required DateTimeOffset CreatedAt { get; init; }
+}
+
+public sealed class DatasetArtifactDto
+{
+    public required string StoragePath { get; init; }
+    public required long ByteLength { get; init; }
+    public required bool Compressed { get; init; }
 }
 
 public sealed class FindingSnapshotDto

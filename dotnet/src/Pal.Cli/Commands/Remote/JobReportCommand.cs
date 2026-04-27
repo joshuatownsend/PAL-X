@@ -13,7 +13,7 @@ public sealed class JobReportCommand : AsyncCommand<JobReportCommand.Settings>
         public required string JobId { get; init; }
 
         [CommandOption("--format")]
-        [Description("Report format: html (default) or json")]
+        [Description("Report format: html (default), json, or markdown")]
         [DefaultValue("html")]
         public string Format { get; init; } = "html";
 
@@ -31,9 +31,9 @@ public sealed class JobReportCommand : AsyncCommand<JobReportCommand.Settings>
                 return ExitCodes.InvalidArguments;
             }
 
-            if (settings.Format != "html" && settings.Format != "json")
+            if (settings.Format != "html" && settings.Format != "json" && settings.Format != "markdown")
             {
-                AnsiConsole.MarkupLine("[red]--format must be 'html' or 'json'[/]");
+                AnsiConsole.MarkupLine("[red]--format must be 'html', 'json', or 'markdown'[/]");
                 return ExitCodes.InvalidArguments;
             }
 

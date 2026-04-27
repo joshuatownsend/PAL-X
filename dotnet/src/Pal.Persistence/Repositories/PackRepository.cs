@@ -33,8 +33,32 @@ public sealed class PackRepository : IPackRepository
         {
             PackId = e.PackId,
             Version = e.Version,
-            StoragePath = e.StoragePath
+            StoragePath = e.StoragePath,
+            CreatedAt = e.CreatedAt
         };
+    }
+
+    public async Task<IReadOnlyList<PackVersionDto>> ListVersionsAsync(string packId, CancellationToken ct = default)
+    {
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        return await db.PackVersions
+            .Where(v => v.PackId == packId)
+            .OrderByDescending(v => v.CreatedAt)
+            .Select(v => new PackVersionDto
+            {
+                PackId = v.PackId,
+                Version = v.Version,
+                StoragePath = v.StoragePath,
+                CreatedAt = v.CreatedAt
+            })
+            .ToListAsync(ct);
+    }
+
+    public async Task<string?> GetVersionYamlPathAsync(string packId, string version, CancellationToken ct = default)
+    {
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        var e = await db.PackVersions.FindAsync([packId, version], ct);
+        return e?.StoragePath;
     }
 
     public async Task UpsertPackAsync(string packId, string version, string title, string yamlPath, CancellationToken ct = default)
