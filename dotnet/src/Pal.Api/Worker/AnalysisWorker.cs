@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using Pal.Application.Alerts;
 using Pal.Application.Analysis;
+using Pal.Application.Compare;
 using Pal.Application.Persistence;
 using Pal.Application.Storage;
 using Pal.Engine.Model;
@@ -25,6 +26,7 @@ public sealed class AnalysisWorker : BackgroundService
     private readonly IStorageProvider _storage;
     private readonly IAnalysisRunner _runner;
     private readonly IAlertService _alerts;
+    private readonly IAutoCompareService _autoCompare;
     private readonly string _packsDirectory;
     private readonly ILogger<AnalysisWorker> _logger;
 
@@ -35,6 +37,7 @@ public sealed class AnalysisWorker : BackgroundService
         IStorageProvider storage,
         IAnalysisRunner runner,
         IAlertService alerts,
+        IAutoCompareService autoCompare,
         IConfiguration config,
         ILogger<AnalysisWorker> logger)
     {
@@ -44,6 +47,7 @@ public sealed class AnalysisWorker : BackgroundService
         _storage = storage;
         _runner = runner;
         _alerts = alerts;
+        _autoCompare = autoCompare;
         _packsDirectory = config["Packs:Directory"] ?? "packs/thresholds";
         _logger = logger;
     }
@@ -88,7 +92,7 @@ public sealed class AnalysisWorker : BackgroundService
             var upload = await _uploadRepo.GetAsync(job.UploadId, ct)
                 ?? throw new InvalidOperationException($"Upload {job.UploadId} not found");
 
-            var requestedPacks = ParseRequestedPacks(job);
+            var (requestedPacks, includeDataset, selectedBaselineId) = ParseOptions(job);
             var inputPath = _storage.GetAbsolutePath(upload.StoragePath);
             var format = upload.SourceType;
 
@@ -115,10 +119,16 @@ public sealed class AnalysisWorker : BackgroundService
 
             await GenerateAndStoreReportsAsync(jobId, runResult, upload, ct);
 
-            if (ParseIncludeDataset(job))
+            if (includeDataset)
             {
                 try { await PersistDatasetAsync(jobId, runResult.Dataset, ct); }
                 catch (Exception ex) { _logger.LogWarning(ex, "Dataset artifact persistence failed for job {JobId}; job completion continues", jobId); }
+            }
+
+            if (selectedBaselineId is Guid b)
+            {
+                try { await _autoCompare.RunAndPersistAsync(b, jobId, job.WorkspaceId, ct); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Auto-compare failed for job {JobId} against baseline {BaselineId}; job completion continues", jobId, b); }
             }
 
             try { await _alerts.EvaluateAsync(jobId, job.WorkspaceId, runResult.Findings, ct); }
@@ -134,34 +144,29 @@ public sealed class AnalysisWorker : BackgroundService
         }
     }
 
-    private IReadOnlyList<string> ParseRequestedPacks(AnalysisJobDto job)
+    private (IReadOnlyList<string> Packs, bool IncludeDataset, Guid? SelectedBaselineId) ParseOptions(AnalysisJobDto job)
     {
-        if (job.OptionsJson is null) return [];
+        if (job.OptionsJson is null) return ([], false, null);
         try
         {
             var doc = JsonSerializer.Deserialize<JsonElement>(job.OptionsJson);
-            if (doc.TryGetProperty("requestedPacks", out var arr))
-                return arr.EnumerateArray().Select(e => e.GetString()!).ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to parse OptionsJson for job {JobId}", job.Id);
-        }
-        return [];
-    }
 
-    private bool ParseIncludeDataset(AnalysisJobDto job)
-    {
-        if (job.OptionsJson is null) return false;
-        try
-        {
-            var doc = JsonSerializer.Deserialize<JsonElement>(job.OptionsJson);
-            return doc.TryGetProperty("includeDataset", out var v) && v.GetBoolean();
+            var packs = doc.TryGetProperty("requestedPacks", out var arr)
+                ? (IReadOnlyList<string>)arr.EnumerateArray().Select(e => e.GetString()!).ToList()
+                : [];
+
+            var includeDataset = doc.TryGetProperty("includeDataset", out var id) && id.GetBoolean();
+
+            Guid? selectedBaselineId = null;
+            if (doc.TryGetProperty("selectedBaselineId", out var bv) && bv.TryGetGuid(out var guid))
+                selectedBaselineId = guid;
+
+            return (packs, includeDataset, selectedBaselineId);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to parse OptionsJson for job {JobId}", job.Id);
-            return false;
+            return ([], false, null);
         }
     }
 

@@ -10,4 +10,10 @@ public sealed class CorrelationService(TrendService trends, CorrelationAnalyzer 
         var trendResult = await trends.ComputeAsync(window, ct);
         return analyzer.Analyze(trendResult);
     }
+
+    public async Task<(TrendResultDto Trends, CorrelationResultDto Correlations)> ComputeBothAsync(int window, CancellationToken ct = default)
+    {
+        var trendResult = await trends.ComputeAsync(window, ct);
+        return (trendResult, analyzer.Analyze(trendResult));
+    }
 }

@@ -20,6 +20,10 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
         [CommandOption("--include-dataset")]
         [Description("Persist normalized dataset artifact for later download")]
         public bool IncludeDataset { get; init; }
+
+        [CommandOption("--baseline")]
+        [Description("Baseline job ID (GUID) — auto-compares against this baseline on completion")]
+        public string? BaselineId { get; init; }
     }
 
     public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
@@ -52,11 +56,23 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
                 AnsiConsole.MarkupLine($"[grey]Upload id:[/] {uploadId}");
             }
 
+            Guid? selectedBaselineId = null;
+            if (settings.BaselineId is not null)
+            {
+                if (!Guid.TryParse(settings.BaselineId, out var bId))
+                {
+                    AnsiConsole.MarkupLine("[red]Invalid baseline ID — expected a GUID[/]");
+                    return ExitCodes.InvalidArguments;
+                }
+                selectedBaselineId = bId;
+            }
+
             var jobResp = await client.PostAsJsonAsync("analysis", new
             {
                 uploadId,
                 packs = settings.Packs,
-                includeDataset = settings.IncludeDataset
+                includeDataset = settings.IncludeDataset,
+                selectedBaselineId
             });
 
             if (!jobResp.IsSuccessStatusCode)

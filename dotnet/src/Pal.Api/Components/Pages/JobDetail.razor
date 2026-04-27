@@ -16,7 +16,9 @@ else
         <p>Status: <span class="status-badge status-@_job.Status">@_job.Status</span>
             @if (_job.IsBaseline)
             {
-                <span class="baseline-badge">Baseline@(_job.BaselineLabel is not null ? $": {_job.BaselineLabel}" : "")</span>
+                var typeLabel = _job.BaselineType is not null ? $" · {_job.BaselineType}" : "";
+                var nameLabel = _job.BaselineLabel is not null ? $": {_job.BaselineLabel}{typeLabel}" : typeLabel;
+                <span class="baseline-badge">Baseline@(nameLabel)</span>
             }
         </p>
         <p>Created: @_job.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss")</p>
@@ -38,7 +40,28 @@ else
             <div class="baseline-controls">
                 @if (!_job.IsBaseline)
                 {
-                    <button class="btn-secondary" @onclick="SetAsBaseline">Set as Baseline</button>
+                    @if (!_showBaselineForm)
+                    {
+                        <button class="btn-secondary" @onclick="() => _showBaselineForm = true">Set as Baseline</button>
+                    }
+                    else
+                    {
+                        <div class="baseline-form">
+                            <label>Label <input @bind="_baselineLabel" placeholder="e.g. WEB-01" /></label>
+                            <label>Type
+                                <select @bind="_baselineType">
+                                    <option value="">— none —</option>
+                                    <option value="machine">Machine</option>
+                                    <option value="role">Role</option>
+                                    <option value="workload">Workload</option>
+                                    <option value="release">Release</option>
+                                </select>
+                            </label>
+                            <label>Context JSON <input @bind="_baselineContextJson" placeholder='{"machine":"WEB-01"}' /></label>
+                            <button class="btn-primary" @onclick="SetAsBaseline">Confirm</button>
+                            <button class="btn-secondary" @onclick="() => _showBaselineForm = false">Cancel</button>
+                        </div>
+                    }
                 }
                 else
                 {
@@ -57,6 +80,8 @@ else
             <a href="/analysis/@_job.Id/report?format=html" target="_blank">Download HTML Report</a>
         </div>
 
+        <DiagnosticsSection JobId="@_job.Id" />
+
         <FindingsExplorer FindingsJson="@_result.FindingsJson" />
     }
     else if (_job.Status is "queued" or "running")
@@ -72,6 +97,11 @@ else
     private AnalysisJobDto? _job;
     private AnalysisResultDto? _result;
     private Timer? _timer;
+
+    private bool _showBaselineForm;
+    private string? _baselineLabel;
+    private string? _baselineType;
+    private string? _baselineContextJson;
 
     protected override async Task OnInitializedAsync() => await RefreshAsync();
 
@@ -98,9 +128,15 @@ else
 
     private async Task SetAsBaseline()
     {
-        await AnalysisRepo.SetBaselineAsync(Id, true, null);
+        await AnalysisRepo.SetBaselineAsync(Id, true,
+            NullIfEmpty(_baselineLabel),
+            NullIfEmpty(_baselineType),
+            NullIfEmpty(_baselineContextJson));
+        _showBaselineForm = false;
         await RefreshAsync();
     }
+
+    private static string? NullIfEmpty(string? s) => string.IsNullOrEmpty(s) ? null : s;
 
     private async Task ClearBaseline()
     {

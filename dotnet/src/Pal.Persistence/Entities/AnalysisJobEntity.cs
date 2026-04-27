@@ -15,6 +15,8 @@ public sealed class AnalysisJobEntity
 
     public bool IsBaseline { get; set; }
     public string? BaselineLabel { get; set; }
+    public string? BaselineType { get; set; }
+    public string? BaselineContextJson { get; set; }
 
     public UploadEntity Upload { get; set; } = null!;
     public ICollection<AnalysisJobPackEntity> Packs { get; set; } = [];

@@ -13,6 +13,7 @@ using Pal.Application.Alerts;
 using Pal.Application.Analysis;
 using Pal.Application.Auth;
 using Pal.Application.Compare;
+using Pal.Application.Diagnostics;
 using Pal.Application.Persistence;
 using Pal.Application.Correlation;
 using Pal.Application.Trends;
@@ -115,10 +116,12 @@ builder.Services.AddHttpClient("pal-webhook")
 builder.Services.AddSingleton<INotificationService, NotificationService>();
 builder.Services.AddSingleton<IAlertService, AlertService>();
 builder.Services.AddSingleton<CompareRunner>();
+builder.Services.AddSingleton<IAutoCompareService, AutoCompareService>();
 builder.Services.AddSingleton<TrendAnalyzer>();
 builder.Services.AddSingleton<TrendService>();
 builder.Services.AddSingleton<CorrelationAnalyzer>();
 builder.Services.AddSingleton<CorrelationService>();
+builder.Services.AddSingleton<IDiagnosticsService, DiagnosticsService>();
 
 // Analysis runner and worker channel
 builder.Services.AddSingleton<IAnalysisRunner, AnalysisRunner>();

@@ -16,7 +16,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
         _tenant = tenant;
     }
 
-    public async Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, bool includeDataset = false, CancellationToken ct = default)
+    public async Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, bool includeDataset = false, Guid? selectedBaselineId = null, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
         var job = new AnalysisJobEntity
@@ -25,7 +25,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
             WorkspaceId = _tenant.WorkspaceId ?? throw new InvalidOperationException("Tenant workspace is not set. Ensure the request passes through the workspace route group."),
             UploadId = uploadId,
             Status = "queued",
-            OptionsJson = JsonSerializer.Serialize(new { requestedPacks = packIds, includeDataset }),
+            OptionsJson = JsonSerializer.Serialize(new { requestedPacks = packIds, includeDataset, selectedBaselineId }),
             CreatedAt = DateTimeOffset.UtcNow
         };
         db.AnalysisJobs.Add(job);
@@ -201,22 +201,34 @@ public sealed class AnalysisRepository : IAnalysisRepository
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task SetBaselineAsync(Guid jobId, bool isBaseline, string? label, CancellationToken ct = default)
+    public async Task SetBaselineAsync(Guid jobId, bool isBaseline, string? label, string? type = null, string? contextJson = null, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
         await db.AnalysisJobs
             .Where(j => j.Id == jobId)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(j => j.IsBaseline, isBaseline)
-                .SetProperty(j => j.BaselineLabel, isBaseline ? label : null), ct);
+                .SetProperty(j => j.BaselineLabel, isBaseline ? label : null)
+                .SetProperty(j => j.BaselineType, isBaseline ? type : null)
+                .SetProperty(j => j.BaselineContextJson, isBaseline ? contextJson : null), ct);
     }
 
-    public async Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(string? type = null, CancellationToken ct = default)
+    {
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        var query = db.AnalysisJobs.Include(j => j.Packs).Where(j => j.IsBaseline);
+        if (type is not null)
+            query = query.Where(j => j.BaselineType == type);
+        var jobs = await query.OrderByDescending(j => j.CreatedAt).ToListAsync(ct);
+        return jobs.Select(j => ToDto(j, j.Packs.Select(ToPackDto).ToList())).ToList();
+    }
+
+    public async Task<IReadOnlyList<AnalysisJobDto>> GetBaselineVersionsAsync(string type, string contextJson, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
         var jobs = await db.AnalysisJobs
             .Include(j => j.Packs)
-            .Where(j => j.IsBaseline)
+            .Where(j => j.IsBaseline && j.BaselineType == type && j.BaselineContextJson == contextJson)
             .OrderByDescending(j => j.CreatedAt)
             .ToListAsync(ct);
         return jobs.Select(j => ToDto(j, j.Packs.Select(ToPackDto).ToList())).ToList();
@@ -259,7 +271,9 @@ public sealed class AnalysisRepository : IAnalysisRepository
         FailureReason = j.FailureReason,
         Packs = packs,
         IsBaseline = j.IsBaseline,
-        BaselineLabel = j.BaselineLabel
+        BaselineLabel = j.BaselineLabel,
+        BaselineType = j.BaselineType,
+        BaselineContextJson = j.BaselineContextJson
     };
 
     private static JobPackDto ToPackDto(AnalysisJobPackEntity p) => new()

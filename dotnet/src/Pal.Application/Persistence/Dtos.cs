@@ -25,6 +25,8 @@ public sealed class AnalysisJobDto
     public required IReadOnlyList<JobPackDto> Packs { get; init; }
     public bool IsBaseline { get; init; }
     public string? BaselineLabel { get; init; }
+    public string? BaselineType { get; init; }
+    public string? BaselineContextJson { get; init; }
 }
 
 public sealed class JobPackDto

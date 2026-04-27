@@ -56,6 +56,18 @@ app.Configure(config =>
         remote.AddCommand<CompareCommand>("compare")
             .WithDescription("Compare two completed analysis jobs and show a finding diff");
 
+        remote.AddCommand<RemoteDiagnosticsCommand>("diagnostics")
+            .WithDescription("Show guided diagnostics insights for a completed job");
+
+        remote.AddBranch("baselines", b =>
+        {
+            b.SetDescription("Commands for managing baseline designations");
+            b.AddCommand<RemoteBaselinesListCommand>("list")
+                .WithDescription("List designated baselines, optionally filtered by type");
+            b.AddCommand<RemoteBaselineSetCommand>("set")
+                .WithDescription("Designate or clear a baseline for a completed job");
+        });
+
         remote.AddCommand<TrendsCommand>("trends")
             .WithDescription("Show finding trends across the last N completed analysis jobs");
 

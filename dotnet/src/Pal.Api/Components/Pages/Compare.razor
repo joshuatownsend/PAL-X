@@ -17,7 +17,12 @@
                 {
                     <option value="@job.Id">
                         @job.Id.ToString("N")[..8]
-                        @(job.IsBaseline ? " [baseline]" : "")
+                        @if (job.IsBaseline)
+                        {
+                            var typeTag = job.BaselineType is not null ? $" · {job.BaselineType}" : "";
+                            var labelTag = job.BaselineLabel is not null ? $": {job.BaselineLabel}" : "";
+                            @($" [baseline{typeTag}{labelTag}]")
+                        }
                         — @job.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")
                     </option>
                 }

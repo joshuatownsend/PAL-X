@@ -2,7 +2,7 @@ namespace Pal.Application.Persistence;
 
 public interface IAnalysisRepository
 {
-    Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, bool includeDataset = false, CancellationToken ct = default);
+    Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, bool includeDataset = false, Guid? selectedBaselineId = null, CancellationToken ct = default);
     Task<AnalysisJobDto?> GetJobAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(string? statusFilter, CancellationToken ct = default);
     Task<IReadOnlyList<Guid>> GetQueuedJobIdsAsync(CancellationToken ct = default);
@@ -25,8 +25,9 @@ public interface IAnalysisRepository
     Task SetJobPackVersionsAsync(Guid jobId, IReadOnlyList<JobPackDto> packs, CancellationToken ct = default);
 
     // Baseline designation
-    Task SetBaselineAsync(Guid jobId, bool isBaseline, string? label, CancellationToken ct = default);
-    Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(CancellationToken ct = default);
+    Task SetBaselineAsync(Guid jobId, bool isBaseline, string? label, string? type = null, string? contextJson = null, CancellationToken ct = default);
+    Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(string? type = null, CancellationToken ct = default);
+    Task<IReadOnlyList<AnalysisJobDto>> GetBaselineVersionsAsync(string type, string contextJson, CancellationToken ct = default);
 
     // Dataset artifact (optional, only present when job was submitted with IncludeDataset=true)
     Task SaveDatasetArtifactAsync(Guid jobId, string storagePath, long byteLength, bool compressed, CancellationToken ct = default);
