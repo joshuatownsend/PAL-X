@@ -6,4 +6,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Pal.Engine\Pal.Engine.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ScottPlot" Version="5.0.55" />
+  </ItemGroup>
 </Project>

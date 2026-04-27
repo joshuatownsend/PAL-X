@@ -5,6 +5,7 @@ public sealed record Pack
     public required string PackId { get; init; }
     public required string PackName { get; init; }
     public required string Version { get; init; }
+    public string SchemaVersion { get; init; } = "pal.pack/v1";
     public string? Description { get; init; }
     public PackApplicability? Applicability { get; init; }
     public IReadOnlyDictionary<string, IReadOnlyList<string>> MetricAliases { get; init; } = new Dictionary<string, IReadOnlyList<string>>();
@@ -46,6 +47,14 @@ public sealed class Condition
     public required string Operator { get; init; }
     public required ThresholdValue Threshold { get; init; }
     public double DurationPercent { get; init; } = 1.0;
+    public WindowSpec? Window { get; init; }
+}
+
+public sealed class WindowSpec
+{
+    public required int DurationSeconds { get; init; }
+    public int? StepSeconds { get; init; }
+    public int MinSamples { get; init; } = 2;
 }
 
 public abstract class ThresholdValue

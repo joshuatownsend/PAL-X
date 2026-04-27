@@ -1,6 +1,8 @@
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 using Pal.Engine.Model;
+using Pal.Packs.Signing;
+using System.Security.Cryptography;
 
 namespace Pal.Packs;
 
@@ -11,20 +13,53 @@ public sealed class PackLoader
         .IgnoreUnmatchedProperties()
         .Build();
 
-    public Pack Load(string yamlPath)
+    public Pack Load(string yamlPath, SignatureRequirement sig = SignatureRequirement.Optional,
+        IReadOnlyList<RSA>? trustedKeys = null)
     {
+        if (sig != SignatureRequirement.Optional)
+        {
+            string dir = Path.GetDirectoryName(yamlPath) ?? ".";
+            EnforceSignature(dir, sig, trustedKeys ?? []);
+        }
+
         var text = File.ReadAllText(yamlPath);
         var raw = Deserializer.Deserialize<RawPack>(text)
             ?? throw new InvalidDataException($"Pack file '{yamlPath}' could not be deserialized.");
         return MapPack(raw, yamlPath);
     }
 
-    public Pack LoadFromDirectory(string directory)
+    public Pack LoadFromDirectory(string directory, SignatureRequirement sig = SignatureRequirement.Optional,
+        IReadOnlyList<RSA>? trustedKeys = null)
     {
         var packFile = Path.Combine(directory, "pack.yaml");
         if (!File.Exists(packFile))
             throw new FileNotFoundException($"No pack.yaml found in '{directory}'.");
+
+        if (sig != SignatureRequirement.Optional)
+            EnforceSignature(directory, sig, trustedKeys ?? []);
+
         return Load(packFile);
+    }
+
+    private static void EnforceSignature(string packDirectory, SignatureRequirement req, IReadOnlyList<RSA> trustedKeys)
+    {
+        string sigPath = Path.Combine(packDirectory, "pack.yaml.sig");
+        bool hasSig = File.Exists(sigPath);
+
+        if (req == SignatureRequirement.Forbidden && hasSig)
+            throw new PackSignatureException($"Pack at '{packDirectory}' has a signature but SignatureRequirement is Forbidden.");
+
+        if (req == SignatureRequirement.Required)
+        {
+            if (!hasSig)
+                throw new PackSignatureException($"Pack at '{packDirectory}' has no pack.yaml.sig (SignatureRequirement is Required).");
+
+            var verifier = new PackVerifier();
+            var result = verifier.Verify(packDirectory, trustedKeys);
+            if (!result.IsValid)
+                throw new PackSignatureException(
+                    $"Pack at '{packDirectory}' signature verification failed: {result.FailureReason}.");
+        }
     }
 
     private static Pack MapPack(RawPack raw, string sourcePath)
@@ -38,6 +73,7 @@ public sealed class PackLoader
             PackId = raw.PackId ?? throw new InvalidDataException($"Pack at '{sourcePath}' missing pack_id"),
             PackName = raw.PackName ?? throw new InvalidDataException($"Pack at '{sourcePath}' missing pack_name"),
             Version = raw.Version ?? "0.0.0",
+            SchemaVersion = raw.SchemaVersion ?? "pal.pack/v1",
             Description = raw.Description,
             Applicability = raw.Applicability is null ? null : MapApplicability(raw.Applicability),
             MetricAliases = (raw.MetricAliases ?? new Dictionary<string, List<string>>())
@@ -111,9 +147,17 @@ public sealed class PackLoader
             Aggregation = raw.Aggregation ?? throw new InvalidDataException("Condition missing aggregation"),
             Operator = raw.Operator ?? throw new InvalidDataException("Condition missing operator"),
             Threshold = threshold,
-            DurationPercent = raw.DurationPercent ?? 1.0
+            DurationPercent = raw.DurationPercent ?? 1.0,
+            Window = raw.Window is null ? null : MapWindow(raw.Window)
         };
     }
+
+    private static WindowSpec MapWindow(RawWindow raw) => new()
+    {
+        DurationSeconds = raw.DurationSeconds,
+        StepSeconds = raw.StepSeconds,
+        MinSamples = raw.MinSamples ?? 2
+    };
 
     private static RecommendationDef MapRecDef(RawRecommendationDef raw) => new()
     {
@@ -172,6 +216,14 @@ public sealed class PackLoader
         public string? Operator { get; set; }
         public object? Threshold { get; set; }
         public double? DurationPercent { get; set; }
+        public RawWindow? Window { get; set; }
+    }
+
+    private sealed class RawWindow
+    {
+        public int DurationSeconds { get; set; }
+        public int? StepSeconds { get; set; }
+        public int? MinSamples { get; set; }
     }
 
     private sealed class RawRecommendationDef

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Pal.Packs;
+using Pal.Packs.Signing;
 
 namespace Pal.Cli.Commands;
 
@@ -15,6 +16,14 @@ public sealed class ValidatePackSettings : CommandSettings
     [CommandOption("--strict")]
     [Description("Treat warnings as errors")]
     public bool Strict { get; init; }
+
+    [CommandOption("--require-signature")]
+    [Description("Fail if pack.yaml.sig is missing or signature verification fails")]
+    public bool RequireSignature { get; init; }
+
+    [CommandOption("--trust-key <path>")]
+    [Description("Path to an additional trusted RSA public key PEM file for signature verification")]
+    public string? TrustKeyPath { get; init; }
 
     [CommandOption("--json-output <path>")]
     [Description("Write validation results as JSON to this path")]
@@ -30,11 +39,14 @@ public sealed class ValidatePackCommand : Command<ValidatePackSettings>
 
         string packPath = settings.Path;
 
+        var trustedKeys = TrustedKeys.DefaultTrusted(settings.TrustKeyPath);
         try
         {
+            var sigReq = settings.RequireSignature ? SignatureRequirement.Required : SignatureRequirement.Optional;
+
             var pack = File.Exists(packPath) && packPath.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase)
-                ? loader.Load(packPath)
-                : loader.LoadFromDirectory(packPath);
+                ? loader.Load(packPath, sigReq, trustedKeys)
+                : loader.LoadFromDirectory(packPath, sigReq, trustedKeys);
 
             var result = validator.Validate(pack);
 
@@ -82,10 +94,19 @@ public sealed class ValidatePackCommand : Command<ValidatePackSettings>
             AnsiConsole.MarkupLine($"Warnings: [yellow]{result.Warnings.Count}[/]");
             return ExitCodes.Success;
         }
+        catch (PackSignatureException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]SIGNATURE ERROR:[/] {ex.Message}");
+            return ExitCodes.PackValidationFailure;
+        }
         catch (Exception ex)
         {
             AnsiConsole.MarkupLine($"[red]ERROR:[/] {ex.Message}");
             return ExitCodes.PackValidationFailure;
+        }
+        finally
+        {
+            foreach (var key in trustedKeys) key.Dispose();
         }
     }
 }

@@ -3,7 +3,7 @@ using System.Text.Json;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using Pal.Engine.Normalization;
-using Pal.Ingestion.Csv;
+using Pal.Ingestion;
 
 namespace Pal.Cli.Commands;
 
@@ -36,15 +36,10 @@ public sealed class InspectDatasetCommand : Command<InspectDatasetSettings>
             ? Path.GetExtension(settings.Input).TrimStart('.').ToLowerInvariant()
             : settings.Format;
 
-        if (format == "blg")
-        {
-            Pal.Ingestion.Blg.BlgCollectorStub.ThrowNotSupported(settings.Input);
-        }
-
         try
         {
             var registry = MetricAliasRegistry.BuildDefault();
-            var collector = new CsvCollector(registry);
+            var collector = CollectorFactory.Create(format, registry);
             var result = collector.Collect(settings.Input, settings.MachineName, settings.TimeZone);
             var ds = result.Dataset;
 

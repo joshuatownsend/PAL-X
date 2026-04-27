@@ -1,4 +1,6 @@
 using Pal.Engine.Normalization;
+using Pal.Ingestion;
+using Pal.Ingestion.Blg;
 using Pal.Ingestion.Csv;
 using Xunit;
 
@@ -58,18 +60,34 @@ public class CsvCollectorTests
     }
 
     [Fact]
-    public void Collect_BlgFile_StubThrowsNotSupported()
+    public void BlgPlatformGuard_Collect_ThrowsPlatformNotSupported()
     {
-        Assert.Throws<NotSupportedException>(() =>
-            Pal.Ingestion.Blg.BlgCollectorStub.ThrowNotSupported("server.blg"));
+        var guard = new BlgPlatformGuard();
+        Assert.Throws<PlatformNotSupportedException>(() => guard.Collect("server.blg"));
     }
 
     [Fact]
-    public void BlgStub_ErrorMessageContainsRelogCommand()
+    public void BlgPlatformGuard_ErrorMessageContainsRelogCommand()
     {
-        var ex = Assert.Throws<NotSupportedException>(() =>
-            Pal.Ingestion.Blg.BlgCollectorStub.ThrowNotSupported(@"C:\logs\server.blg"));
+        var guard = new BlgPlatformGuard();
+        var ex = Assert.Throws<PlatformNotSupportedException>(() =>
+            guard.Collect(@"C:\logs\server.blg"));
         Assert.Contains("relog", ex.Message);
         Assert.Contains("-f CSV", ex.Message);
+    }
+
+    [Fact]
+    public void CollectorFactory_CsvFormat_ReturnsCsvCollector()
+    {
+        var factory = CollectorFactory.Create("csv", MetricAliasRegistry.BuildDefault());
+        Assert.IsType<CsvCollector>(factory);
+    }
+
+    [Fact]
+    public void CollectorFactory_BlgFormat_OnWindows_ReturnsBlgCollector()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var factory = CollectorFactory.Create("blg", MetricAliasRegistry.BuildDefault());
+        Assert.Equal("BlgCollector", factory.GetType().Name);
     }
 }

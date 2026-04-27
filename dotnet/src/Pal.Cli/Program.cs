@@ -1,5 +1,6 @@
 using Spectre.Console.Cli;
 using Pal.Cli.Commands;
+using Pal.Cli.Commands.Packs;
 using Pal.Cli.Commands.Remote;
 
 var app = new CommandApp();
@@ -19,6 +20,13 @@ app.Configure(config =>
 
     config.AddCommand<ListPacksCommand>("list-packs")
         .WithDescription("List all packs available on the search path");
+
+    config.AddBranch("packs", packs =>
+    {
+        packs.SetDescription("Commands for working with PAL packs");
+        packs.AddCommand<SignPackCommand>("sign")
+            .WithDescription("Sign a pack directory, producing pack.yaml.sig");
+    });
 
     config.AddBranch("remote", remote =>
     {

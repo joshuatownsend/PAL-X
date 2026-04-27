@@ -40,9 +40,17 @@ If a rule references `host_context.total_physical_memory_mb` or `host_context.lo
 
 `<input-stem>.pal-report.json` and `<input-stem>.pal-report.html`. Charts go in `<output>/charts/<report-name>-<chart-id>.svg`.
 
-## BLG stub
+## BLG ingestion
 
-`BlgCollectorStub` throws `NotSupportedException` with the message: `BLG import is not supported in Phase 1. Convert your log first: relog -f CSV "<input>" -o "<stem>.csv"`. Phase 1.5 adds PDH interop.
+BLG files are supported via Windows PDH interop (`BlgCollector.cs` in `Pal.Ingestion`). On non-Windows platforms, a `PlatformNotSupportedException` is thrown with the `relog -f CSV` fallback command. The `CollectorFactory` dispatches by file extension: `.blg` → `BlgCollector` (Windows-only), `.csv` → `CsvCollector`.
+
+## Pack signing
+
+Packs can be signed using RSA-PSS-SHA256 via `pal packs sign --pack <dir> --key <privkey.pem>`. The signature is stored as a sidecar `pack.yaml.sig` adjacent to `pack.yaml`. Verification is enforced by `PackLoader.Load(..., SignatureRequirement.Required, trustedKeys)` and `pal validate-pack --require-signature --trust-key <pubkey.pem>`. See ADR 0003 for format details.
+
+## Schema v1.1 — rolling-window aggregations
+
+Pack conditions can specify a `window:` block (requires `schema_version: "pal.pack/v1.1"`) to evaluate aggregations over a rolling window rather than the full series. Supported aggregations: avg, min, max, p90, p95, p99 (not `trend`). See ADR 0004. `PackValidator` enforces the version gate.
 
 ## Test determinism
 
@@ -64,8 +72,14 @@ dotnet test dotnet/tests/Pal.Api.Tests -c Release
 docker compose up -d postgres
 dotnet run --project dotnet/src/Pal.Api
 
-# Run CLI
+# Run CLI — analysis
 dotnet run --project dotnet/src/Pal.Cli -- analyze --input <csv> --output out --pack-dir packs/thresholds
+
+# Sign a pack
+dotnet run --project dotnet/src/Pal.Cli -- packs sign --pack packs/thresholds/windows-core --key tools/test-keys/dev.priv.pem
+
+# Validate a pack (with signature enforcement)
+dotnet run --project dotnet/src/Pal.Cli -- validate-pack --path packs/thresholds/windows-core --require-signature --trust-key tools/test-keys/dev.pub.pem
 
 # Add an EF Core migration (dotnet-ef is NOT on PATH — use full path)
 & "$env:USERPROFILE\.dotnet\tools\dotnet-ef.exe" migrations add <Name> `
@@ -80,7 +94,7 @@ All source under `dotnet/src/`:
 | Project | Role |
 |---------|------|
 | `Pal.Engine` | Core analysis: dataset model, rule evaluator, statistics, status classifier |
-| `Pal.Ingestion` | CSV collector; BLG stub (Phase 1.5) |
+| `Pal.Ingestion` | CSV collector; BLG collector (Windows PDH interop) |
 | `Pal.Packs` | YAML pack loader, validator, pack resolver |
 | `Pal.Reporting` | JSON + HTML report writers, ScottPlot SVG charts |
 | `Pal.Application` | Shared DTOs, interfaces, service contracts |

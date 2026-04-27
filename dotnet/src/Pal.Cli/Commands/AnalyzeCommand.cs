@@ -149,7 +149,7 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
                     Path.GetDirectoryName(settings.Input) ?? ".", "host-context.json")
             });
         }
-        catch (NotSupportedException ex)
+        catch (PlatformNotSupportedException ex)
         {
             AnsiConsole.MarkupLine($"\n[red]ERROR:[/] {ex.Message}");
             return ExitCodes.InputCollectorFailure;
