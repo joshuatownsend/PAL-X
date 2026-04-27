@@ -33,7 +33,7 @@ public sealed class WebhookSinkRepository : IWebhookSinkRepository
         await using var db = await _factory.CreateDbContextAsync(ct);
         db.WebhookSinks.Add(new WebhookSinkEntity
         {
-            Id = sink.Id, WorkspaceId = _tenant.WorkspaceId ?? DefaultTenant.WorkspaceId,
+            Id = sink.Id, WorkspaceId = _tenant.WorkspaceId ?? throw new InvalidOperationException("Tenant workspace is not set. Ensure the request passes through the workspace route group."),
             Name = sink.Name, Url = sink.Url, Secret = sink.Secret,
             Enabled = sink.Enabled, Events = string.Join(",", sink.Events),
             CreatedAt = sink.CreatedAt, UpdatedAt = sink.UpdatedAt,

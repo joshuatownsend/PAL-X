@@ -22,7 +22,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
         var job = new AnalysisJobEntity
         {
             Id = Guid.NewGuid(),
-            WorkspaceId = _tenant.WorkspaceId ?? DefaultTenant.WorkspaceId,
+            WorkspaceId = _tenant.WorkspaceId ?? throw new InvalidOperationException("Tenant workspace is not set. Ensure the request passes through the workspace route group."),
             UploadId = uploadId,
             Status = "queued",
             OptionsJson = JsonSerializer.Serialize(new { requestedPacks = packIds }),

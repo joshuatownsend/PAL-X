@@ -38,7 +38,7 @@ public sealed class TokenRepository : ITokenRepository
         var entity = new PersonalAccessTokenEntity
         {
             Id = Guid.NewGuid(),
-            WorkspaceId = _tenant.WorkspaceId ?? DefaultTenant.WorkspaceId,
+            WorkspaceId = _tenant.WorkspaceId ?? throw new InvalidOperationException("Tenant workspace is not set. Ensure the request passes through the workspace route group."),
             UserId = userId,
             Name = name,
             TokenHash = tokenHash,

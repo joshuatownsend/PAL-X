@@ -81,6 +81,7 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
         var compare = new CompareResultEntity
         {
             Id = Guid.NewGuid(),
+            WorkspaceId = DefaultTenant.WorkspaceId,
             BaselineJobId = baselineJob.Id,
             CandidateJobId = candidateJob.Id,
             ResultJson = "{}",

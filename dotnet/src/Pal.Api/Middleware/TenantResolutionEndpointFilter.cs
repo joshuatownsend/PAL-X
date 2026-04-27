@@ -39,17 +39,20 @@ public sealed class TenantResolutionEndpointFilter : IEndpointFilter
             return Results.NotFound($"Workspace {workspaceId} not found.");
 
         // Verify caller is a member of the workspace's org.
+        // A missing NameIdentifier on an authenticated principal is a misconfigured token — reject it.
         var userId = context.HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (!string.IsNullOrEmpty(userId))
-        {
-            var isMember = await db.OrgMemberships
-                .AsNoTracking()
-                .AnyAsync(m => m.OrgId == workspace.OrgId && m.UserId == userId,
-                    context.HttpContext.RequestAborted);
+        if (string.IsNullOrEmpty(userId))
+            return context.HttpContext.User.Identity?.IsAuthenticated == true
+                ? Results.Forbid()
+                : Results.Unauthorized();
 
-            if (!isMember)
-                return Results.Forbid();
-        }
+        var isMember = await db.OrgMemberships
+            .AsNoTracking()
+            .AnyAsync(m => m.OrgId == workspace.OrgId && m.UserId == userId,
+                context.HttpContext.RequestAborted);
+
+        if (!isMember)
+            return Results.Forbid();
 
         using var _ = _tenant.SetWorkspace(workspaceId);
         return await next(context);

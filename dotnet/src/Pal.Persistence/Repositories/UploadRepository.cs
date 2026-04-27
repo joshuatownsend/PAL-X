@@ -30,7 +30,7 @@ public sealed class UploadRepository : IUploadRepository
         var entity = new UploadEntity
         {
             Id = Guid.NewGuid(),
-            WorkspaceId = _tenant.WorkspaceId ?? DefaultTenant.WorkspaceId,
+            WorkspaceId = _tenant.WorkspaceId ?? throw new InvalidOperationException("Tenant workspace is not set. Ensure the request passes through the workspace route group."),
             FileName = fileName,
             SourceType = sourceType,
             SizeBytes = sizeBytes,
