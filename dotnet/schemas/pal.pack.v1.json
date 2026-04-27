@@ -9,7 +9,8 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "pal.pack/v1"
+      "enum": ["pal.pack/v1", "pal.pack/v1.1"],
+      "description": "v1.1 adds the optional window field on conditions for rolling-window aggregations"
     },
     "pack_id": {
       "type": "string",
@@ -140,6 +141,30 @@
           "maximum": 100,
           "default": 1,
           "description": "Percentage of samples that must satisfy the condition for the rule to fire. Default 1 means any single sample triggers it."
+        },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "When present, the aggregation is evaluated over each rolling window. Rule fires if any window satisfies the condition. Requires schema_version pal.pack/v1.1.",
+          "required": ["duration_seconds"],
+          "properties": {
+            "duration_seconds": {
+              "type": "integer",
+              "minimum": 30,
+              "description": "Rolling window length in seconds (e.g., 300 for a 5-minute window)"
+            },
+            "step_seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Window stride in seconds. Defaults to the dataset sample interval when omitted."
+            },
+            "min_samples": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Skip the window if fewer than this many valid samples fall inside it"
+            }
+          }
         }
       }
     },

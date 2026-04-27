@@ -3,10 +3,11 @@ using System.Security.Cryptography;
 using System.Text;
 using Pal.Engine.Model;
 using Pal.Engine.Normalization;
+using Pal.Ingestion;
 
 namespace Pal.Ingestion.Csv;
 
-public sealed class CsvCollector
+public sealed class CsvCollector : IDatasetCollector
 {
     private readonly MetricAliasRegistry _registry;
 
@@ -15,12 +16,8 @@ public sealed class CsvCollector
         _registry = registry;
     }
 
-    public sealed class CollectResult
-    {
-        public required Dataset Dataset { get; init; }
-        public required IReadOnlyList<string> Warnings { get; init; }
-        public required string InputDigest { get; init; }
-    }
+    public bool CanHandle(string filePath) =>
+        Path.GetExtension(filePath).Equals(".csv", StringComparison.OrdinalIgnoreCase);
 
     public CollectResult Collect(string filePath, string? machineName = null, string? timeZone = null)
     {

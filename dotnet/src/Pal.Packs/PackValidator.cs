@@ -8,6 +8,8 @@ public sealed class PackValidator
     private static readonly HashSet<string> ValidSeverities = ["critical", "warning", "informational"];
     private static readonly HashSet<string> ValidCategories = ["cpu", "memory", "disk", "network", "process", "iis", "sql", "system", "collection", "pack-validation"];
     private static readonly HashSet<string> ValidAggregations = ["avg", "min", "max", "p90", "p95", "p99", "trend"];
+    private static readonly HashSet<string> ValidWindowAggregations = ["avg", "min", "max", "p90", "p95", "p99"];
+    private static readonly HashSet<string> ValidSchemaVersions = ["pal.pack/v1", "pal.pack/v1.1"];
     private static readonly HashSet<string> ValidOperators = ["gt", "lt", "ge", "le", "eq"];
     private static readonly HashSet<string> ValidHcVariables = ["total_physical_memory_mb", "logical_processor_count"];
     private static readonly HashSet<string> ValidPriorities = ["high", "medium", "low"];
@@ -23,6 +25,9 @@ public sealed class PackValidator
     {
         var errors = new List<string>();
         var warnings = new List<string>();
+
+        if (!ValidSchemaVersions.Contains(pack.SchemaVersion))
+            errors.Add($"schema_version '{pack.SchemaVersion}' is not recognized (expected pal.pack/v1 or pal.pack/v1.1)");
 
         if (string.IsNullOrWhiteSpace(pack.PackId))
             errors.Add("pack_id is required");
@@ -71,6 +76,18 @@ public sealed class PackValidator
 
                 if (cond.Threshold is HostContextThreshold hct && !ValidHcVariables.Contains(hct.HostContextVariable))
                     errors.Add($"{prefix}: unknown host_context variable '{hct.HostContextVariable}'");
+
+                if (cond.Window is not null)
+                {
+                    if (pack.SchemaVersion != "pal.pack/v1.1")
+                        errors.Add($"{prefix}, metric '{cond.Metric}': 'window' requires schema_version pal.pack/v1.1");
+                    if (!ValidWindowAggregations.Contains(cond.Aggregation))
+                        errors.Add($"{prefix}, metric '{cond.Metric}': aggregation '{cond.Aggregation}' is not supported with 'window' (trend is not windowed)");
+                    if (cond.Window.DurationSeconds < 30)
+                        errors.Add($"{prefix}, metric '{cond.Metric}': window.duration_seconds must be >= 30");
+                    if (cond.Window.StepSeconds.HasValue && cond.Window.StepSeconds.Value > cond.Window.DurationSeconds)
+                        errors.Add($"{prefix}, metric '{cond.Metric}': window.step_seconds must be <= duration_seconds");
+                }
             }
 
             // Validate recommendation ID references

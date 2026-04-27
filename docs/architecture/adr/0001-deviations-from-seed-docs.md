@@ -111,7 +111,9 @@ preserves the severity signal: any critical → Critical; any warning (no critic
 **Risk:** ScottPlot 5.x SVG rendering is generally deterministic but axis tick spacing can vary with
 font metrics on some systems. A unit test asserting byte-identical SVG on two renders of the same
 data is included to catch any non-determinism early.  
-**Reversibility:** High. `ScottPlotRenderer.cs` is isolated; swap if the determinism test fails.
+**Reversibility:** High. `ScottPlotRenderer.cs` is isolated; swap if the determinism test fails.  
+**Status (2026-04-27):** Implemented in Phase 1.5. `SvgCanonicalizer` post-processes Skia-generated
+SVG to normalize auto-generated clip IDs and strip comments. Byte-identical determinism test passes.
 
 ---
 
@@ -141,4 +143,6 @@ future phases. Writing them now guarantees rewrites when the actual phase requir
 **Why:** PDH interop is Windows-only native code that adds build complexity. The CLI contract
 spec's own implementation order lists BLG as step 9 of 11. The stub gives a clear error message
 that unblocks users while Phase 1.5 adds the real implementation.  
-**Reversibility:** High. Replace `BlgCollectorStub.ThrowNotSupported()` with a real PDH implementation.
+**Reversibility:** High. Replace `BlgCollectorStub.ThrowNotSupported()` with a real PDH implementation.  
+**Status (2026-04-27):** Phase 1.5 scope — see plan file. `IDatasetCollector` interface introduced;
+`CollectorFactory` dispatches to `BlgCollector` (Windows PDH) or `CsvCollector` by file extension.

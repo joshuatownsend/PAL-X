@@ -33,6 +33,9 @@ public static class RuleEvaluator
             };
         }
 
+        if (condition.Window is not null)
+            return EvaluateWindowed(condition, series, thresholdValue);
+
         if (condition.Aggregation == "trend")
         {
             var stats = series.Statistics ?? SeriesStatisticsCalculator.Compute(series.Samples);
@@ -64,7 +67,6 @@ public static class RuleEvaluator
         double actualPercent = satisfying * 100.0 / validSamples.Count;
         bool fires = actualPercent >= condition.DurationPercent;
 
-        // For the "actual value" shown in the report, use the statistical aggregation
         var statsForReport = series.Statistics ?? SeriesStatisticsCalculator.Compute(series.Samples);
         double reportValue = SeriesStatisticsCalculator.GetAggregation(statsForReport, condition.Aggregation);
 
@@ -75,6 +77,44 @@ public static class RuleEvaluator
             ThresholdValue = thresholdValue,
             Expression = BuildExpression(condition, thresholdValue),
             SkipReason = null
+        };
+    }
+
+    private static Result EvaluateWindowed(Condition condition, TimeSeries series, double thresholdValue)
+    {
+        var win = condition.Window!;
+        var windows = RollingWindowAggregator.Compute(
+            series.Samples,
+            TimeSpan.FromSeconds(win.DurationSeconds),
+            win.StepSeconds.HasValue ? TimeSpan.FromSeconds(win.StepSeconds.Value) : null,
+            condition.Aggregation,
+            win.MinSamples);
+
+        if (windows.Count == 0)
+        {
+            return new Result
+            {
+                Fired = false,
+                ActualValue = 0,
+                ThresholdValue = thresholdValue,
+                Expression = BuildWindowExpression(condition, thresholdValue),
+                SkipReason = "No windows had enough samples"
+            };
+        }
+
+        bool fired = windows.Any(w => Compare(w.Value, condition.Operator, thresholdValue));
+
+        // Report the "worst" window value: highest for gt/ge, lowest for lt/le
+        double worstValue = condition.Operator is "gt" or "ge"
+            ? windows.Max(w => w.Value)
+            : windows.Min(w => w.Value);
+
+        return new Result
+        {
+            Fired = fired,
+            ActualValue = worstValue,
+            ThresholdValue = thresholdValue,
+            Expression = BuildWindowExpression(condition, thresholdValue)
         };
     }
 
@@ -96,5 +136,14 @@ public static class RuleEvaluator
         if (c.DurationPercent > 1.0)
             expr += $" for >= {c.DurationPercent:G}% of samples";
         return expr;
+    }
+
+    private static string BuildWindowExpression(Condition c, double resolvedThreshold)
+    {
+        string metric = c.Instance is not null ? $"{c.Metric}[{c.Instance}]" : c.Metric;
+        string op = c.Operator switch { "gt" => ">", "ge" => ">=", "lt" => "<", "le" => "<=", "eq" => "==", _ => c.Operator };
+        int secs = c.Window!.DurationSeconds;
+        string windowLabel = secs >= 3600 ? $"{secs / 3600}h" : secs >= 60 ? $"{secs / 60}m" : $"{secs}s";
+        return $"{c.Aggregation}({metric}) over {windowLabel} rolling window {op} {resolvedThreshold:G}";
     }
 }

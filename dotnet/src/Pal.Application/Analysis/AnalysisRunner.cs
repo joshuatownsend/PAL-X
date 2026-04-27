@@ -1,7 +1,6 @@
 using Pal.Engine.Normalization;
 using Pal.Engine.Rules;
-using Pal.Ingestion.Blg;
-using Pal.Ingestion.Csv;
+using Pal.Ingestion;
 using Pal.Ingestion.HostContext;
 using Pal.Packs;
 
@@ -11,11 +10,8 @@ public sealed class AnalysisRunner : IAnalysisRunner
 {
     public AnalysisRunResult Run(AnalysisRunRequest request)
     {
-        if (request.InputFormat == "blg")
-            BlgCollectorStub.ThrowNotSupported(request.InputPath);
-
         var registry = MetricAliasRegistry.BuildDefault();
-        var collector = new CsvCollector(registry);
+        var collector = CollectorFactory.Create(request.InputFormat, registry);
 
         var hostCtx = HostContextReader.Read(
             request.HostMemoryMb,
