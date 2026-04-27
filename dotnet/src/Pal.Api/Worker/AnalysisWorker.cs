@@ -9,6 +9,7 @@ using Pal.Application.Persistence;
 using Pal.Application.Storage;
 using Pal.Engine.Model;
 using Pal.Engine.Scoring;
+using Pal.Persistence;
 using Pal.Reporting.Html;
 using Pal.Reporting.Json;
 using Pal.Reporting.Markdown;
@@ -27,6 +28,7 @@ public sealed class AnalysisWorker : BackgroundService
     private readonly IAnalysisRunner _runner;
     private readonly IAlertService _alerts;
     private readonly IAutoCompareService _autoCompare;
+    private readonly ITenantContext _tenant;
     private readonly string _packsDirectory;
     private readonly ILogger<AnalysisWorker> _logger;
 
@@ -38,6 +40,7 @@ public sealed class AnalysisWorker : BackgroundService
         IAnalysisRunner runner,
         IAlertService alerts,
         IAutoCompareService autoCompare,
+        ITenantContext tenant,
         IConfiguration config,
         ILogger<AnalysisWorker> logger)
     {
@@ -48,6 +51,7 @@ public sealed class AnalysisWorker : BackgroundService
         _runner = runner;
         _alerts = alerts;
         _autoCompare = autoCompare;
+        _tenant = tenant;
         _packsDirectory = config["Packs:Directory"] ?? "packs/thresholds";
         _logger = logger;
     }
@@ -127,7 +131,11 @@ public sealed class AnalysisWorker : BackgroundService
 
             if (selectedBaselineId is Guid b)
             {
-                try { await _autoCompare.RunAndPersistAsync(b, jobId, job.WorkspaceId, ct); }
+                try
+                {
+                    using var _ = _tenant.SetWorkspace(job.WorkspaceId);
+                    await _autoCompare.RunAndPersistAsync(b, jobId, job.WorkspaceId, ct);
+                }
                 catch (Exception ex) { _logger.LogWarning(ex, "Auto-compare failed for job {JobId} against baseline {BaselineId}; job completion continues", jobId, b); }
             }
 

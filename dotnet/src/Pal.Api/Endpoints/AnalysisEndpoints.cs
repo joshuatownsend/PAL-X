@@ -23,6 +23,15 @@ public static class AnalysisEndpoints
             if (upload is null)
                 return Results.NotFound($"Upload {req.UploadId} not found");
 
+            if (req.SelectedBaselineId is Guid baselineId)
+            {
+                var baselineJob = await analysis.GetJobAsync(baselineId);
+                if (baselineJob is null)
+                    return Results.NotFound($"Baseline job {baselineId} not found");
+                if (baselineJob.Status != "completed")
+                    return Results.BadRequest($"Baseline job {baselineId} is not completed");
+            }
+
             var job = await analysis.CreateJobAsync(req.UploadId, req.Packs, req.IncludeDataset, req.SelectedBaselineId);
             channel.Writer.TryWrite(job.Id);
 

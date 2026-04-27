@@ -2,7 +2,7 @@ namespace Pal.Application.Diagnostics;
 
 public sealed class DiagnosticInsightDto
 {
-    // Stable identity: SHA-256 of (jobId + sourceType + correlationKey or ruleId)
+    // First 16 hex chars (64 bits) of SHA-256(jobId:sourceType:key) — stable across re-runs, not collision-proof
     public required string Id { get; init; }
     public required string Severity { get; init; }        // "critical" | "warning" | "informational"
     public required string Category { get; init; }

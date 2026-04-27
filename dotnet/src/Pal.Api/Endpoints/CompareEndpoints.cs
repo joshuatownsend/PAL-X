@@ -29,7 +29,8 @@ public static class CompareEndpoints
                 return Results.BadRequest("Only completed jobs can be designated as baselines");
 
             var normalizedType = req.Type?.ToLowerInvariant();
-            await analysis.SetBaselineAsync(id, req.IsBaseline, req.Label, normalizedType, req.ContextJson);
+            var normalizedContextJson = req.ContextJson is not null ? NormalizeJson(req.ContextJson) : null;
+            await analysis.SetBaselineAsync(id, req.IsBaseline, req.Label, normalizedType, normalizedContextJson);
             return Results.NoContent();
         })
         .WithName("SetBaseline")
@@ -57,7 +58,7 @@ public static class CompareEndpoints
             if (!IsValidJson(contextJson))
                 return Results.BadRequest("contextJson must be valid JSON");
 
-            var versions = await analysis.GetBaselineVersionsAsync(type.ToLowerInvariant(), contextJson);
+            var versions = await analysis.GetBaselineVersionsAsync(type.ToLowerInvariant(), NormalizeJson(contextJson));
             return Results.Ok(new { items = versions });
         })
         .WithName("ListBaselineVersions")
@@ -111,9 +112,15 @@ public static class CompareEndpoints
         .WithTags("Compare");
     }
 
+    private static string NormalizeJson(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        return JsonSerializer.Serialize(doc.RootElement);
+    }
+
     private static bool IsValidJson(string json)
     {
-        try { using var _ = JsonDocument.Parse(json); return true; }
+        try { NormalizeJson(json); return true; }
         catch { return false; }
     }
 

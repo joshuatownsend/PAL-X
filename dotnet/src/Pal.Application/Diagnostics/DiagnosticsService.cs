@@ -39,9 +39,9 @@ public sealed class DiagnosticsService : IDiagnosticsService
         if (findings.Count == 0) return [];
 
         var findingKeys = findings
-            .Select(f => (Key: MakeKey(f), Finding: f))
-            .Where(x => x.Key is not null)
-            .ToDictionary(x => x.Key!, x => x.Finding);
+            .Select(MakeKey)
+            .Where(k => k is not null)
+            .ToHashSet()!;
 
         var (trendResult, correlationResult) = await _correlations.ComputeBothAsync(TrendWindow, ct);
 
@@ -59,7 +59,7 @@ public sealed class DiagnosticsService : IDiagnosticsService
 
         // Trend-based insights: worsening/appearing keys present in this job's findings
         var trendInsights = trendResult.Trends
-            .Where(t => (t.Direction is "worsening" or "appearing") && findingKeys.ContainsKey(t.CorrelationKey))
+            .Where(t => (t.Direction is "worsening" or "appearing") && findingKeys.Contains(t.CorrelationKey))
             .Take(MaxTrendInsights);
 
         foreach (var t in trendInsights)
@@ -83,7 +83,7 @@ public sealed class DiagnosticsService : IDiagnosticsService
         // Correlation-based insights: both-worsening pairs where at least one key is in this job
         var correlationInsights = correlationResult.Pairs
             .Where(p => p.DirectionA == "worsening" && p.DirectionB == "worsening"
-                && (findingKeys.ContainsKey(p.KeyA) || findingKeys.ContainsKey(p.KeyB)))
+                && (findingKeys.Contains(p.KeyA) || findingKeys.Contains(p.KeyB)))
             .Take(MaxCorrelationInsights);
 
         foreach (var p in correlationInsights)
