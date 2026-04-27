@@ -14,6 +14,7 @@ public sealed class UploadDto
 public sealed class AnalysisJobDto
 {
     public required Guid Id { get; init; }
+    public required Guid WorkspaceId { get; init; }
     public required Guid UploadId { get; init; }
     public required string Status { get; init; }
     public string? OptionsJson { get; init; }
@@ -171,6 +172,7 @@ public sealed class WebhookSinkDto
 public sealed class AlertDto
 {
     public required Guid Id { get; init; }
+    public required Guid WorkspaceId { get; init; }
     public required string RuleId { get; init; }
     public required string Severity { get; init; }
     public required string Category { get; init; }

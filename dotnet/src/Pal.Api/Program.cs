@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Pal.Api.Auth;
 using Pal.Api.Components;
 using Pal.Api.Endpoints;
+using Pal.Api.Middleware;
 using Pal.Api.Services;
 using Pal.Api.Worker;
 using Pal.Application.Alerts;
@@ -22,6 +23,10 @@ using Pal.Persistence.Entities;
 using Pal.Persistence.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Tenant context: singleton with AsyncLocal storage for per-request workspace isolation
+builder.Services.AddSingleton<TenantContext>();
+builder.Services.AddSingleton<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
 
 // Upload size limits: 512 MB
 builder.Services.Configure<FormOptions>(o => o.MultipartBodyLengthLimit = 536_870_912);
@@ -95,6 +100,7 @@ var storageRoot = Path.GetFullPath(
 builder.Services.AddSingleton<IStorageProvider>(_ => new LocalDiskStorageProvider(storageRoot));
 
 // Repositories (singleton: stateless, use factory per call — safe for all lifetimes)
+builder.Services.AddSingleton<IOrgRepository, OrgRepository>();
 builder.Services.AddSingleton<IUploadRepository, UploadRepository>();
 builder.Services.AddSingleton<IAnalysisRepository, AnalysisRepository>();
 builder.Services.AddSingleton<IPackRepository, PackRepository>();
@@ -103,6 +109,7 @@ builder.Services.AddSingleton<IAlertRepository, AlertRepository>();
 builder.Services.AddSingleton<IWebhookSinkRepository, WebhookSinkRepository>();
 builder.Services.AddSingleton<IWebhookSinkService, WebhookSinkService>();
 builder.Services.AddSingleton<ITokenRepository, TokenRepository>();
+builder.Services.AddSingleton<IRetentionRepository, RetentionRepository>();
 builder.Services.AddHttpClient("pal-webhook")
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<INotificationService, NotificationService>();
@@ -117,6 +124,7 @@ builder.Services.AddSingleton<CorrelationService>();
 builder.Services.AddSingleton<IAnalysisRunner, AnalysisRunner>();
 builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>(new UnboundedChannelOptions { SingleReader = true }));
 builder.Services.AddHostedService<AnalysisWorker>();
+builder.Services.AddHostedService<RetentionWorker>();
 
 // Pack registry sync
 builder.Services.AddSingleton<PackRegistrySyncService>();
@@ -161,18 +169,24 @@ app.UseAuthentication();   // must precede UseAuthorization
 app.UseAuthorization();
 app.UseAntiforgery();
 
-// REST API endpoints
+// REST API endpoints — global (no workspace scope)
 app.MapHealthEndpoints();
 app.MapAccountEndpoints();
-app.MapTokenEndpoints();
 app.MapPackEndpoints();
-app.MapUploadEndpoints();
-app.MapAnalysisEndpoints();
-app.MapCompareEndpoints();
-app.MapTrendEndpoints();
-app.MapCorrelationEndpoints();
-app.MapAlertEndpoints();
-app.MapWebhookEndpoints();
+app.MapOrgEndpoints();
+
+// Workspace-scoped endpoints — all routes prefixed with /api/workspaces/{workspaceId}
+var wsGroup = app.MapGroup("/api/workspaces/{workspaceId:guid}")
+    .AddEndpointFilter<TenantResolutionEndpointFilter>();
+
+wsGroup.MapUploadEndpoints();
+wsGroup.MapAnalysisEndpoints();
+wsGroup.MapCompareEndpoints();
+wsGroup.MapTrendEndpoints();
+wsGroup.MapCorrelationEndpoints();
+wsGroup.MapAlertEndpoints();
+wsGroup.MapWebhookEndpoints();
+wsGroup.MapTokenEndpoints();
 
 // Blazor Server UI
 app.MapRazorComponents<App>()

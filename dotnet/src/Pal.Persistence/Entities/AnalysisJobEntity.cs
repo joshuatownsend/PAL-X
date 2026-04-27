@@ -3,6 +3,7 @@ namespace Pal.Persistence.Entities;
 public sealed class AnalysisJobEntity
 {
     public Guid Id { get; set; }
+    public Guid WorkspaceId { get; set; }
     public Guid UploadId { get; set; }
     public required string Status { get; set; }
     public string? OptionsJson { get; set; }

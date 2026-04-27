@@ -27,13 +27,15 @@ services:
       Storage__LocalRoot: /data/storage
       Packs__Directory: /app/packs/thresholds
       PAL_BOOTSTRAP_ADMIN_PASSWORD: "${PAL_BOOTSTRAP_ADMIN_PASSWORD:-}"
+      Retention__JobRetentionDays: "${RETENTION_JOB_DAYS:-0}"
+      Retention__AuditEventRetentionDays: "${RETENTION_AUDIT_DAYS:-0}"
     volumes:
       - api_data:/data/storage
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 6

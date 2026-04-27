@@ -8,6 +8,7 @@ public sealed class UploadEntity
     public long SizeBytes { get; set; }
     public required string Sha256 { get; set; }
     public required string StoragePath { get; set; }
+    public Guid WorkspaceId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
     public ICollection<AnalysisJobEntity> AnalysisJobs { get; set; } = [];

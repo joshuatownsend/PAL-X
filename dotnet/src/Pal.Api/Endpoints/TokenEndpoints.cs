@@ -10,7 +10,7 @@ public static class TokenEndpoints
 {
     public static void MapTokenEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/tokens").RequireAuthorization().WithTags("Tokens");
+        var group = app.MapGroup("/tokens").RequireAuthorization().WithTags("Tokens");
 
         group.MapGet("", async (ClaimsPrincipal user, ITokenRepository repo) =>
         {

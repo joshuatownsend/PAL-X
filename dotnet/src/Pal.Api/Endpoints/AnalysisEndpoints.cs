@@ -9,6 +9,7 @@ public static class AnalysisEndpoints
     public static void MapAnalysisEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/analysis", async (
+            Guid workspaceId,
             CreateAnalysisRequest req,
             IAnalysisRepository analysis,
             IUploadRepository uploads,
@@ -24,7 +25,7 @@ public static class AnalysisEndpoints
             var job = await analysis.CreateJobAsync(req.UploadId, req.Packs);
             channel.Writer.TryWrite(job.Id);
 
-            return Results.Accepted($"/analysis/{job.Id}", new { analysisId = job.Id, status = job.Status });
+            return Results.Accepted($"/api/workspaces/{workspaceId}/analysis/{job.Id}", new { analysisId = job.Id, status = job.Status });
         })
         .WithName("CreateAnalysis")
         .WithTags("Analysis");

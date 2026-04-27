@@ -7,8 +7,17 @@ namespace Pal.Persistence;
 
 public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
 {
-    public PalDbContext(DbContextOptions<PalDbContext> options) : base(options) { }
+    private readonly ITenantContext _tenantContext;
 
+    public PalDbContext(DbContextOptions<PalDbContext> options, ITenantContext tenantContext)
+        : base(options)
+    {
+        _tenantContext = tenantContext;
+    }
+
+    public DbSet<OrgEntity> Orgs => Set<OrgEntity>();
+    public DbSet<WorkspaceEntity> Workspaces => Set<WorkspaceEntity>();
+    public DbSet<OrgMembershipEntity> OrgMemberships => Set<OrgMembershipEntity>();
     public DbSet<UploadEntity> Uploads => Set<UploadEntity>();
     public DbSet<AnalysisJobEntity> AnalysisJobs => Set<AnalysisJobEntity>();
     public DbSet<AnalysisJobPackEntity> AnalysisJobPacks => Set<AnalysisJobPackEntity>();
@@ -17,6 +26,7 @@ public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PackEntity> Packs => Set<PackEntity>();
     public DbSet<PackVersionEntity> PackVersions => Set<PackVersionEntity>();
     public DbSet<AuditEventEntity> AuditEvents => Set<AuditEventEntity>();
+    public DbSet<WorkspaceAuditEventEntity> WorkspaceAuditEvents => Set<WorkspaceAuditEventEntity>();
     public DbSet<CompareResultEntity> CompareResults => Set<CompareResultEntity>();
     public DbSet<AlertEntity> Alerts => Set<AlertEntity>();
     public DbSet<WebhookSinkEntity> WebhookSinks => Set<WebhookSinkEntity>();
@@ -36,10 +46,54 @@ public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<IdentityUserToken<string>>().ToTable("asp_net_user_tokens");
         modelBuilder.Entity<IdentityRoleClaim<string>>().ToTable("asp_net_role_claims");
 
+        // Rename audit_events → org_audit_events
+        modelBuilder.Entity<AuditEventEntity>(e =>
+        {
+            e.ToTable("org_audit_events");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.EventType, x.CreatedAt });
+        });
+
+        modelBuilder.Entity<OrgEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Slug).IsUnique();
+        });
+
+        modelBuilder.Entity<WorkspaceEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.OrgId, x.Slug }).IsUnique();
+            e.HasOne(x => x.Org)
+                .WithMany(x => x.Workspaces)
+                .HasForeignKey(x => x.OrgId);
+        });
+
+        modelBuilder.Entity<OrgMembershipEntity>(e =>
+        {
+            e.HasKey(x => new { x.OrgId, x.UserId });
+            e.HasOne(x => x.Org)
+                .WithMany(x => x.Members)
+                .HasForeignKey(x => x.OrgId);
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkspaceAuditEventEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.WorkspaceId, x.EventType, x.CreatedAt });
+        });
+
+        // Workspace-scoped entities: filter passes all rows when WorkspaceId is null (system/worker scope).
         modelBuilder.Entity<UploadEntity>(e =>
         {
             e.HasKey(x => x.Id);
-            e.HasIndex(x => x.Sha256).IsUnique();
+            e.HasIndex(x => new { x.WorkspaceId, x.Sha256 }).IsUnique();
+            e.HasQueryFilter(u => !_tenantContext.WorkspaceId.HasValue
+                               || u.WorkspaceId == _tenantContext.WorkspaceId.GetValueOrDefault());
         });
 
         modelBuilder.Entity<AnalysisJobEntity>(e =>
@@ -50,6 +104,8 @@ public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(x => x.Upload)
                 .WithMany(x => x.AnalysisJobs)
                 .HasForeignKey(x => x.UploadId);
+            e.HasQueryFilter(j => !_tenantContext.WorkspaceId.HasValue
+                               || j.WorkspaceId == _tenantContext.WorkspaceId.GetValueOrDefault());
         });
 
         modelBuilder.Entity<AnalysisJobPackEntity>(e =>
@@ -89,12 +145,6 @@ public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(x => x.PackId);
         });
 
-        modelBuilder.Entity<AuditEventEntity>(e =>
-        {
-            e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.EventType, x.CreatedAt });
-        });
-
         modelBuilder.Entity<CompareResultEntity>(e =>
         {
             e.HasKey(x => x.Id);
@@ -106,21 +156,26 @@ public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(x => x.CandidateJobId)
                 .OnDelete(DeleteBehavior.Restrict);
+            e.HasQueryFilter(c => !_tenantContext.WorkspaceId.HasValue
+                               || c.WorkspaceId == _tenantContext.WorkspaceId.GetValueOrDefault());
         });
 
         modelBuilder.Entity<AlertEntity>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.Status, x.LastSeenAt });
-            // Prevents concurrent job evaluations from creating duplicate active alerts for the same rule.
-            e.HasIndex(x => x.RuleId)
+            e.HasIndex(x => new { x.WorkspaceId, x.RuleId })
                 .IsUnique()
                 .HasFilter("status <> 'resolved'");
+            e.HasQueryFilter(a => !_tenantContext.WorkspaceId.HasValue
+                               || a.WorkspaceId == _tenantContext.WorkspaceId.GetValueOrDefault());
         });
 
         modelBuilder.Entity<WebhookSinkEntity>(e =>
         {
             e.HasKey(x => x.Id);
+            e.HasQueryFilter(w => !_tenantContext.WorkspaceId.HasValue
+                               || w.WorkspaceId == _tenantContext.WorkspaceId.GetValueOrDefault());
         });
 
         modelBuilder.Entity<PersonalAccessTokenEntity>(e =>
@@ -132,6 +187,8 @@ public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+            e.HasQueryFilter(t => !_tenantContext.WorkspaceId.HasValue
+                               || t.WorkspaceId == _tenantContext.WorkspaceId.GetValueOrDefault());
         });
     }
 }

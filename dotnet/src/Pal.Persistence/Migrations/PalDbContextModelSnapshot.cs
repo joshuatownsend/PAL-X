@@ -246,16 +246,20 @@ namespace Pal.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("triggering_job_id");
 
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
                     b.HasKey("Id")
                         .HasName("pk_alerts");
 
-                    b.HasIndex("RuleId")
-                        .IsUnique()
-                        .HasDatabaseName("ix_alerts_rule_id")
-                        .HasFilter("status <> 'resolved'");
-
                     b.HasIndex("Status", "LastSeenAt")
                         .HasDatabaseName("ix_alerts_status_last_seen_at");
+
+                    b.HasIndex("WorkspaceId", "RuleId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_alerts_workspace_id_rule_id")
+                        .HasFilter("status <> 'resolved'");
 
                     b.ToTable("alerts", (string)null);
                 });
@@ -307,6 +311,10 @@ namespace Pal.Persistence.Migrations
                     b.Property<Guid>("UploadId")
                         .HasColumnType("uuid")
                         .HasColumnName("upload_id");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
 
                     b.HasKey("Id")
                         .HasName("pk_analysis_jobs");
@@ -515,17 +523,21 @@ namespace Pal.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("event_type");
 
+                    b.Property<Guid?>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
                     b.Property<string>("UserId")
                         .HasColumnType("text")
                         .HasColumnName("user_id");
 
                     b.HasKey("Id")
-                        .HasName("pk_audit_events");
+                        .HasName("pk_org_audit_events");
 
                     b.HasIndex("EventType", "CreatedAt")
-                        .HasDatabaseName("ix_audit_events_event_type_created_at");
+                        .HasDatabaseName("ix_org_audit_events_event_type_created_at");
 
-                    b.ToTable("audit_events", (string)null);
+                    b.ToTable("org_audit_events", (string)null);
                 });
 
             modelBuilder.Entity("Pal.Persistence.Entities.CompareResultEntity", b =>
@@ -552,6 +564,10 @@ namespace Pal.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("result_json");
 
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
                     b.HasKey("Id")
                         .HasName("pk_compare_results");
 
@@ -562,6 +578,65 @@ namespace Pal.Persistence.Migrations
                         .HasDatabaseName("ix_compare_results_candidate_job_id");
 
                     b.ToTable("compare_results", (string)null);
+                });
+
+            modelBuilder.Entity("Pal.Persistence.Entities.OrgEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("slug");
+
+                    b.HasKey("Id")
+                        .HasName("pk_orgs");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_orgs_slug");
+
+                    b.ToTable("orgs", (string)null);
+                });
+
+            modelBuilder.Entity("Pal.Persistence.Entities.OrgMembershipEntity", b =>
+                {
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset>("JoinedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("joined_at");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("role");
+
+                    b.HasKey("OrgId", "UserId")
+                        .HasName("pk_org_memberships");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_org_memberships_user_id");
+
+                    b.ToTable("org_memberships", (string)null);
                 });
 
             modelBuilder.Entity("Pal.Persistence.Entities.PackEntity", b =>
@@ -658,6 +733,10 @@ namespace Pal.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("user_id");
 
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
                     b.HasKey("Id")
                         .HasName("pk_personal_access_tokens");
 
@@ -706,12 +785,16 @@ namespace Pal.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("storage_path");
 
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
                     b.HasKey("Id")
                         .HasName("pk_uploads");
 
-                    b.HasIndex("Sha256")
+                    b.HasIndex("WorkspaceId", "Sha256")
                         .IsUnique()
-                        .HasDatabaseName("ix_uploads_sha256");
+                        .HasDatabaseName("ix_uploads_workspace_id_sha256");
 
                     b.ToTable("uploads", (string)null);
                 });
@@ -754,10 +837,92 @@ namespace Pal.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("url");
 
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
                     b.HasKey("Id")
                         .HasName("pk_webhook_sinks");
 
                     b.ToTable("webhook_sinks", (string)null);
+                });
+
+            modelBuilder.Entity("Pal.Persistence.Entities.WorkspaceAuditEventEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("entity_id");
+
+                    b.Property<string>("EventJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("event_json");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workspace_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_workspace_audit_events");
+
+                    b.HasIndex("WorkspaceId", "EventType", "CreatedAt")
+                        .HasDatabaseName("ix_workspace_audit_events_workspace_id_event_type_created_at");
+
+                    b.ToTable("workspace_audit_events", (string)null);
+                });
+
+            modelBuilder.Entity("Pal.Persistence.Entities.WorkspaceEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("slug");
+
+                    b.HasKey("Id")
+                        .HasName("pk_workspaces");
+
+                    b.HasIndex("OrgId", "Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ix_workspaces_org_id_slug");
+
+                    b.ToTable("workspaces", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -886,6 +1051,27 @@ namespace Pal.Persistence.Migrations
                     b.Navigation("CandidateJob");
                 });
 
+            modelBuilder.Entity("Pal.Persistence.Entities.OrgMembershipEntity", b =>
+                {
+                    b.HasOne("Pal.Persistence.Entities.OrgEntity", "Org")
+                        .WithMany("Members")
+                        .HasForeignKey("OrgId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_org_memberships_orgs_org_id");
+
+                    b.HasOne("Pal.Persistence.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_org_memberships_users_user_id");
+
+                    b.Navigation("Org");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Pal.Persistence.Entities.PackVersionEntity", b =>
                 {
                     b.HasOne("Pal.Persistence.Entities.PackEntity", "Pack")
@@ -908,6 +1094,18 @@ namespace Pal.Persistence.Migrations
                         .HasConstraintName("fk_personal_access_tokens_asp_net_users_user_id");
                 });
 
+            modelBuilder.Entity("Pal.Persistence.Entities.WorkspaceEntity", b =>
+                {
+                    b.HasOne("Pal.Persistence.Entities.OrgEntity", "Org")
+                        .WithMany("Workspaces")
+                        .HasForeignKey("OrgId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workspaces_orgs_org_id");
+
+                    b.Navigation("Org");
+                });
+
             modelBuilder.Entity("Pal.Persistence.Entities.AnalysisJobEntity", b =>
                 {
                     b.Navigation("Packs");
@@ -915,6 +1113,13 @@ namespace Pal.Persistence.Migrations
                     b.Navigation("Reports");
 
                     b.Navigation("Result");
+                });
+
+            modelBuilder.Entity("Pal.Persistence.Entities.OrgEntity", b =>
+                {
+                    b.Navigation("Members");
+
+                    b.Navigation("Workspaces");
                 });
 
             modelBuilder.Entity("Pal.Persistence.Entities.PackEntity", b =>

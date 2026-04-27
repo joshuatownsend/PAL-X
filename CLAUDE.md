@@ -47,3 +47,61 @@ If a rule references `host_context.total_physical_memory_mb` or `host_context.lo
 ## Test determinism
 
 Golden fixture tests use `--now <ISO>` to override `generated_at_utc` so the output is byte-identical across runs. ScottPlot SVG tests assert byte-identical output on two renders of the same data.
+
+## Commands
+
+```bash
+# Build
+dotnet build dotnet/Pal.sln -c Release
+
+# Unit tests (no Docker required)
+dotnet test dotnet/Pal.sln -c Release --filter "FullyQualifiedName!~Pal.Api.Tests"
+
+# Integration tests (requires Docker Desktop running locally)
+dotnet test dotnet/tests/Pal.Api.Tests -c Release
+
+# Run API locally (postgres must be up)
+docker compose up -d postgres
+dotnet run --project dotnet/src/Pal.Api
+
+# Run CLI
+dotnet run --project dotnet/src/Pal.Cli -- analyze --input <csv> --output out --pack-dir packs/thresholds
+
+# Add an EF Core migration (dotnet-ef is NOT on PATH — use full path)
+& "$env:USERPROFILE\.dotnet\tools\dotnet-ef.exe" migrations add <Name> `
+    --project dotnet/src/Pal.Persistence `
+    --startup-project dotnet/src/Pal.Api
+```
+
+## Architecture
+
+All source under `dotnet/src/`:
+
+| Project | Role |
+|---------|------|
+| `Pal.Engine` | Core analysis: dataset model, rule evaluator, statistics, status classifier |
+| `Pal.Ingestion` | CSV collector; BLG stub (Phase 1.5) |
+| `Pal.Packs` | YAML pack loader, validator, pack resolver |
+| `Pal.Reporting` | JSON + HTML report writers, ScottPlot SVG charts |
+| `Pal.Application` | Shared DTOs, interfaces, service contracts |
+| `Pal.Persistence` | EF Core 8 + PostgreSQL — all entities, migrations, repositories |
+| `Pal.Api` | ASP.NET Core minimal API + background workers (AnalysisWorker, RetentionWorker) |
+| `Pal.Cli` | Spectre.Console.Cli standalone tool |
+
+## Multitenancy
+
+The API uses a two-level hierarchy: Org → Workspace. All data-plane resources carry a `WorkspaceId` FK enforced by EF Core global query filters and DB-level cascade constraints.
+
+- Route group `/api/workspaces/{workspaceId:guid}` runs `TenantResolutionEndpointFilter` — validates workspace existence and org membership before any handler runs.
+- Global query filters use `.GetValueOrDefault()` on `ITenantContext.WorkspaceId` (nullable Guid) to avoid an EF parameter-extraction crash. Do not change this to `!= null`.
+- Repositories throw `InvalidOperationException` when `WorkspaceId` is null — they must only be called from within the workspace route group.
+
+## Auth
+
+API uses API-key authentication: `Authorization: Bearer <token>`. Tokens are SHA-256-hashed before storage (`TokenHasher`). Use `POST /api/tokens` to create one. No JWT — do not add JWT middleware.
+
+## Gotchas
+
+- **`dotnet ef` not on PATH**: The EF global tool must be invoked as `& "$env:USERPROFILE\.dotnet\tools\dotnet-ef.exe"` in PowerShell (or full path in bash).
+- **`Pal.Api.Tests` requires Docker**: Integration tests use Testcontainers (PostgreSQL container). They are excluded from the Windows CI runner. Exclude with `--filter "FullyQualifiedName!~Pal.Api.Tests"` when Docker is unavailable.
+- **`DefaultTenant.WorkspaceId`**: A seeded workspace used by all tests. Test entity factories (`MakeJob`, `MakeUpload`, etc.) must set `WorkspaceId = DefaultTenant.WorkspaceId` — forgetting this causes FK violations once DB-level constraints exist.

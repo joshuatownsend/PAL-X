@@ -12,3 +12,4 @@ It MUST NOT be used for:
 - direct code reuse
 
 All new implementation must follow the modern monorepo architecture defined in this project.
+See `../CLAUDE.md` and `docs/architecture/adr/0001-deviations-from-seed-docs.md`.

@@ -8,13 +8,15 @@ namespace Pal.Api.Tests;
 public sealed class AnalysisEndpointsTests(PalApiFactory factory)
 {
     private readonly HttpClient _client = factory.CreateClient();
+    private static readonly string Uploads = $"{PalApiFactory.WsBase}/uploads";
+    private static readonly string Analysis = $"{PalApiFactory.WsBase}/analysis";
 
     [Fact]
     public async Task Post_Analysis_Returns202_WithJobId()
     {
         var uploadId = await CreateUploadAsync("job-test.csv", "col\n1");
 
-        var resp = await _client.PostAsJsonAsync("/analysis", new
+        var resp = await _client.PostAsJsonAsync(Analysis, new
         {
             uploadId,
             packs = new[] { "windows-core" }
@@ -30,7 +32,7 @@ public sealed class AnalysisEndpointsTests(PalApiFactory factory)
     [Fact]
     public async Task Post_Analysis_UnknownUpload_Returns404()
     {
-        var resp = await _client.PostAsJsonAsync("/analysis", new
+        var resp = await _client.PostAsJsonAsync(Analysis, new
         {
             uploadId = Guid.NewGuid(),
             packs = new[] { "windows-core" }
@@ -42,7 +44,7 @@ public sealed class AnalysisEndpointsTests(PalApiFactory factory)
     public async Task Post_Analysis_NoPacks_Returns400()
     {
         var uploadId = await CreateUploadAsync("no-packs.csv", "col\n1");
-        var resp = await _client.PostAsJsonAsync("/analysis", new
+        var resp = await _client.PostAsJsonAsync(Analysis, new
         {
             uploadId,
             packs = Array.Empty<string>()
@@ -53,7 +55,7 @@ public sealed class AnalysisEndpointsTests(PalApiFactory factory)
     [Fact]
     public async Task Get_Analysis_List_ReturnsItems()
     {
-        var resp = await _client.GetAsync("/analysis");
+        var resp = await _client.GetAsync(Analysis);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.TryGetProperty("items", out _));
@@ -62,7 +64,7 @@ public sealed class AnalysisEndpointsTests(PalApiFactory factory)
     [Fact]
     public async Task Get_Analysis_ById_UnknownId_Returns404()
     {
-        var resp = await _client.GetAsync($"/analysis/{Guid.NewGuid()}");
+        var resp = await _client.GetAsync($"{Analysis}/{Guid.NewGuid()}");
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 
@@ -70,7 +72,7 @@ public sealed class AnalysisEndpointsTests(PalApiFactory factory)
     public async Task Get_Analysis_Results_IncompleteJob_Returns409()
     {
         var uploadId = await CreateUploadAsync("pending.csv", "col\n1");
-        var jobResp = await _client.PostAsJsonAsync("/analysis", new
+        var jobResp = await _client.PostAsJsonAsync(Analysis, new
         {
             uploadId,
             packs = new[] { "windows-core" }
@@ -78,7 +80,7 @@ public sealed class AnalysisEndpointsTests(PalApiFactory factory)
         var jobBody = await jobResp.Content.ReadFromJsonAsync<JsonElement>();
         var jobId = jobBody.GetProperty("analysisId").GetString();
 
-        var resultsResp = await _client.GetAsync($"/analysis/{jobId}/results");
+        var resultsResp = await _client.GetAsync($"{Analysis}/{jobId}/results");
         Assert.Equal(HttpStatusCode.Conflict, resultsResp.StatusCode);
     }
 
@@ -86,7 +88,7 @@ public sealed class AnalysisEndpointsTests(PalApiFactory factory)
     {
         var form = new MultipartFormDataContent();
         form.Add(new StringContent(csv), "file", name);
-        var resp = await _client.PostAsync("/uploads", form);
+        var resp = await _client.PostAsync(Uploads, form);
         resp.EnsureSuccessStatusCode();
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
         return Guid.Parse(body.GetProperty("uploadId").GetString()!);

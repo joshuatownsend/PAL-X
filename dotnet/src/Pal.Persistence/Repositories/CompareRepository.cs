@@ -13,8 +13,13 @@ public sealed class CompareRepository : ICompareRepository
     };
 
     private readonly IDbContextFactory<PalDbContext> _factory;
+    private readonly ITenantContext _tenant;
 
-    public CompareRepository(IDbContextFactory<PalDbContext> factory) => _factory = factory;
+    public CompareRepository(IDbContextFactory<PalDbContext> factory, ITenantContext tenant)
+    {
+        _factory = factory;
+        _tenant = tenant;
+    }
 
     public async Task<CompareResultDto> CreateAsync(
         Guid baselineJobId, Guid candidateJobId, CompareResultDto result, CancellationToken ct = default)
@@ -23,6 +28,7 @@ public sealed class CompareRepository : ICompareRepository
         var entity = new CompareResultEntity
         {
             Id = Guid.NewGuid(),
+            WorkspaceId = _tenant.WorkspaceId ?? throw new InvalidOperationException("Tenant workspace is not set. Ensure the request passes through the workspace route group."),
             BaselineJobId = baselineJobId,
             CandidateJobId = candidateJobId,
             ResultJson = SerializePayload(result),

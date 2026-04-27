@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Pal.Application.Persistence;
 using Pal.Application.Webhooks;
+using Pal.Persistence;
 
 namespace Pal.Api.Services;
 
@@ -11,20 +12,23 @@ public sealed class NotificationService : INotificationService
 {
     private readonly IWebhookSinkRepository _repo;
     private readonly IHttpClientFactory _httpFactory;
+    private readonly ITenantContext _tenant;
     private readonly ILogger<NotificationService> _logger;
 
     private static readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
 
-    public NotificationService(IWebhookSinkRepository repo, IHttpClientFactory httpFactory, ILogger<NotificationService> logger)
+    public NotificationService(IWebhookSinkRepository repo, IHttpClientFactory httpFactory,
+        ITenantContext tenant, ILogger<NotificationService> logger)
     {
         _repo = repo;
         _httpFactory = httpFactory;
+        _tenant = tenant;
         _logger = logger;
     }
 
     public async Task NotifyAsync(string @event, AlertDto alert, CancellationToken ct = default)
     {
-        var sinks = await _repo.ListEnabledForEventAsync(@event, ct);
+        var sinks = await _repo.ListEnabledForEventAsync(@event, alert.WorkspaceId, ct);
         if (sinks.Count == 0) return;
 
         var payload = BuildPayload(@event, alert);
@@ -49,7 +53,8 @@ public sealed class NotificationService : INotificationService
 
         var payload = BuildPayload("webhook.test", new AlertDto
         {
-            Id = Guid.Empty, RuleId = "test-rule", Severity = "informational",
+            Id = Guid.Empty, WorkspaceId = _tenant.WorkspaceId ?? DefaultTenant.WorkspaceId,
+            RuleId = "test-rule", Severity = "informational",
             Category = "system", Title = "PAL Webhook Test", Status = "open",
             TriggeringJobId = Guid.Empty, LatestJobId = Guid.Empty,
             TriggeredAt = DateTimeOffset.UtcNow, LastSeenAt = DateTimeOffset.UtcNow,

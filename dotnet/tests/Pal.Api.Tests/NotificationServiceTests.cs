@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Pal.Api.Services;
 using Pal.Application.Persistence;
+using Pal.Persistence;
 using Xunit;
 
 namespace Pal.Api.Tests;
@@ -22,7 +23,8 @@ public class NotificationServiceTests
 
     private static AlertDto MakeAlert() => new()
     {
-        Id = Guid.NewGuid(), RuleId = "cpu-high", Severity = "critical",
+        Id = Guid.NewGuid(), WorkspaceId = DefaultTenant.WorkspaceId,
+        RuleId = "cpu-high", Severity = "critical",
         Category = "cpu", Title = "High CPU", Status = "open",
         TriggeringJobId = Guid.NewGuid(), LatestJobId = Guid.NewGuid(),
         TriggeredAt = DateTimeOffset.UtcNow, LastSeenAt = DateTimeOffset.UtcNow,
@@ -34,7 +36,7 @@ public class NotificationServiceTests
         var handler = new FakeHttpMessageHandler();
         var http = new HttpClient(handler);
         var factory = new FakeHttpClientFactory(http);
-        var svc = new NotificationService(repo, factory, NullLogger<NotificationService>.Instance);
+        var svc = new NotificationService(repo, factory, new TenantContext(), NullLogger<NotificationService>.Instance);
         return (svc, handler);
     }
 
@@ -130,7 +132,7 @@ public class NotificationServiceTests
         var handler = new FakeHttpMessageHandler(HttpStatusCode.OK);
         var http = new HttpClient(handler);
         var factory = new FakeHttpClientFactory(http);
-        var svc = new NotificationService(repo, factory, NullLogger<NotificationService>.Instance);
+        var svc = new NotificationService(repo, factory, new TenantContext(), NullLogger<NotificationService>.Instance);
 
         var result = await svc.TestAsync(sink.Id);
 
@@ -145,7 +147,7 @@ public class NotificationServiceTests
         var repo = new FakeWebhookSinkRepository(sink);
         var handler = new FakeHttpMessageHandler();
         var svc = new NotificationService(repo, new FakeHttpClientFactory(new HttpClient(handler)),
-            NullLogger<NotificationService>.Instance);
+            new TenantContext(), NullLogger<NotificationService>.Instance);
 
         await svc.TestAsync(sink.Id);
 
@@ -218,7 +220,7 @@ internal sealed class FakeWebhookSinkRepository(params WebhookSinkDto[] sinks) :
         return Task.FromResult(true);
     }
 
-    public Task<IReadOnlyList<WebhookSinkDto>> ListEnabledForEventAsync(string eventName, CancellationToken ct = default)
+    public Task<IReadOnlyList<WebhookSinkDto>> ListEnabledForEventAsync(string eventName, Guid workspaceId, CancellationToken ct = default)
     {
         var matches = _store
             .Where(s => s.Enabled && s.Events.Contains(eventName))
