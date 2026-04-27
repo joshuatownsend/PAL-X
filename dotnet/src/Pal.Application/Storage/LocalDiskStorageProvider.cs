@@ -55,7 +55,7 @@ public sealed class LocalDiskStorageProvider : IStorageProvider
 
     public async Task<string> WriteReportAsync(Guid jobId, string format, byte[] content, CancellationToken ct = default)
     {
-        string ext = format == "html" ? "html" : "json";
+        string ext = format switch { "html" => "html", "markdown" => "md", _ => "json" };
         var dir = Path.Combine(_root, "reports", jobId.ToString("N"));
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, $"report.pal-report.{ext}");
@@ -77,6 +77,25 @@ public sealed class LocalDiskStorageProvider : IStorageProvider
     public void DeleteUploadDirectory(string sha256)
     {
         var dir = Path.Combine(_root, "uploads", sha256);
+        if (Directory.Exists(dir))
+            Directory.Delete(dir, recursive: true);
+    }
+
+    public async Task<string> WriteDatasetAsync(Guid jobId, Func<Stream, CancellationToken, Task> writer, CancellationToken ct = default)
+    {
+        var dir = Path.Combine(_root, "datasets", jobId.ToString("N"));
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "dataset.json.gz");
+        await using var fs = File.Create(path);
+        await writer(fs, ct);
+        return Path.GetRelativePath(_root, path);
+    }
+
+    public Stream OpenDataset(string relativePath) => File.OpenRead(Path.Combine(_root, relativePath));
+
+    public void DeleteJobDatasetDirectory(Guid jobId)
+    {
+        var dir = Path.Combine(_root, "datasets", jobId.ToString("N"));
         if (Directory.Exists(dir))
             Directory.Delete(dir, recursive: true);
     }

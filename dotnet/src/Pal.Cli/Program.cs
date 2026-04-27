@@ -47,6 +47,12 @@ app.Configure(config =>
         remote.AddCommand<RemotePacksCommand>("packs")
             .WithDescription("List packs registered on the server");
 
+        remote.AddCommand<RemoteValidatePackCommand>("validate-pack")
+            .WithDescription("Validate a stored pack version on the server");
+
+        remote.AddCommand<RemoteDatasetCommand>("dataset")
+            .WithDescription("Download the normalized dataset artifact for a completed job");
+
         remote.AddCommand<CompareCommand>("compare")
             .WithDescription("Compare two completed analysis jobs and show a finding diff");
 

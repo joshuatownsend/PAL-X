@@ -16,7 +16,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
         _tenant = tenant;
     }
 
-    public async Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, CancellationToken ct = default)
+    public async Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, bool includeDataset = false, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
         var job = new AnalysisJobEntity
@@ -25,7 +25,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
             WorkspaceId = _tenant.WorkspaceId ?? throw new InvalidOperationException("Tenant workspace is not set. Ensure the request passes through the workspace route group."),
             UploadId = uploadId,
             Status = "queued",
-            OptionsJson = JsonSerializer.Serialize(new { requestedPacks = packIds }),
+            OptionsJson = JsonSerializer.Serialize(new { requestedPacks = packIds, includeDataset }),
             CreatedAt = DateTimeOffset.UtcNow
         };
         db.AnalysisJobs.Add(job);
@@ -220,6 +220,30 @@ public sealed class AnalysisRepository : IAnalysisRepository
             .OrderByDescending(j => j.CreatedAt)
             .ToListAsync(ct);
         return jobs.Select(j => ToDto(j, j.Packs.Select(ToPackDto).ToList())).ToList();
+    }
+
+    public async Task SaveDatasetArtifactAsync(Guid jobId, string storagePath, long byteLength, bool compressed, CancellationToken ct = default)
+    {
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        await db.AnalysisResults
+            .Where(r => r.AnalysisJobId == jobId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(r => r.DatasetStoragePath, storagePath)
+                .SetProperty(r => r.DatasetByteLength, byteLength)
+                .SetProperty(r => r.DatasetCompressed, compressed), ct);
+    }
+
+    public async Task<DatasetArtifactDto?> GetDatasetArtifactAsync(Guid jobId, CancellationToken ct = default)
+    {
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        var e = await db.AnalysisResults.FindAsync([jobId], ct);
+        if (e?.DatasetStoragePath is null) return null;
+        return new DatasetArtifactDto
+        {
+            StoragePath = e.DatasetStoragePath,
+            ByteLength = e.DatasetByteLength ?? 0,
+            Compressed = e.DatasetCompressed ?? false
+        };
     }
 
     private static AnalysisJobDto ToDto(AnalysisJobEntity j, IReadOnlyList<JobPackDto> packs) => new()

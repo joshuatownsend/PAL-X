@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -129,6 +130,69 @@ public class RemoteCommandTests
         }
         finally { if (File.Exists(tmpOut)) File.Delete(tmpOut); }
     }
+
+    // ─── validate-pack ───────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RemoteValidatePack_Success()
+    {
+        await using var server = await StubApiServer.StartAsync();
+        var code = await new CommandApp<RemoteValidatePackCommand>().RunAsync(
+            ["windows-core", "1.0.0", "--api", server.BaseUrl]);
+        Assert.Equal(ExitCodes.Success, code);
+    }
+
+    [Fact]
+    public async Task RemoteValidatePack_Invalid_ReturnsPackValidationFailure()
+    {
+        await using var server = await StubApiServer.StartAsync();
+        var code = await new CommandApp<RemoteValidatePackCommand>().RunAsync(
+            [StubApiServer.InvalidPackId, "1.0.0", "--api", server.BaseUrl]);
+        Assert.Equal(ExitCodes.PackValidationFailure, code);
+    }
+
+    [Fact]
+    public async Task RemoteValidatePack_NotFound_ReturnsGeneralFailure()
+    {
+        await using var server = await StubApiServer.StartAsync();
+        var code = await new CommandApp<RemoteValidatePackCommand>().RunAsync(
+            ["nonexistent-pack", "9.9.9", "--api", server.BaseUrl]);
+        Assert.Equal(ExitCodes.GeneralFailure, code);
+    }
+
+    // ─── dataset ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RemoteDataset_InvalidGuid_ReturnsInvalidArguments()
+    {
+        var code = await new CommandApp<RemoteDatasetCommand>().RunAsync(
+            ["not-a-guid", "--output", "out.json.gz", "--api", "http://127.0.0.1:59999"]);
+        Assert.Equal(ExitCodes.InvalidArguments, code);
+    }
+
+    [Fact]
+    public async Task RemoteDataset_Success()
+    {
+        await using var server = await StubApiServer.StartAsync();
+        var tmpOut = Path.GetTempFileName();
+        try
+        {
+            var code = await new CommandApp<RemoteDatasetCommand>().RunAsync(
+                [StubApiServer.KnownJobId.ToString(), "--output", tmpOut, "--api", server.BaseUrl]);
+            Assert.Equal(ExitCodes.Success, code);
+            Assert.True(new FileInfo(tmpOut).Length > 0, "Dataset file should be non-empty");
+        }
+        finally { if (File.Exists(tmpOut)) File.Delete(tmpOut); }
+    }
+
+    [Fact]
+    public async Task RemoteDataset_NotFound_ReturnsGeneralFailure()
+    {
+        await using var server = await StubApiServer.StartAsync();
+        var code = await new CommandApp<RemoteDatasetCommand>().RunAsync(
+            [Guid.NewGuid().ToString(), "--output", "out.json.gz", "--api", server.BaseUrl]);
+        Assert.Equal(ExitCodes.GeneralFailure, code);
+    }
 }
 
 // ─── Stub Server ─────────────────────────────────────────────────────────────
@@ -137,6 +201,9 @@ internal sealed class StubApiServer : IAsyncDisposable
 {
     public static readonly Guid KnownJobId = new("aaaaaaaa-0000-0000-0000-000000000000");
     public static readonly Guid KnownJobWithRecsId = new("bbbbbbbb-0000-0000-0000-000000000000");
+    public const string InvalidPackId = "broken-pack";
+
+    private static readonly byte[] MinimalGzip = CreateMinimalGzip();
 
     private readonly WebApplication _app;
     public string BaseUrl { get; }
@@ -157,6 +224,20 @@ internal sealed class StubApiServer : IAsyncDisposable
         {
             items = new[] { new { id = "windows-core", currentVersion = "1.0.0", title = "Windows Core", status = "active" } }
         }));
+
+        app.MapGet("/packs/{id}/versions/{version}/validation", (string id, string version) =>
+        {
+            if (id == InvalidPackId)
+                return Results.Ok(new
+                {
+                    isValid = false,
+                    errors = new[] { "pack_id is not valid kebab-case" },
+                    warnings = Array.Empty<string>()
+                });
+            if (id == "nonexistent-pack")
+                return Results.NotFound();
+            return Results.Ok(new { isValid = true, errors = Array.Empty<string>(), warnings = Array.Empty<string>() });
+        });
 
         app.MapPost("/uploads", () => Results.Ok(new
         {
@@ -197,9 +278,22 @@ internal sealed class StubApiServer : IAsyncDisposable
                 ? Results.Content("<html><body>PAL Report</body></html>", "text/html")
                 : Results.Conflict());
 
+        app.MapGet("/analysis/{id}/dataset", (string id) =>
+            Guid.TryParse(id, out var guid) && guid == KnownJobId
+                ? Results.Bytes(MinimalGzip, "application/gzip", $"pal-dataset-{id}.json.gz")
+                : Results.NotFound());
+
         await app.StartAsync();
         return new StubApiServer(app, app.Urls.First());
     }
 
     public async ValueTask DisposeAsync() => await _app.DisposeAsync();
+
+    private static byte[] CreateMinimalGzip()
+    {
+        using var ms = new MemoryStream();
+        using (var gz = new GZipStream(ms, CompressionLevel.Fastest))
+            gz.Write("{\"series\":[]}"u8.ToArray());
+        return ms.ToArray();
+    }
 }

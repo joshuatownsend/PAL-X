@@ -49,4 +49,22 @@ public interface IStorageProvider
     /// No-ops if the directory does not exist.
     /// </summary>
     void DeleteUploadDirectory(string sha256);
+
+    /// <summary>
+    /// Writes a dataset artifact using a streaming callback.
+    /// The callback receives a writable <see cref="Stream"/> and should serialize content into it.
+    /// Returns the relative storage path.
+    /// </summary>
+    Task<string> WriteDatasetAsync(Guid jobId, Func<Stream, CancellationToken, Task> writer, CancellationToken ct = default);
+
+    /// <summary>
+    /// Opens a dataset artifact file for streaming to the HTTP response.
+    /// </summary>
+    Stream OpenDataset(string relativePath);
+
+    /// <summary>
+    /// Deletes the dataset artifact directory for a job (datasets/{jobId:N}/).
+    /// No-ops if the directory does not exist.
+    /// </summary>
+    void DeleteJobDatasetDirectory(Guid jobId);
 }
