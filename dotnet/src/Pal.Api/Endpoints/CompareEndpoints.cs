@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Pal.Application.Compare;
 using Pal.Application.Persistence;
 
@@ -5,6 +6,9 @@ namespace Pal.Api.Endpoints;
 
 public static class CompareEndpoints
 {
+    private static readonly HashSet<string> ValidBaselineTypes =
+        new(StringComparer.OrdinalIgnoreCase) { "machine", "role", "workload", "release" };
+
     public static void MapCompareEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPatch("/analysis/{id:guid}/baseline", async (
@@ -12,23 +16,52 @@ public static class CompareEndpoints
             SetBaselineRequest req,
             IAnalysisRepository analysis) =>
         {
+            if (req.IsBaseline && req.Type is not null &&
+                !ValidBaselineTypes.Contains(req.Type))
+                return Results.BadRequest($"type must be one of: {string.Join(", ", ValidBaselineTypes)}");
+
+            if (req.IsBaseline && req.ContextJson is not null && !IsValidJson(req.ContextJson))
+                return Results.BadRequest("contextJson must be valid JSON");
+
             var job = await analysis.GetJobAsync(id);
             if (job is null) return Results.NotFound();
             if (job.Status != "completed")
                 return Results.BadRequest("Only completed jobs can be designated as baselines");
 
-            await analysis.SetBaselineAsync(id, req.IsBaseline, req.Label);
+            var normalizedType = req.Type?.ToLowerInvariant();
+            var normalizedContextJson = req.ContextJson is not null ? NormalizeJson(req.ContextJson) : null;
+            await analysis.SetBaselineAsync(id, req.IsBaseline, req.Label, normalizedType, normalizedContextJson);
             return Results.NoContent();
         })
         .WithName("SetBaseline")
         .WithTags("Compare");
 
-        app.MapGet("/analysis/baselines", async (IAnalysisRepository analysis) =>
+        app.MapGet("/analysis/baselines", async (string? type, IAnalysisRepository analysis) =>
         {
-            var baselines = await analysis.ListBaselinesAsync();
+            if (type is not null && !ValidBaselineTypes.Contains(type))
+                return Results.BadRequest($"type must be one of: {string.Join(", ", ValidBaselineTypes)}");
+
+            var baselines = await analysis.ListBaselinesAsync(type?.ToLowerInvariant());
             return Results.Ok(new { items = baselines });
         })
         .WithName("ListBaselines")
+        .WithTags("Compare");
+
+        app.MapGet("/analysis/baselines/versions", async (
+            string type,
+            string contextJson,
+            IAnalysisRepository analysis) =>
+        {
+            if (!ValidBaselineTypes.Contains(type))
+                return Results.BadRequest($"type must be one of: {string.Join(", ", ValidBaselineTypes)}");
+
+            if (!IsValidJson(contextJson))
+                return Results.BadRequest("contextJson must be valid JSON");
+
+            var versions = await analysis.GetBaselineVersionsAsync(type.ToLowerInvariant(), NormalizeJson(contextJson));
+            return Results.Ok(new { items = versions });
+        })
+        .WithName("ListBaselineVersions")
         .WithTags("Compare");
 
         app.MapPost("/compare", async (
@@ -79,6 +112,18 @@ public static class CompareEndpoints
         .WithTags("Compare");
     }
 
-    private sealed record SetBaselineRequest(bool IsBaseline, string? Label);
+    private static string NormalizeJson(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        return JsonSerializer.Serialize(doc.RootElement);
+    }
+
+    private static bool IsValidJson(string json)
+    {
+        try { NormalizeJson(json); return true; }
+        catch { return false; }
+    }
+
+    private sealed record SetBaselineRequest(bool IsBaseline, string? Label, string? Type = null, string? ContextJson = null);
     private sealed record CreateCompareRequest(Guid BaselineJobId, Guid CandidateJobId);
 }

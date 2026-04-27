@@ -1,0 +1,58 @@
+@inject IDiagnosticsService DiagnosticsService
+
+@if (_insights is null)
+{
+    <p class="loading">Loading diagnostics...</p>
+}
+else if (_insights.Count > 0)
+{
+    <details class="diagnostics-section" open="@(_insights.Count <= 3)">
+        <summary><strong>Diagnostics</strong> — @_insights.Count insight@(_insights.Count == 1 ? "" : "s")</summary>
+        <div class="diagnostics-list">
+            @foreach (var insight in _insights)
+            {
+                <div class="diagnostic-card diagnostic-@insight.Severity">
+                    <div class="diagnostic-header">
+                        <span class="severity-badge status-@insight.Severity">@insight.Severity</span>
+                        <span class="diagnostic-category">@insight.Category</span>
+                        <strong>@insight.Title</strong>
+                    </div>
+                    <p class="diagnostic-narrative">@insight.Narrative</p>
+                    @if (insight.Recommendations.Count > 0)
+                    {
+                        <div class="diagnostic-recommendations">
+                            <strong>Recommendations</strong>
+                            <ul>
+                                @foreach (var rec in insight.Recommendations)
+                                {
+                                    <li>@rec</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    @if (insight.AffectedRuleIds.Count > 0)
+                    {
+                        <p class="diagnostic-sources">
+                            Sources: @string.Join(", ", insight.AffectedRuleIds.Select(r => $"[{r}]"))
+                            @if (insight.SourceDirection is not null)
+                            {
+                                <span> — @insight.SourceType: @insight.SourceDirection</span>
+                            }
+                        </p>
+                    }
+                </div>
+            }
+        </div>
+    </details>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid JobId { get; set; }
+
+    private IReadOnlyList<DiagnosticInsightDto>? _insights;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _insights = await DiagnosticsService.ForJobAsync(JobId);
+    }
+}

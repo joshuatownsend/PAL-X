@@ -149,6 +149,20 @@ that unblocks users while Phase 1.5 adds the real implementation.
 
 ---
 
+## Phase 3 Closure Note (2026-04-27)
+
+Phase 3 ("Intelligence Pack") is complete. The following capabilities were delivered on `feature/phase-3-closeout`:
+
+- **Baseline types & versioning** — `AnalysisJobEntity` gains `BaselineType` (machine/role/workload/release) and `BaselineContextJson` (arbitrary JSON context key). Migration `AddBaselineTypeAndContext` adds two nullable text columns. Versioning is implicit: multiple baselines with the same `(type, contextJson)` are ordered by `CreatedAt` desc; "current" = newest. `GET /analysis/baselines/versions?type=&contextJson=` lists history.
+- **Baseline selection during analysis** — `CreateAnalysisRequest.SelectedBaselineId` serialized into `OptionsJson`. `AnalysisWorker` auto-runs `CompareRunner` against the selected baseline on completion (non-fatal, mirrors dataset + alert pattern via `IAutoCompareService`).
+- **Guided diagnostics** — `DiagnosticsService` (`Pal.Application/Diagnostics/`) generates rule-based `DiagnosticInsightDto` items from a job's findings, workspace trends, and workspace correlations. Every insight cites at least one `ruleId` / trend direction / correlation pair (per PRD non-goal "no black-box AI conclusions"). `GET /analysis/{id}/diagnostics` exposes the workspace-scoped endpoint. Embedded in `JobDetail.razor` as a collapsible section.
+- **Baselines UI** — `/baselines` Blazor page with type filter, versions inline expansion, compare link, and remove action. Nav link added between Compare and Trends.
+- **CLI parity** — `remote diagnostics <job-id>` (Spectre.Console table), `remote baselines list [--type]`, `remote submit --baseline <guid>`.
+
+**Decisions locked:** Single-source-per-baseline (one job = one baseline candidate); multi-source aggregation deferred to Phase 4. Explicit `selectedBaselineId` (no auto-resolution by context matching). Diagnostics embedded in job detail page, not a standalone screen.
+
+---
+
 ## Phase 2 Closure Note (2026-04-27)
 
 Phase 2 ("Headless diagnostics platform") is complete. The following PRD §8.3–§8.5 capabilities were

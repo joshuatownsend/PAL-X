@@ -64,6 +64,18 @@ Jobs submitted with `includeDataset: true` (API) or `--include-dataset` (CLI) pe
 
 `GET /packs/{id}/versions/{version}/validation` runs `PackValidator` against the stored pack YAML and returns `{ isValid, errors, warnings }`. This is a global (non-workspace-scoped) endpoint reachable as `pal remote validate-pack <pack-id> <version>`.
 
+## Baseline types & versioning
+
+`AnalysisJobEntity` carries `BaselineType` (nullable text, one of `machine | role | workload | release`) and `BaselineContextJson` (nullable text, arbitrary JSON key like `{"machine":"WEB-01"}`). Both are set via `PATCH /api/workspaces/{id}/analysis/{jobId}/baseline` with `{ isBaseline, label, type, contextJson }`. Versioning is implicit: multiple baselines sharing the same `(type, contextJson)` are treated as versions, ordered by `CreatedAt` desc. `GET /analysis/baselines/versions?type=<x>&contextJson=<json>` lists all. Reachable as `pal remote baselines list [--type]`. Submitting with `selectedBaselineId` in `CreateAnalysisRequest` triggers auto-compare on job completion via `IAutoCompareService`.
+
+## Guided diagnostics
+
+`IDiagnosticsService` in `Pal.Application/Diagnostics/` generates rule-based `DiagnosticInsightDto` items for a completed job. Sources: findings (critical/warning), worsening/appearing trends, both-worsening correlation pairs. Every insight cites `AffectedRuleIds` + optional `SourceDirection` (no black-box inference). Endpoint: `GET /api/workspaces/{id}/analysis/{jobId}/diagnostics`. Embedded in `JobDetail.razor` as a collapsible `<details>` block. CLI: `pal remote diagnostics <job-id>`.
+
+## Baselines UI
+
+`/baselines` Blazor page lists all designated baselines with type/label/context/packs, inline version history, compare link, and remove action. Type filter dropdown. Nav link between Compare and Trends in `MainLayout.razor`.
+
 ## Test determinism
 
 Golden fixture tests use `--now <ISO>` to override `generated_at_utc` so the output is byte-identical across runs. ScottPlot SVG tests assert byte-identical output on two renders of the same data.

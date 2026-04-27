@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Pal.Application.Diagnostics;
 using Pal.Application.Persistence;
 using Pal.Application.Storage;
 
@@ -22,7 +23,16 @@ public static class AnalysisEndpoints
             if (upload is null)
                 return Results.NotFound($"Upload {req.UploadId} not found");
 
-            var job = await analysis.CreateJobAsync(req.UploadId, req.Packs, req.IncludeDataset);
+            if (req.SelectedBaselineId is Guid baselineId)
+            {
+                var baselineJob = await analysis.GetJobAsync(baselineId);
+                if (baselineJob is null)
+                    return Results.NotFound($"Baseline job {baselineId} not found");
+                if (baselineJob.Status != "completed")
+                    return Results.BadRequest($"Baseline job {baselineId} is not completed");
+            }
+
+            var job = await analysis.CreateJobAsync(req.UploadId, req.Packs, req.IncludeDataset, req.SelectedBaselineId);
             channel.Writer.TryWrite(job.Id);
 
             return Results.Accepted($"/api/workspaces/{workspaceId}/analysis/{job.Id}", new { analysisId = job.Id, status = job.Status });
@@ -115,7 +125,23 @@ public static class AnalysisEndpoints
         })
         .WithName("GetDataset")
         .WithTags("Analysis");
+
+        app.MapGet("/analysis/{id:guid}/diagnostics", async (
+            Guid id,
+            IDiagnosticsService diagnostics,
+            IAnalysisRepository analysis,
+            CancellationToken ct) =>
+        {
+            var job = await analysis.GetJobAsync(id, ct);
+            if (job is null) return Results.NotFound();
+            if (job.Status != "completed") return Results.Problem($"Job is {job.Status}", statusCode: 409);
+
+            var insights = await diagnostics.ForJobAsync(id, ct);
+            return Results.Ok(new { items = insights });
+        })
+        .WithName("GetDiagnostics")
+        .WithTags("Analysis");
     }
 
-    private sealed record CreateAnalysisRequest(Guid UploadId, IReadOnlyList<string> Packs, bool IncludeDataset = false);
+    private sealed record CreateAnalysisRequest(Guid UploadId, IReadOnlyList<string> Packs, bool IncludeDataset = false, Guid? SelectedBaselineId = null);
 }

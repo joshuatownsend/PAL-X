@@ -1,0 +1,131 @@
+@page "/baselines"
+@attribute [Authorize]
+@inject IAnalysisRepository AnalysisRepo
+
+<PageTitle>Baselines</PageTitle>
+<h1>Baselines</h1>
+
+<div class="filter-row">
+    <label>
+        Filter by type
+        <select @bind="_typeFilter" @bind:after="LoadAsync">
+            <option value="">All</option>
+            <option value="machine">Machine</option>
+            <option value="role">Role</option>
+            <option value="workload">Workload</option>
+            <option value="release">Release</option>
+        </select>
+    </label>
+</div>
+
+@if (_baselines is null)
+{
+    <p>Loading...</p>
+}
+else if (_baselines.Count == 0)
+{
+    <p class="empty-state">No baselines designated yet. Open a completed job and click "Set as Baseline".</p>
+}
+else
+{
+    <table class="jobs-table">
+        <thead>
+            <tr>
+                <th>Job</th>
+                <th>Type</th>
+                <th>Label</th>
+                <th>Context</th>
+                <th>Created</th>
+                <th>Packs</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var b in _baselines)
+            {
+                <tr>
+                    <td><a href="/jobs/@b.Id"><code>@b.Id.ToString("N")[..8]</code></a></td>
+                    <td>@(b.BaselineType ?? "—")</td>
+                    <td>@(b.BaselineLabel ?? "—")</td>
+                    <td>
+                        @if (b.BaselineContextJson is not null)
+                        {
+                            <code class="context-json">@b.BaselineContextJson</code>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </td>
+                    <td>@b.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@string.Join(", ", b.Packs.Select(p => $"{p.PackId} v{p.PackVersion}"))</td>
+                    <td class="action-cell">
+                        <a href="/compare?baseline=@b.Id" class="btn-primary btn-sm">Compare</a>
+                        @if (b.BaselineType is not null && b.BaselineContextJson is not null)
+                        {
+                            <button class="btn-secondary btn-sm" @onclick="() => ShowVersions(b)">Versions</button>
+                        }
+                        <button class="btn-danger btn-sm" @onclick="() => RemoveBaseline(b.Id)">Remove</button>
+                    </td>
+                </tr>
+
+                @if (_versionsJobId == b.Id && _versions is not null)
+                {
+                    <tr class="versions-row">
+                        <td colspan="7">
+                            <strong>All versions for type=@b.BaselineType context=@b.BaselineContextJson</strong>
+                            <table class="jobs-table nested-table">
+                                <thead><tr><th>Job</th><th>Label</th><th>Created</th></tr></thead>
+                                <tbody>
+                                    @foreach (var v in _versions)
+                                    {
+                                        <tr>
+                                            <td><a href="/jobs/@v.Id"><code>@v.Id.ToString("N")[..8]</code></a></td>
+                                            <td>@(v.BaselineLabel ?? "—")</td>
+                                            <td>@v.CreatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<AnalysisJobDto>? _baselines;
+    private string _typeFilter = "";
+    private Guid? _versionsJobId;
+    private List<AnalysisJobDto>? _versions;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _versionsJobId = null;
+        _versions = null;
+        var type = string.IsNullOrEmpty(_typeFilter) ? null : _typeFilter;
+        _baselines = (await AnalysisRepo.ListBaselinesAsync(type)).ToList();
+    }
+
+    private async Task ShowVersions(AnalysisJobDto b)
+    {
+        if (_versionsJobId == b.Id)
+        {
+            _versionsJobId = null;
+            _versions = null;
+            return;
+        }
+        _versionsJobId = b.Id;
+        _versions = (await AnalysisRepo.GetBaselineVersionsAsync(b.BaselineType!, b.BaselineContextJson!)).ToList();
+    }
+
+    private async Task RemoveBaseline(Guid id)
+    {
+        await AnalysisRepo.SetBaselineAsync(id, false, null);
+        await LoadAsync();
+    }
+}
