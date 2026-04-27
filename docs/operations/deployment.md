@@ -19,7 +19,7 @@ open http://localhost:8080
 #    Log in with admin@pal.local and the password you set above.
 ```
 
-The API is available at `http://localhost:8080`.  Swagger UI is served at `http://localhost:8080/swagger` when `ASPNETCORE_ENVIRONMENT` is not `Production`.
+The API is available at `http://localhost:8080`.  Swagger UI is served at `http://localhost:8080/swagger` only when `ASPNETCORE_ENVIRONMENT` is `Development`.
 
 ## Environment variables
 
@@ -89,5 +89,5 @@ EF migrations run automatically on startup via `db.Database.MigrateAsync()` in `
 - [ ] Mount `api_data` to durable block storage, not a local Docker volume.
 - [ ] Put a TLS-terminating reverse proxy (nginx, Caddy, Traefik) in front of port 8080.
 - [ ] Rotate `POSTGRES_PASSWORD` and `PAL_BOOTSTRAP_ADMIN_PASSWORD` using your secrets manager; never commit `.env` to git.
-- [ ] Set `ASPNETCORE_ENVIRONMENT=Production` (already set by compose) to suppress Swagger UI.
+- [ ] Confirm `ASPNETCORE_ENVIRONMENT` is not `Development` — Swagger UI is only enabled in `Development` (already enforced by compose setting `Production`).
 - [ ] Configure log shipping from the container's stdout to your observability stack.
