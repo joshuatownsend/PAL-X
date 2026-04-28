@@ -21,4 +21,10 @@ public sealed class AlertEntity
     /// suppression). NULL means no policy applied. Re-evaluated every job.
     /// </summary>
     public string? PolicyApplied { get; set; }
+    /// <summary>
+    /// If set and in the future, AlertService skips webhook notifications for this alert.
+    /// The alert itself still updates (LastSeenAt, severity, policy) so the audit trail
+    /// stays intact. Cleared by passing NULL through the snooze endpoint.
+    /// </summary>
+    public DateTimeOffset? SnoozedUntil { get; set; }
 }

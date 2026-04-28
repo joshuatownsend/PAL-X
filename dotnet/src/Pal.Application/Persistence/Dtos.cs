@@ -211,4 +211,5 @@ public sealed class AlertDto
     public DateTimeOffset? ResolvedAt { get; init; }
     public string? ResolutionNote { get; init; }
     public string? PolicyApplied { get; init; }
+    public DateTimeOffset? SnoozedUntil { get; init; }
 }

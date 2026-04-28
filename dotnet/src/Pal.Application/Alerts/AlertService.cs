@@ -38,7 +38,7 @@ public sealed class AlertService : IAlertService
             policyResult.Escalations.TryGetValue(f.RuleId, out var escalation);
             var effectiveSeverity = escalation?.NewSeverity ?? f.Severity;
             var policyApplied = escalation?.PolicyRuleId;
-            var notificationSuppressed = policyResult.NotificationSuppressed.Contains(f.RuleId);
+            var policySuppressed = policyResult.NotificationSuppressed.Contains(f.RuleId);
 
             var existing = await _repo.FindActiveByRuleIdAsync(f.RuleId, workspaceId, ct);
             if (existing is not null)
@@ -46,7 +46,7 @@ public sealed class AlertService : IAlertService
                 var escalated = SeverityRank(effectiveSeverity) > SeverityRank(existing.Severity);
                 var newSeverity = escalated ? effectiveSeverity : existing.Severity;
                 await _repo.UpdateLatestAsync(existing.Id, jobId, newSeverity, now, policyApplied, ct);
-                if (escalated && !notificationSuppressed)
+                if (escalated && !policySuppressed && !IsSnoozed(existing, now))
                 {
                     var updated = await _repo.GetAsync(existing.Id, ct);
                     if (updated is not null)
@@ -64,11 +64,16 @@ public sealed class AlertService : IAlertService
                     PolicyApplied = policyApplied,
                 };
                 await _repo.CreateAsync(newAlert, ct);
-                if (!notificationSuppressed)
+                // A brand-new alert can't be snoozed yet (no prior state). Policy suppression
+                // is the only blocker here.
+                if (!policySuppressed)
                     _ = _notifications.NotifyAsync("alert.created", newAlert, CancellationToken.None);
             }
         }
     }
+
+    private static bool IsSnoozed(AlertDto alert, DateTimeOffset now)
+        => alert.SnoozedUntil is { } until && until > now;
 
     public Task<IReadOnlyList<AlertDto>> ListAsync(string? status = null, string? severity = null, CancellationToken ct = default)
         => _repo.ListAsync(status, severity, ct);
@@ -99,6 +104,9 @@ public sealed class AlertService : IAlertService
         }
         return ok;
     }
+
+    public Task<bool> SetSnoozedUntilAsync(Guid id, DateTimeOffset? snoozedUntil, CancellationToken ct = default)
+        => _repo.SetSnoozedUntilAsync(id, snoozedUntil, ct);
 
     public static int SeverityRank(string? s) => s switch
     {

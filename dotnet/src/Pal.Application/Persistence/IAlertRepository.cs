@@ -9,4 +9,9 @@ public interface IAlertRepository
     Task<AlertDto?> GetAsync(Guid id, CancellationToken ct = default);
     Task<bool> AcknowledgeAsync(Guid id, DateTimeOffset now, CancellationToken ct = default);
     Task<bool> ResolveAsync(Guid id, string? note, DateTimeOffset now, CancellationToken ct = default);
+    /// <summary>
+    /// Sets <c>SnoozedUntil</c>. Pass NULL to clear. Returns false if the alert is missing
+    /// or already resolved (snoozing a resolved alert is meaningless).
+    /// </summary>
+    Task<bool> SetSnoozedUntilAsync(Guid id, DateTimeOffset? snoozedUntil, CancellationToken ct = default);
 }
