@@ -1,0 +1,129 @@
+# Dependabot configuration for PAL-X
+# Reference: https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference
+#
+# Three ecosystems are tracked:
+#   1. nuget          — all 15 .csproj files under dotnet/ (recursive scan)
+#   2. github-actions — the workflow at .github/workflows/ci.yml
+#   3. docker         — the API base image in infra/docker/api.Dockerfile
+#
+# All updates run on Monday so the operator gets one batched review window per week.
+# Times are UTC; adjust the `time:` field if you'd rather see PRs land at a specific
+# local hour.
+
+version: 2
+
+updates:
+  # ── .NET / NuGet ────────────────────────────────────────────────────────────
+  # Dependabot recursively discovers every *.csproj under this directory, so the
+  # single block below covers Pal.Engine, Pal.Api, all 7 test projects, etc.
+  - package-ecosystem: "nuget"
+    directory: "/dotnet"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    open-pull-requests-limit: 8
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      # EF Core + Postgres provider MUST move together — version-skew between
+      # Microsoft.EntityFrameworkCore.Relational and Npgsql.EntityFrameworkCore.PostgreSQL
+      # is unsupported and produces runtime errors.
+      efcore-and-postgres:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
+          - "Npgsql*"
+        update-types:
+          - "minor"
+          - "patch"
+      # ASP.NET Core middleware packages share a release cadence; mixing
+      # versions across the host and middleware stack is unsupported.
+      aspnet-core:
+        patterns:
+          - "Microsoft.AspNetCore.*"
+          - "Microsoft.Extensions.*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Identity (auth) packages — same coupling rationale as ASP.NET Core.
+      identity:
+        patterns:
+          - "Microsoft.AspNetCore.Identity*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Test infrastructure — xUnit, Testcontainers, coverlet, etc. Updates
+      # here rarely impact production runtime so they're safe to batch.
+      testing:
+        patterns:
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet*"
+          - "Testcontainers*"
+          - "DotNet.Testcontainers*"
+        update-types:
+          - "minor"
+          - "patch"
+      # CLI framework — Spectre.Console + Spectre.Console.Cli ship together.
+      spectre:
+        patterns:
+          - "Spectre.Console*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Catch-all for everything else (ScottPlot, YamlDotNet, Swashbuckle,
+      # SixLabors.ImageSharp, etc.). Minor/patch only — major bumps land as
+      # individual PRs so each can be reviewed on its own merits.
+      other-minor-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "Microsoft.EntityFrameworkCore*"
+          - "Npgsql*"
+          - "Microsoft.AspNetCore.*"
+          - "Microsoft.Extensions.*"
+          - "Microsoft.AspNetCore.Identity*"
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet*"
+          - "Testcontainers*"
+          - "DotNet.Testcontainers*"
+          - "Spectre.Console*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ── GitHub Actions ──────────────────────────────────────────────────────────
+  # Currently tracks actions/checkout, actions/setup-dotnet in ci.yml. Future
+  # workflows under .github/workflows/ are picked up automatically.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      # Single PR for all action updates — the surface is small and the
+      # actions don't conflict with each other.
+      actions:
+        patterns:
+          - "*"
+
+  # ── Docker (API base image) ─────────────────────────────────────────────────
+  # Tracks the FROM line in api.Dockerfile (currently a Microsoft .NET runtime
+  # image). When the SDK image changes too, both bumps land in one PR via grouping.
+  - package-ecosystem: "docker"
+    directory: "/infra/docker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"
