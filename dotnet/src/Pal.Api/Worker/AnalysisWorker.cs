@@ -139,7 +139,14 @@ public sealed class AnalysisWorker : BackgroundService
                 catch (Exception ex) { _logger.LogWarning(ex, "Auto-compare failed for job {JobId} against baseline {BaselineId}; job completion continues", jobId, b); }
             }
 
-            try { await _alerts.EvaluateAsync(jobId, job.WorkspaceId, runResult.Findings, ct); }
+            try
+            {
+                // Policy evaluation queries historical jobs through IAnalysisRepository, which
+                // respects the EF tenant filter. The worker has no ambient tenant set, so we
+                // must scope this call to the job's workspace.
+                using var _ = _tenant.SetWorkspace(job.WorkspaceId);
+                await _alerts.EvaluateAsync(jobId, job.WorkspaceId, runResult.Findings, ct);
+            }
             catch (Exception ex) { _logger.LogWarning(ex, "Alert evaluation failed for job {JobId}; job completion continues", jobId); }
 
             await _analysisRepo.MarkCompletedAsync(jobId, ct);

@@ -16,4 +16,9 @@ public sealed class AlertEntity
     public DateTimeOffset? AcknowledgedAt { get; set; }
     public DateTimeOffset? ResolvedAt { get; set; }
     public string? ResolutionNote { get; set; }
+    /// <summary>
+    /// Identifier of the Phase 4 policy rule that last adjusted this alert (escalation or
+    /// suppression). NULL means no policy applied. Re-evaluated every job.
+    /// </summary>
+    public string? PolicyApplied { get; set; }
 }

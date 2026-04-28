@@ -10,6 +10,7 @@ using Pal.Api.Middleware;
 using Pal.Api.Services;
 using Pal.Api.Worker;
 using Pal.Application.Alerts;
+using Pal.Application.Alerts.Policy;
 using Pal.Application.Analysis;
 using Pal.Application.Auth;
 using Pal.Application.Compare;
@@ -117,6 +118,7 @@ builder.Services.AddSingleton<IRetentionRepository, RetentionRepository>();
 builder.Services.AddHttpClient("pal-webhook")
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<INotificationService, NotificationService>();
+builder.Services.AddSingleton<IPolicyEvaluator, PolicyEvaluator>();
 builder.Services.AddSingleton<IAlertService, AlertService>();
 builder.Services.AddSingleton<CompareRunner>();
 builder.Services.AddSingleton<IAutoCompareService, AutoCompareService>();

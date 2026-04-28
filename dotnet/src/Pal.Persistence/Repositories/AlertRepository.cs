@@ -38,19 +38,22 @@ public sealed class AlertRepository : IAlertRepository
             LatestJobId = alert.LatestJobId,
             TriggeredAt = alert.TriggeredAt,
             LastSeenAt = alert.LastSeenAt,
+            PolicyApplied = alert.PolicyApplied,
         });
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, CancellationToken ct = default)
+    public async Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, string? policyApplied, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
         await db.Alerts
+            .IgnoreQueryFilters()  // worker context; same rationale as FindActiveByRuleIdAsync
             .Where(a => a.Id == id)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.LatestJobId, latestJobId)
                 .SetProperty(a => a.Severity, severity)
-                .SetProperty(a => a.LastSeenAt, lastSeenAt),
+                .SetProperty(a => a.LastSeenAt, lastSeenAt)
+                .SetProperty(a => a.PolicyApplied, policyApplied),
             ct);
     }
 
@@ -112,5 +115,6 @@ public sealed class AlertRepository : IAlertRepository
         AcknowledgedAt = e.AcknowledgedAt,
         ResolvedAt = e.ResolvedAt,
         ResolutionNote = e.ResolutionNote,
+        PolicyApplied = e.PolicyApplied,
     };
 }

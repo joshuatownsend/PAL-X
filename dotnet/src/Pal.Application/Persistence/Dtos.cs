@@ -210,4 +210,5 @@ public sealed class AlertDto
     public DateTimeOffset? AcknowledgedAt { get; init; }
     public DateTimeOffset? ResolvedAt { get; init; }
     public string? ResolutionNote { get; init; }
+    public string? PolicyApplied { get; init; }
 }

@@ -1,4 +1,5 @@
 using Pal.Application.Alerts;
+using Pal.Application.Alerts.Policy;
 using Pal.Application.Persistence;
 using Pal.Application.Webhooks;
 using Pal.Engine.Model;
@@ -34,7 +35,7 @@ public class AlertServiceTests
     {
         var repo = new FakeAlertRepository();
         var notifications = new FakeNotificationService();
-        var svc = new AlertService(repo, notifications);
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
 
@@ -54,7 +55,7 @@ public class AlertServiceTests
     public async Task Evaluate_SameFindingSecondRun_UpdatesLastSeen()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
@@ -72,7 +73,7 @@ public class AlertServiceTests
     {
         var repo = new FakeAlertRepository();
         var notifications = new FakeNotificationService();
-        var svc = new AlertService(repo, notifications);
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
@@ -86,7 +87,7 @@ public class AlertServiceTests
     public async Task Evaluate_LowerSeverityInSecondRun_DoesNotDowngrade()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "critical")]);
         await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
@@ -101,7 +102,7 @@ public class AlertServiceTests
     public async Task Evaluate_DuplicateRuleIdInSameJob_CreatesOnlyOneAlertWithHighestSeverity()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [
             MakeFinding("cpu-high", "warning"),
@@ -118,7 +119,7 @@ public class AlertServiceTests
     public async Task Evaluate_MultipleDistinctRules_CreatesOneAlertEach()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [
             MakeFinding("cpu-high", "warning"),
@@ -135,7 +136,7 @@ public class AlertServiceTests
     {
         var repo = new FakeAlertRepository();
         var notifications = new FakeNotificationService();
-        var svc = new AlertService(repo, notifications);
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -153,7 +154,7 @@ public class AlertServiceTests
     public async Task Acknowledge_AlreadyAcknowledged_ReturnsFalse()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -170,7 +171,7 @@ public class AlertServiceTests
     {
         var repo = new FakeAlertRepository();
         var notifications = new FakeNotificationService();
-        var svc = new AlertService(repo, notifications);
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -189,7 +190,7 @@ public class AlertServiceTests
     public async Task Resolve_AcknowledgedAlert_Succeeds()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -204,7 +205,7 @@ public class AlertServiceTests
     public async Task Resolve_AlreadyResolved_ReturnsFalse()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -220,7 +221,7 @@ public class AlertServiceTests
     public async Task Evaluate_ResolvedAlert_CreatesNewOpenAlert()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -264,6 +265,14 @@ internal sealed class FakeNotificationService : INotificationService
         => Task.FromResult<int?>(200);
 }
 
+// ── Noop policy evaluator (default for existing tests; integration tests below cover real policy) ──
+
+internal sealed class NoopPolicyEvaluator : IPolicyEvaluator
+{
+    public Task<PolicyResult> EvaluateAsync(Guid workspaceId, IReadOnlyList<Finding> findings, CancellationToken ct = default)
+        => Task.FromResult(PolicyResult.Empty);
+}
+
 // ── Fake repository (in-memory, no EF) ───────────────────────────────────────
 
 internal sealed class FakeAlertRepository : IAlertRepository
@@ -282,7 +291,7 @@ internal sealed class FakeAlertRepository : IAlertRepository
         return Task.CompletedTask;
     }
 
-    public Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, CancellationToken ct = default)
+    public Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, string? policyApplied, CancellationToken ct = default)
     {
         var idx = _store.FindIndex(a => a.Id == id);
         if (idx < 0) return Task.CompletedTask;
@@ -294,6 +303,7 @@ internal sealed class FakeAlertRepository : IAlertRepository
             LatestJobId = latestJobId, Severity = severity,
             TriggeredAt = a.TriggeredAt, LastSeenAt = lastSeenAt,
             AcknowledgedAt = a.AcknowledgedAt, ResolvedAt = a.ResolvedAt, ResolutionNote = a.ResolutionNote,
+            PolicyApplied = policyApplied,
         };
         return Task.CompletedTask;
     }
