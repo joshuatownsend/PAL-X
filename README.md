@@ -64,24 +64,66 @@ The CLI auto-resolves `windows-core` on every run. It also loads `iis-core` if I
 
 ---
 
-## Quick start — API
+## Quick start — API (Docker)
 
 ```bash
-# Copy and fill in environment values
+# Copy and edit environment values — both placeholders MUST be replaced
 cp .env.example .env
+# Edit .env:
+#   POSTGRES_PASSWORD=<your-postgres-password>     (no semicolons; inlined into Npgsql conn string)
+#   PAL_BOOTSTRAP_ADMIN_PASSWORD=<10+ chars>       (required to seed admin@pal.local)
 
 # Start PostgreSQL and the API
 docker compose up
+```
 
-# Bootstrap creates admin@pal.local with the password from PAL_BOOTSTRAP_ADMIN_PASSWORD
-# Get an API token:
+On first run the seeder creates an `admin@pal.local` account using `PAL_BOOTSTRAP_ADMIN_PASSWORD`. Sign in at `http://localhost:8080/account/login`. The API is also documented at `http://localhost:8080/swagger`.
+
+To get an API token for CLI use:
+
+```bash
 curl -X POST http://localhost:8080/api/tokens \
   -u admin@pal.local:<password> \
   -H "Content-Type: application/json" \
   -d '{"name": "my-token"}'
 ```
 
-The API is documented at `http://localhost:8080/swagger` when running locally.
+> **Bootstrap is one-shot**: if `admin@pal.local` already exists, the seeder skips silently — changing `PAL_BOOTSTRAP_ADMIN_PASSWORD` afterwards has no effect. Rotate via the `/account/users` admin UI or reset directly in the DB.
+
+---
+
+## Local development (without Docker)
+
+`docker compose` reads `.env` automatically; `dotnet run` does not — you have to set environment variables in your shell. Postgres still runs in a container so the API has somewhere to talk to.
+
+```powershell
+# 1. Start ONLY the Postgres container (the api service is built from source for local dev)
+docker compose up -d postgres
+
+# 2. Set the bootstrap admin password in the current PowerShell session
+$env:PAL_BOOTSTRAP_ADMIN_PASSWORD = "ChangeMeLocally1"  # 10+ chars; no special-char requirement
+
+# 3. Run the API
+dotnet run --project dotnet/src/Pal.Api
+```
+
+Watch the startup log for `Bootstrap admin account created: admin@pal.local` — that confirms the seeder ran. Sign in at `http://localhost:5000/account/login` (Kestrel default port for `dotnet run`).
+
+**Persisting credentials between sessions** (alternative to the env var dance):
+
+```powershell
+dotnet user-secrets init --project dotnet/src/Pal.Api
+dotnet user-secrets set "Auth:BootstrapAdminPassword" "ChangeMeLocally1" --project dotnet/src/Pal.Api
+```
+
+User-secrets are loaded in the `Development` environment automatically and are stored outside the repo.
+
+### Port 5432 collision
+
+If you have a native PostgreSQL service installed on Windows (`postgresql-x64-XX`), it owns port 5432 and Docker's port forward will appear to bind but actually only catch IPv6 traffic — the API will fail auth against the *native* server. Two options:
+
+- **Stop the native service** for the duration of dev work: `Stop-Service postgresql-x64-XX`
+- **Remap the container** to a different port — edit `docker-compose.yml`'s `ports:` line to `"5433:5432"` and update `dotnet/src/Pal.Api/appsettings.json` connection string `Port=5433` to match. Recreate the container with `docker compose up -d --force-recreate postgres`.
 
 ---
 
