@@ -86,11 +86,23 @@ public sealed class ScheduledIngestionWorker : BackgroundService
         foreach (var schedule in due)
         {
             try { await ProcessScheduleAsync(schedule, now, ct); }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                // Per-schedule failure must not stop the tick AND must not leave the
+                // schedule's NextRunAt unadvanced (which would re-fire the failing
+                // path every tick forever). Best-effort persistence of the next run
+                // outside ProcessScheduleAsync covers the case where the failure
+                // happened before its inner UpdateNextRunAsync call.
                 _logger.LogWarning(ex,
-                    "Schedule {ScheduleId} ({Name}) processing failed; will retry next tick",
+                    "Schedule {ScheduleId} ({Name}) processing failed; advancing NextRunAt to avoid tight retry loop",
                     schedule.Id, schedule.Name);
+                try { await UpdateNextRunAsync(schedule, now, ct); }
+                catch (Exception persistEx) when (persistEx is not OperationCanceledException)
+                {
+                    _logger.LogWarning(persistEx,
+                        "Schedule {ScheduleId} ({Name}): failed to persist NextRunAt after processing error",
+                        schedule.Id, schedule.Name);
+                }
             }
         }
     }
@@ -110,11 +122,25 @@ public sealed class ScheduledIngestionWorker : BackgroundService
             return;
         }
 
+        // Cursor: only consider files modified since (LastRunAt - 2 min buffer). The
+        // buffer covers clock skew between the API host and the file source. On the
+        // first tick (LastRunAt is null) we consider everything — operators are expected
+        // to either start with an empty directory or accept that backlog drains LIFO.
+        var cursor = schedule.LastRunAt is { } last
+            ? last - TimeSpan.FromMinutes(2)
+            : DateTimeOffset.MinValue;
         var stableThreshold = now - _fileStableAge;
+
+        // Newest-first ordering: prevents starvation of new arrivals when a directory
+        // has more than _maxFilesPerTick stable files. Trade-off: files older than the
+        // cap on first tick may not be processed; SHA-256 dedup still skips already-
+        // ingested files on subsequent ticks if the cursor lets them through.
         var candidateFiles = Directory.EnumerateFiles(path, glob)
             .Select(f => new FileInfo(f))
-            .Where(fi => fi.Exists && fi.LastWriteTimeUtc <= stableThreshold)
-            .OrderBy(fi => fi.LastWriteTimeUtc)
+            .Where(fi => fi.Exists
+                         && fi.LastWriteTimeUtc <= stableThreshold
+                         && fi.LastWriteTimeUtc > cursor)
+            .OrderByDescending(fi => fi.LastWriteTimeUtc)
             .Take(_maxFilesPerTick)
             .ToList();
 

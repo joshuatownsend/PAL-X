@@ -47,8 +47,11 @@ public sealed class AlertRepository : IAlertRepository
     public async Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, string? policyApplied, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
+        // Tenant filter is intentionally NOT bypassed — callers must be inside a
+        // SetWorkspace block (worker path: AnalysisWorker; request path: workspace
+        // route group). Bypassing the filter here would let a guessed/misrouted
+        // alert ID update an alert in another workspace.
         await db.Alerts
-            .IgnoreQueryFilters()  // worker context; same rationale as FindActiveByRuleIdAsync
             .Where(a => a.Id == id)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.LatestJobId, latestJobId)

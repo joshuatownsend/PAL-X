@@ -51,12 +51,14 @@ public sealed class RemoteAlertSnoozeCommand : AsyncCommand<RemoteAlertSnoozeCom
             else
             {
                 var m = DurationPattern.Match(settings.Duration!);
-                if (!m.Success)
+                if (!m.Success
+                    || !int.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var n)
+                    || n <= 0
+                    || n > 43200)  // 30 days in minutes — same cap the API enforces
                 {
-                    AnsiConsole.MarkupLine("[red]--duration must look like 30m, 2h, or 1d[/]");
+                    AnsiConsole.MarkupLine("[red]--duration must look like 30m, 2h, or 1d, with a value up to 30 days[/]");
                     return ExitCodes.InvalidArguments;
                 }
-                var n = int.Parse(m.Groups[1].Value);
                 until = m.Groups[2].Value.ToLowerInvariant() switch
                 {
                     "m" => DateTimeOffset.UtcNow.AddMinutes(n),

@@ -1,5 +1,5 @@
 @page "/schedules"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin")]
 @inject IIngestionScheduleService ScheduleService
 @implements IAsyncDisposable
 

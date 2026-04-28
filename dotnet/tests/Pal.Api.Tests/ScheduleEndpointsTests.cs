@@ -105,15 +105,31 @@ public sealed class ScheduleEndpointsTests(PalApiFactory factory)
     }
 
     [Fact]
-    public async Task Post_Create_DuplicateName_Returns500OrConflict()
+    public async Task Post_Create_DuplicateName_Returns409Conflict()
     {
         var name = $"dup-test-{Guid.NewGuid():N}";
         var first = await _client.PostAsJsonAsync(Schedules, MakeRequest(name: name));
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
 
-        // Second create with same name violates unique (workspace_id, name) index.
-        // Postgres surfaces this as a DbUpdateException → 500. Either way, MUST NOT be 201.
+        // Endpoint maps the unique (workspace_id, name) violation to 409 with a clear
+        // error payload rather than letting it bubble as a 500.
         var second = await _client.PostAsJsonAsync(Schedules, MakeRequest(name: name));
-        Assert.NotEqual(HttpStatusCode.Created, second.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        var body = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("already exists", body.GetProperty("error").GetString());
+    }
+
+    [Fact]
+    public async Task Post_Create_LocationHeaderIsWorkspaceScoped()
+    {
+        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest());
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+
+        // Location must include the /api/workspaces/{wsId}/ prefix so a client following
+        // the header lands on a real route, not a workspace-less GET that would 404.
+        var location = resp.Headers.Location?.ToString();
+        Assert.NotNull(location);
+        Assert.Contains("/api/workspaces/", location);
+        Assert.Contains("/schedules/", location);
     }
 }

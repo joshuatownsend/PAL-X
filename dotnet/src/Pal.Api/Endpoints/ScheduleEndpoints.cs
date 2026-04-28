@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Pal.Api.Auth;
 using Pal.Application.Ingestion;
 
@@ -21,7 +23,7 @@ public static class ScheduleEndpoints
         .WithName("GetSchedule")
         .WithTags("Schedules");
 
-        app.MapPost("/schedules", async (CreateScheduleRequest req, IIngestionScheduleService svc) =>
+        app.MapPost("/schedules", async (Guid workspaceId, CreateScheduleRequest req, IIngestionScheduleService svc) =>
         {
             try
             {
@@ -31,11 +33,19 @@ public static class ScheduleEndpoints
                     req.SourceConfigJson ?? "",
                     req.PackIds ?? Array.Empty<string>(),
                     req.Enabled);
-                return Results.Created($"/schedules/{s.Id}", ToResponse(s));
+                // CreatedAtRoute targets GetSchedule, which lives under the workspace
+                // route group — this ensures the Location header includes the
+                // /api/workspaces/{workspaceId} prefix.
+                return Results.CreatedAtRoute("GetSchedule", new { workspaceId, id = s.Id }, ToResponse(s));
             }
             catch (IngestionScheduleValidationException ex)
             {
                 return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
+            {
+                // unique (workspace_id, name) violation
+                return Results.Conflict(new { error = "A schedule with this name already exists in the workspace." });
             }
         })
         .WithName("CreateSchedule")
@@ -58,6 +68,10 @@ public static class ScheduleEndpoints
             catch (IngestionScheduleValidationException ex)
             {
                 return Results.BadRequest(new { error = ex.Message });
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: "23505" })
+            {
+                return Results.Conflict(new { error = "A schedule with this name already exists in the workspace." });
             }
         })
         .WithName("UpdateSchedule")
