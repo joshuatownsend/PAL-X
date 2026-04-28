@@ -14,6 +14,7 @@ using Pal.Application.Analysis;
 using Pal.Application.Auth;
 using Pal.Application.Compare;
 using Pal.Application.Diagnostics;
+using Pal.Application.Ingestion;
 using Pal.Application.Persistence;
 using Pal.Application.Correlation;
 using Pal.Application.Trends;
@@ -109,6 +110,8 @@ builder.Services.AddSingleton<ICompareRepository, CompareRepository>();
 builder.Services.AddSingleton<IAlertRepository, AlertRepository>();
 builder.Services.AddSingleton<IWebhookSinkRepository, WebhookSinkRepository>();
 builder.Services.AddSingleton<IWebhookSinkService, WebhookSinkService>();
+builder.Services.AddSingleton<IIngestionScheduleRepository, IngestionScheduleRepository>();
+builder.Services.AddSingleton<IIngestionScheduleService, IngestionScheduleService>();
 builder.Services.AddSingleton<ITokenRepository, TokenRepository>();
 builder.Services.AddSingleton<IRetentionRepository, RetentionRepository>();
 builder.Services.AddHttpClient("pal-webhook")
