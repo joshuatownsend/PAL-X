@@ -74,3 +74,5 @@ h1 { margin-top: 0; }
 .inline-label { flex-direction: row !important; align-items: center; gap: 0.4rem; font-weight: normal !important; }
 .event-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .event-tag { background: #e0f2fe; color: #075985; padding: 0.1rem 0.5rem; border-radius: 99px; font-size: 0.78rem; }
+.policy-badge { background: #ede9fe; color: #5b21b6; padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600; margin-left: 0.4rem; }
+.snooze-badge { background: #f1f5f9; color: #475569; padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600; margin-left: 0.4rem; }

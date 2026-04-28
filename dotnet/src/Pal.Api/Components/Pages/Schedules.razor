@@ -1,0 +1,218 @@
+@page "/schedules"
+@attribute [Authorize]
+@inject IIngestionScheduleService ScheduleService
+@implements IAsyncDisposable
+
+<PageTitle>Schedules</PageTitle>
+<h1>Ingestion Schedules</h1>
+
+<p class="version">
+    Schedules poll a directory on a fixed interval and submit any new perfmon files (CSV or BLG) for analysis.
+    The path must be reachable from the PAL server's filesystem.
+</p>
+
+@if (!_showForm)
+{
+    <button class="btn-primary" @onclick="() => _showForm = true">Add Schedule</button>
+}
+else
+{
+    <div class="webhook-form">
+        <strong>New Schedule</strong>
+        <label>Name <input type="text" @bind="_formName" placeholder="e.g. WEB-01 nightly" /></label>
+        <label>Interval (minutes)
+            <input type="number" min="5" max="1440" @bind="_formInterval" />
+        </label>
+        <label>Directory path
+            <input type="text" @bind="_formPath" placeholder="@(OperatingSystem.IsWindows() ? @"C:\PerfLogs\WEB-01" : "/var/perflogs/web-01")" />
+        </label>
+        <label>File glob
+            <input type="text" @bind="_formGlob" placeholder="*.csv" />
+        </label>
+        <label>Pack IDs (comma-separated)
+            <input type="text" @bind="_formPacks" placeholder="windows-core" />
+        </label>
+        <label class="inline-label"><input type="checkbox" @bind="_formEnabled" /> Enabled</label>
+        @if (!string.IsNullOrEmpty(_formError))
+        {
+            <p class="error">@_formError</p>
+        }
+        <div class="resolve-actions">
+            <button class="btn-primary" @onclick="SaveAsync">Save</button>
+            <button class="btn-secondary" @onclick="CancelForm">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (_schedules is null)
+{
+    <p>Loading...</p>
+}
+else if (_schedules.Count == 0 && !_showForm)
+{
+    <p class="version">No schedules configured.</p>
+}
+else if (_schedules.Count > 0)
+{
+    <table class="jobs-table" style="margin-top:1rem">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Interval</th>
+                <th>Path</th>
+                <th>Packs</th>
+                <th>Enabled</th>
+                <th>Last run</th>
+                <th>Next run</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in _schedules)
+            {
+                var (path, glob) = ParseSourceConfig(s.SourceConfigJson);
+                <tr>
+                    <td>@s.Name</td>
+                    <td>@s.IntervalMinutes m</td>
+                    <td class="version" title="@path">
+                        @(path.Length > 40 ? "…" + path[^40..] : path)
+                        <span class="event-tag" style="margin-left:0.5rem">@glob</span>
+                    </td>
+                    <td>
+                        <div class="event-tags">
+                            @foreach (var p in s.PackIds)
+                            {
+                                <span class="event-tag">@p</span>
+                            }
+                        </div>
+                    </td>
+                    <td>@(s.Enabled ? "Yes" : "No")</td>
+                    <td title="@(s.LastRunAt?.ToString("u"))">
+                        @(s.LastRunAt?.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—")
+                    </td>
+                    <td title="@(s.NextRunAt?.ToString("u"))">
+                        @(s.NextRunAt?.LocalDateTime.ToString("yyyy-MM-dd HH:mm") ?? "—")
+                    </td>
+                    <td class="alert-actions">
+                        @if (s.Enabled)
+                        {
+                            <button class="btn-secondary" @onclick="() => ToggleAsync(s.Id, false)">Disable</button>
+                        }
+                        else
+                        {
+                            <button class="btn-secondary" @onclick="() => ToggleAsync(s.Id, true)">Enable</button>
+                        }
+                        <button class="btn-secondary" @onclick="() => DeleteAsync(s.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<IngestionScheduleDto>? _schedules;
+    private bool _showForm;
+    private string _formName = "";
+    private int _formInterval = 15;
+    private string _formPath = "";
+    private string _formGlob = "*.csv";
+    private string _formPacks = "windows-core";
+    private bool _formEnabled = true;
+    private string _formError = "";
+    private readonly CancellationTokenSource _cts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        _ = PollAsync(_cts.Token);
+    }
+
+    private async Task PollAsync(CancellationToken ct)
+    {
+        // Poll because LastRunAt / NextRunAt advance every worker tick (default 30s).
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                await LoadAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task LoadAsync() => _schedules = (await ScheduleService.ListAsync()).ToList();
+
+    private void CancelForm()
+    {
+        _showForm = false;
+        _formName = "";
+        _formInterval = 15;
+        _formPath = "";
+        _formGlob = "*.csv";
+        _formPacks = "windows-core";
+        _formEnabled = true;
+        _formError = "";
+    }
+
+    private async Task SaveAsync()
+    {
+        _formError = "";
+
+        var packIds = _formPacks
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        var sourceConfigJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            type = "directory",
+            path = _formPath,
+            glob = _formGlob
+        });
+
+        try
+        {
+            await ScheduleService.CreateAsync(_formName, _formInterval, sourceConfigJson, packIds, _formEnabled);
+        }
+        catch (IngestionScheduleValidationException ex)
+        {
+            _formError = ex.Message;
+            return;
+        }
+
+        CancelForm();
+        await LoadAsync();
+    }
+
+    private async Task ToggleAsync(Guid id, bool enabled)
+    {
+        await ScheduleService.SetEnabledAsync(id, enabled);
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        await ScheduleService.DeleteAsync(id);
+        await LoadAsync();
+    }
+
+    private static (string Path, string Glob) ParseSourceConfig(string json)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var path = doc.RootElement.TryGetProperty("path", out var p) ? (p.GetString() ?? "") : "";
+            var glob = doc.RootElement.TryGetProperty("glob", out var g) ? (g.GetString() ?? "") : "";
+            return (path, glob);
+        }
+        catch { return (json, ""); }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _cts.CancelAsync();
+        _cts.Dispose();
+    }
+}
