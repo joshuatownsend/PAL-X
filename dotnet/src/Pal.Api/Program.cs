@@ -131,6 +131,7 @@ builder.Services.AddSingleton<IAnalysisRunner, AnalysisRunner>();
 builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>(new UnboundedChannelOptions { SingleReader = true }));
 builder.Services.AddHostedService<AnalysisWorker>();
 builder.Services.AddHostedService<RetentionWorker>();
+builder.Services.AddHostedService<ScheduledIngestionWorker>();
 
 // Pack registry sync
 builder.Services.AddSingleton<PackRegistrySyncService>();
@@ -192,6 +193,7 @@ wsGroup.MapTrendEndpoints();
 wsGroup.MapCorrelationEndpoints();
 wsGroup.MapAlertEndpoints();
 wsGroup.MapWebhookEndpoints();
+wsGroup.MapScheduleEndpoints();
 wsGroup.MapTokenEndpoints();
 
 // Blazor Server UI
