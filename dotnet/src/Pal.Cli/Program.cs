@@ -73,6 +73,36 @@ app.Configure(config =>
 
         remote.AddCommand<CorrelationsCommand>("correlations")
             .WithDescription("Show co-occurring finding pairs across the last N completed analysis jobs");
+
+        remote.AddBranch("alerts", a =>
+        {
+            a.SetDescription("Commands for managing Phase 4 alerts");
+            a.AddCommand<RemoteAlertsListCommand>("list")
+                .WithDescription("List alerts, optionally filtered by status or severity");
+            a.AddCommand<RemoteAlertAcknowledgeCommand>("acknowledge")
+                .WithDescription("Mark an alert as acknowledged (open → acknowledged)");
+            a.AddCommand<RemoteAlertResolveCommand>("resolve")
+                .WithDescription("Resolve an alert with an optional resolution note");
+            a.AddCommand<RemoteAlertSnoozeCommand>("snooze")
+                .WithDescription("Suppress notifications for an alert until a specified time");
+            a.AddCommand<RemoteAlertUnsnoozeCommand>("unsnooze")
+                .WithDescription("Clear an active snooze on an alert");
+        });
+
+        remote.AddBranch("schedules", s =>
+        {
+            s.SetDescription("Commands for managing Phase 4 ingestion schedules");
+            s.AddCommand<RemoteSchedulesListCommand>("list")
+                .WithDescription("List ingestion schedules in the current workspace");
+            s.AddCommand<RemoteScheduleCreateCommand>("create")
+                .WithDescription("Create a new directory-poll ingestion schedule");
+            s.AddCommand<RemoteScheduleEnableCommand>("enable")
+                .WithDescription("Enable a schedule");
+            s.AddCommand<RemoteScheduleDisableCommand>("disable")
+                .WithDescription("Disable a schedule (worker stops polling it)");
+            s.AddCommand<RemoteScheduleDeleteCommand>("delete")
+                .WithDescription("Delete a schedule permanently");
+        });
     });
 });
 
