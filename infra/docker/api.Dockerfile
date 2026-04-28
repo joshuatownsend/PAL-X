@@ -17,7 +17,7 @@ RUN dotnet restore src/Pal.Api/Pal.Api.csproj
 COPY dotnet/src/ src/
 RUN dotnet publish src/Pal.Api/Pal.Api.csproj -c Release -o /app --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # curl is needed for the Docker Compose healthcheck; aspnet:8.0 (Debian slim) does not include it.
