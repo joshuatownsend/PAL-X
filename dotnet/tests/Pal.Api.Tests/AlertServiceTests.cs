@@ -1,4 +1,5 @@
 using Pal.Application.Alerts;
+using Pal.Application.Alerts.Policy;
 using Pal.Application.Persistence;
 using Pal.Application.Webhooks;
 using Pal.Engine.Model;
@@ -34,7 +35,7 @@ public class AlertServiceTests
     {
         var repo = new FakeAlertRepository();
         var notifications = new FakeNotificationService();
-        var svc = new AlertService(repo, notifications);
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
 
@@ -54,7 +55,7 @@ public class AlertServiceTests
     public async Task Evaluate_SameFindingSecondRun_UpdatesLastSeen()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
@@ -72,7 +73,7 @@ public class AlertServiceTests
     {
         var repo = new FakeAlertRepository();
         var notifications = new FakeNotificationService();
-        var svc = new AlertService(repo, notifications);
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
@@ -86,7 +87,7 @@ public class AlertServiceTests
     public async Task Evaluate_LowerSeverityInSecondRun_DoesNotDowngrade()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "critical")]);
         await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
@@ -101,7 +102,7 @@ public class AlertServiceTests
     public async Task Evaluate_DuplicateRuleIdInSameJob_CreatesOnlyOneAlertWithHighestSeverity()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [
             MakeFinding("cpu-high", "warning"),
@@ -118,7 +119,7 @@ public class AlertServiceTests
     public async Task Evaluate_MultipleDistinctRules_CreatesOneAlertEach()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [
             MakeFinding("cpu-high", "warning"),
@@ -135,7 +136,7 @@ public class AlertServiceTests
     {
         var repo = new FakeAlertRepository();
         var notifications = new FakeNotificationService();
-        var svc = new AlertService(repo, notifications);
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -153,7 +154,7 @@ public class AlertServiceTests
     public async Task Acknowledge_AlreadyAcknowledged_ReturnsFalse()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -170,7 +171,7 @@ public class AlertServiceTests
     {
         var repo = new FakeAlertRepository();
         var notifications = new FakeNotificationService();
-        var svc = new AlertService(repo, notifications);
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -189,7 +190,7 @@ public class AlertServiceTests
     public async Task Resolve_AcknowledgedAlert_Succeeds()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -204,7 +205,7 @@ public class AlertServiceTests
     public async Task Resolve_AlreadyResolved_ReturnsFalse()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -220,7 +221,7 @@ public class AlertServiceTests
     public async Task Evaluate_ResolvedAlert_CreatesNewOpenAlert()
     {
         var repo = new FakeAlertRepository();
-        var svc = new AlertService(repo, new FakeNotificationService());
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
         await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
         var id = (await svc.ListAsync()).Single().Id;
@@ -246,6 +247,96 @@ public class AlertServiceTests
     {
         Assert.Equal(expected, AlertService.SeverityRank(sev));
     }
+
+    // ── snooze ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Snooze_SetsField_AlertRemainsVisible()
+    {
+        var repo = new FakeAlertRepository();
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
+
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
+        var id = (await svc.ListAsync()).Single().Id;
+
+        var until = DateTimeOffset.UtcNow.AddHours(1);
+        Assert.True(await svc.SetSnoozedUntilAsync(id, until));
+
+        var alert = await svc.GetAsync(id);
+        Assert.NotNull(alert!.SnoozedUntil);
+        // Alert still appears in default list (snooze doesn't hide it)
+        Assert.Contains(await svc.ListAsync(), a => a.Id == id);
+    }
+
+    [Fact]
+    public async Task Snooze_EscalationDuringWindow_DoesNotNotify()
+    {
+        var repo = new FakeAlertRepository();
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
+
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
+        var id = (await svc.ListAsync()).Single().Id;
+        await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddHours(1));
+        notifications.Calls.Clear();
+
+        // Re-fire as critical — would normally produce alert.escalated. Snoozed → no notify.
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
+
+        Assert.DoesNotContain(notifications.Calls, c => c.Event == "alert.escalated");
+        // Severity still updates in the DB — audit trail intact
+        Assert.Equal("critical", (await svc.GetAsync(id))!.Severity);
+    }
+
+    [Fact]
+    public async Task Snooze_EscalationAfterExpiry_NotifiesAgain()
+    {
+        var repo = new FakeAlertRepository();
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
+
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
+        var id = (await svc.ListAsync()).Single().Id;
+        // Set snooze in the past — already expired
+        await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddMinutes(-5));
+        notifications.Calls.Clear();
+
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
+
+        Assert.Single(notifications.Calls, c => c.Event == "alert.escalated");
+    }
+
+    [Fact]
+    public async Task Snooze_ResolvedAlert_ReturnsFalse()
+    {
+        var repo = new FakeAlertRepository();
+        var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
+
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
+        var id = (await svc.ListAsync()).Single().Id;
+        await svc.ResolveAsync(id, null);
+
+        var ok = await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddHours(1));
+        Assert.False(ok);
+    }
+
+    [Fact]
+    public async Task Snooze_ClearViaNull_RestoresNotifications()
+    {
+        var repo = new FakeAlertRepository();
+        var notifications = new FakeNotificationService();
+        var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
+
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
+        var id = (await svc.ListAsync()).Single().Id;
+        await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddHours(1));
+        await svc.SetSnoozedUntilAsync(id, null);  // unsnooze
+        notifications.Calls.Clear();
+
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
+
+        Assert.Single(notifications.Calls, c => c.Event == "alert.escalated");
+    }
 }
 
 // ── Fake notification service (no-op, records calls) ─────────────────────────
@@ -262,6 +353,14 @@ internal sealed class FakeNotificationService : INotificationService
 
     public Task<int?> TestAsync(Guid sinkId, CancellationToken ct = default)
         => Task.FromResult<int?>(200);
+}
+
+// ── Noop policy evaluator (default for existing tests; integration tests below cover real policy) ──
+
+internal sealed class NoopPolicyEvaluator : IPolicyEvaluator
+{
+    public Task<PolicyResult> EvaluateAsync(Guid workspaceId, IReadOnlyList<Finding> findings, CancellationToken ct = default)
+        => Task.FromResult(PolicyResult.Empty);
 }
 
 // ── Fake repository (in-memory, no EF) ───────────────────────────────────────
@@ -282,7 +381,7 @@ internal sealed class FakeAlertRepository : IAlertRepository
         return Task.CompletedTask;
     }
 
-    public Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, CancellationToken ct = default)
+    public Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, string? policyApplied, CancellationToken ct = default)
     {
         var idx = _store.FindIndex(a => a.Id == id);
         if (idx < 0) return Task.CompletedTask;
@@ -294,6 +393,7 @@ internal sealed class FakeAlertRepository : IAlertRepository
             LatestJobId = latestJobId, Severity = severity,
             TriggeredAt = a.TriggeredAt, LastSeenAt = lastSeenAt,
             AcknowledgedAt = a.AcknowledgedAt, ResolvedAt = a.ResolvedAt, ResolutionNote = a.ResolutionNote,
+            PolicyApplied = policyApplied,
         };
         return Task.CompletedTask;
     }
@@ -337,6 +437,23 @@ internal sealed class FakeAlertRepository : IAlertRepository
             Status = "resolved", TriggeringJobId = a.TriggeringJobId, LatestJobId = a.LatestJobId,
             TriggeredAt = a.TriggeredAt, LastSeenAt = a.LastSeenAt,
             AcknowledgedAt = a.AcknowledgedAt, ResolvedAt = now, ResolutionNote = note,
+        };
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> SetSnoozedUntilAsync(Guid id, DateTimeOffset? snoozedUntil, CancellationToken ct = default)
+    {
+        var idx = _store.FindIndex(a => a.Id == id && a.Status != "resolved");
+        if (idx < 0) return Task.FromResult(false);
+        var a = _store[idx];
+        _store[idx] = new AlertDto
+        {
+            Id = a.Id, WorkspaceId = a.WorkspaceId, RuleId = a.RuleId, Severity = a.Severity,
+            Category = a.Category, Title = a.Title,
+            Status = a.Status, TriggeringJobId = a.TriggeringJobId, LatestJobId = a.LatestJobId,
+            TriggeredAt = a.TriggeredAt, LastSeenAt = a.LastSeenAt,
+            AcknowledgedAt = a.AcknowledgedAt, ResolvedAt = a.ResolvedAt, ResolutionNote = a.ResolutionNote,
+            PolicyApplied = a.PolicyApplied, SnoozedUntil = snoozedUntil,
         };
         return Task.FromResult(true);
     }

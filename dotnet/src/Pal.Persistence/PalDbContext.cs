@@ -30,6 +30,7 @@ public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CompareResultEntity> CompareResults => Set<CompareResultEntity>();
     public DbSet<AlertEntity> Alerts => Set<AlertEntity>();
     public DbSet<WebhookSinkEntity> WebhookSinks => Set<WebhookSinkEntity>();
+    public DbSet<IngestionScheduleEntity> IngestionSchedules => Set<IngestionScheduleEntity>();
     public DbSet<PersonalAccessTokenEntity> PersonalAccessTokens => Set<PersonalAccessTokenEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -176,6 +177,15 @@ public sealed class PalDbContext : IdentityDbContext<ApplicationUser>
             e.HasKey(x => x.Id);
             e.HasQueryFilter(w => !_tenantContext.WorkspaceId.HasValue
                                || w.WorkspaceId == _tenantContext.WorkspaceId.GetValueOrDefault());
+        });
+
+        modelBuilder.Entity<IngestionScheduleEntity>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.WorkspaceId, x.Name }).IsUnique();
+            e.HasIndex(x => new { x.Enabled, x.NextRunAt });
+            e.HasQueryFilter(s => !_tenantContext.WorkspaceId.HasValue
+                               || s.WorkspaceId == _tenantContext.WorkspaceId.GetValueOrDefault());
         });
 
         modelBuilder.Entity<PersonalAccessTokenEntity>(e =>

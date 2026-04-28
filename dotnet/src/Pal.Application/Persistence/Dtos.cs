@@ -179,6 +179,21 @@ public sealed class WebhookSinkDto
     public required DateTimeOffset UpdatedAt { get; init; }
 }
 
+public sealed class IngestionScheduleDto
+{
+    public required Guid Id { get; init; }
+    public required Guid WorkspaceId { get; init; }
+    public required string Name { get; init; }
+    public required int IntervalMinutes { get; init; }
+    public required string SourceConfigJson { get; init; }
+    public required IReadOnlyList<string> PackIds { get; init; }
+    public required bool Enabled { get; init; }
+    public DateTimeOffset? LastRunAt { get; init; }
+    public DateTimeOffset? NextRunAt { get; init; }
+    public required DateTimeOffset CreatedAt { get; init; }
+    public required DateTimeOffset UpdatedAt { get; init; }
+}
+
 public sealed class AlertDto
 {
     public required Guid Id { get; init; }
@@ -195,4 +210,6 @@ public sealed class AlertDto
     public DateTimeOffset? AcknowledgedAt { get; init; }
     public DateTimeOffset? ResolvedAt { get; init; }
     public string? ResolutionNote { get; init; }
+    public string? PolicyApplied { get; init; }
+    public DateTimeOffset? SnoozedUntil { get; init; }
 }

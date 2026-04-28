@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pal.Persistence;
@@ -11,9 +12,11 @@ using Pal.Persistence;
 namespace Pal.Persistence.Migrations
 {
     [DbContext(typeof(PalDbContext))]
-    partial class PalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260428030045_Phase4AlertPolicyColumn")]
+    partial class Phase4AlertPolicyColumn
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -231,10 +234,6 @@ namespace Pal.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("severity");
-
-                    b.Property<DateTimeOffset?>("SnoozedUntil")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("snoozed_until");
 
                     b.Property<string>("Status")
                         .IsRequired()

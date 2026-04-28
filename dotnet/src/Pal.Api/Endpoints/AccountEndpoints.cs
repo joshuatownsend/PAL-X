@@ -17,13 +17,15 @@ public static class AccountEndpoints
         app.MapPost("/account/login", async (
             [FromForm] string email,
             [FromForm] string password,
-            [FromForm] bool rememberMe,
+            [FromForm] bool? rememberMe,
             SignInManager<ApplicationUser> signIn) =>
         {
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
                 return Results.Redirect("/account/login?error=invalid");
 
-            var result = await signIn.PasswordSignInAsync(email, password, rememberMe, lockoutOnFailure: true);
+            // Browsers omit the rememberMe field entirely when the checkbox is unchecked,
+            // so the parameter must be nullable; null is treated as "do not persist".
+            var result = await signIn.PasswordSignInAsync(email, password, rememberMe ?? false, lockoutOnFailure: true);
 
             if (result.Succeeded)
                 return Results.Redirect("/jobs");

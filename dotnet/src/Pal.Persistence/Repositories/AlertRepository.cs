@@ -38,19 +38,26 @@ public sealed class AlertRepository : IAlertRepository
             LatestJobId = alert.LatestJobId,
             TriggeredAt = alert.TriggeredAt,
             LastSeenAt = alert.LastSeenAt,
+            PolicyApplied = alert.PolicyApplied,
+            SnoozedUntil = alert.SnoozedUntil,
         });
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, CancellationToken ct = default)
+    public async Task UpdateLatestAsync(Guid id, Guid latestJobId, string severity, DateTimeOffset lastSeenAt, string? policyApplied, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
+        // Tenant filter is intentionally NOT bypassed — callers must be inside a
+        // SetWorkspace block (worker path: AnalysisWorker; request path: workspace
+        // route group). Bypassing the filter here would let a guessed/misrouted
+        // alert ID update an alert in another workspace.
         await db.Alerts
             .Where(a => a.Id == id)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.LatestJobId, latestJobId)
                 .SetProperty(a => a.Severity, severity)
-                .SetProperty(a => a.LastSeenAt, lastSeenAt),
+                .SetProperty(a => a.LastSeenAt, lastSeenAt)
+                .SetProperty(a => a.PolicyApplied, policyApplied),
             ct);
     }
 
@@ -96,6 +103,15 @@ public sealed class AlertRepository : IAlertRepository
         return rows > 0;
     }
 
+    public async Task<bool> SetSnoozedUntilAsync(Guid id, DateTimeOffset? snoozedUntil, CancellationToken ct = default)
+    {
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        var rows = await db.Alerts
+            .Where(a => a.Id == id && a.Status != "resolved")
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.SnoozedUntil, snoozedUntil), ct);
+        return rows > 0;
+    }
+
     private static AlertDto ToDto(AlertEntity e) => new()
     {
         Id = e.Id,
@@ -112,5 +128,7 @@ public sealed class AlertRepository : IAlertRepository
         AcknowledgedAt = e.AcknowledgedAt,
         ResolvedAt = e.ResolvedAt,
         ResolutionNote = e.ResolutionNote,
+        PolicyApplied = e.PolicyApplied,
+        SnoozedUntil = e.SnoozedUntil,
     };
 }

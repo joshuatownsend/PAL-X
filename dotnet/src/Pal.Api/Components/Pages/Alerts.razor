@@ -52,11 +52,26 @@ else
         <tbody>
             @foreach (var a in _alerts)
             {
+                var snoozedActive = a.SnoozedUntil is { } until && until > DateTimeOffset.UtcNow;
                 <tr>
-                    <td><span class="sev-badge sev-@a.Severity">@a.Severity</span></td>
+                    <td>
+                        <span class="sev-badge sev-@a.Severity">@a.Severity</span>
+                        @if (a.PolicyApplied is not null)
+                        {
+                            <span class="policy-badge" title="Adjusted by Phase 4 policy rule">@a.PolicyApplied</span>
+                        }
+                    </td>
                     <td><code>@a.RuleId</code></td>
                     <td>@a.Title</td>
-                    <td><span class="status-badge alert-@a.Status">@a.Status</span></td>
+                    <td>
+                        <span class="status-badge alert-@a.Status">@a.Status</span>
+                        @if (snoozedActive)
+                        {
+                            <span class="snooze-badge" title="Snoozed until @a.SnoozedUntil!.Value.ToString("u")">
+                                snoozed → @a.SnoozedUntil!.Value.LocalDateTime.ToString("MMM d HH:mm")
+                            </span>
+                        }
+                    </td>
                     <td title="@a.TriggeredAt.ToString("u")">@a.TriggeredAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
                     <td title="@a.LastSeenAt.ToString("u")">@a.LastSeenAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm")</td>
                     <td><a href="/jobs/@a.LatestJobId">@a.LatestJobId.ToString("N")[..8]</a></td>
@@ -68,6 +83,14 @@ else
                         @if (a.Status != "resolved")
                         {
                             <button class="btn-secondary" @onclick="() => BeginResolve(a.Id)">Resolve</button>
+                            @if (snoozedActive)
+                            {
+                                <button class="btn-secondary" @onclick="() => UnsnoozeAsync(a.Id)">Unsnooze</button>
+                            }
+                            else
+                            {
+                                <button class="btn-secondary" @onclick="() => BeginSnooze(a.Id)">Snooze</button>
+                            }
                         }
                     </td>
                 </tr>
@@ -90,6 +113,31 @@ else
     </div>
 }
 
+@if (_snoozeId is not null)
+{
+    <div class="resolve-dialog">
+        <strong>Snooze alert</strong>
+        <p class="version">Suppress notifications for this alert. The alert remains visible and continues to update on each rule re-fire.</p>
+        <div class="resolve-actions">
+            <button class="btn-secondary" @onclick="() => SetSnoozePreset(60)">1h</button>
+            <button class="btn-secondary" @onclick="() => SetSnoozePreset(240)">4h</button>
+            <button class="btn-secondary" @onclick="() => SetSnoozePreset(1440)">1d</button>
+            <button class="btn-secondary" @onclick="() => SetSnoozePreset(10080)">1w</button>
+        </div>
+        <label>Custom (minutes from now, max 30 days):
+            <input type="number" min="1" max="43200" @bind="_snoozeMinutes" />
+        </label>
+        @if (!string.IsNullOrEmpty(_snoozeError))
+        {
+            <p class="error">@_snoozeError</p>
+        }
+        <div class="resolve-actions">
+            <button class="btn-primary" @onclick="ConfirmSnoozeAsync">Confirm</button>
+            <button class="btn-secondary" @onclick="CancelSnooze">Cancel</button>
+        </div>
+    </div>
+}
+
 @code {
     private List<AlertDto>? _alerts;
     private string _statusFilter = "open";
@@ -98,6 +146,10 @@ else
 
     private Guid? _resolveId;
     private string _resolveNote = "";
+
+    private Guid? _snoozeId;
+    private int _snoozeMinutes = 60;
+    private string _snoozeError = "";
 
     [Inject] private NavigationManager Nav { get; set; } = null!;
 
@@ -152,6 +204,40 @@ else
     {
         _resolveId = null;
         _resolveNote = "";
+    }
+
+    private void BeginSnooze(Guid id)
+    {
+        _snoozeId = id;
+        _snoozeMinutes = 60;
+        _snoozeError = "";
+    }
+
+    private void SetSnoozePreset(int minutes) => _snoozeMinutes = minutes;
+
+    private async Task ConfirmSnoozeAsync()
+    {
+        if (_snoozeId is null) return;
+        if (_snoozeMinutes < 1 || _snoozeMinutes > 43200)
+        {
+            _snoozeError = "Duration must be between 1 minute and 30 days.";
+            return;
+        }
+        await AlertService.SetSnoozedUntilAsync(_snoozeId.Value, DateTimeOffset.UtcNow.AddMinutes(_snoozeMinutes));
+        _snoozeId = null;
+        await LoadAsync();
+    }
+
+    private void CancelSnooze()
+    {
+        _snoozeId = null;
+        _snoozeError = "";
+    }
+
+    private async Task UnsnoozeAsync(Guid id)
+    {
+        await AlertService.SetSnoozedUntilAsync(id, null);
+        await LoadAsync();
     }
 
     public async ValueTask DisposeAsync()

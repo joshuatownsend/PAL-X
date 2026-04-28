@@ -193,6 +193,68 @@ public class RemoteCommandTests
             [Guid.NewGuid().ToString(), "--output", "out.json.gz", "--api", server.BaseUrl]);
         Assert.Equal(ExitCodes.GeneralFailure, code);
     }
+
+    // ─── Phase 4 alerts CLI ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task AlertAcknowledge_InvalidGuid_ReturnsInvalidArguments()
+    {
+        var code = await new CommandApp<RemoteAlertAcknowledgeCommand>().RunAsync(["not-a-guid"]);
+        Assert.Equal(ExitCodes.InvalidArguments, code);
+    }
+
+    [Fact]
+    public async Task AlertResolve_InvalidGuid_ReturnsInvalidArguments()
+    {
+        var code = await new CommandApp<RemoteAlertResolveCommand>().RunAsync(["not-a-guid"]);
+        Assert.Equal(ExitCodes.InvalidArguments, code);
+    }
+
+    [Fact]
+    public async Task AlertSnooze_NoTimeArg_ReturnsInvalidArguments()
+    {
+        var code = await new CommandApp<RemoteAlertSnoozeCommand>().RunAsync([Guid.NewGuid().ToString()]);
+        Assert.Equal(ExitCodes.InvalidArguments, code);
+    }
+
+    [Fact]
+    public async Task AlertSnooze_BothDurationAndUntil_ReturnsInvalidArguments()
+    {
+        var code = await new CommandApp<RemoteAlertSnoozeCommand>().RunAsync(
+            [Guid.NewGuid().ToString(), "--duration", "1h", "--until", "2030-01-01T00:00:00Z"]);
+        Assert.Equal(ExitCodes.InvalidArguments, code);
+    }
+
+    [Fact]
+    public async Task AlertSnooze_BadDurationSyntax_ReturnsInvalidArguments()
+    {
+        var code = await new CommandApp<RemoteAlertSnoozeCommand>().RunAsync(
+            [Guid.NewGuid().ToString(), "--duration", "forever"]);
+        Assert.Equal(ExitCodes.InvalidArguments, code);
+    }
+
+    [Fact]
+    public async Task AlertUnsnooze_InvalidGuid_ReturnsInvalidArguments()
+    {
+        var code = await new CommandApp<RemoteAlertUnsnoozeCommand>().RunAsync(["not-a-guid"]);
+        Assert.Equal(ExitCodes.InvalidArguments, code);
+    }
+
+    // ─── Phase 4 schedules CLI ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task ScheduleEnable_InvalidGuid_ReturnsInvalidArguments()
+    {
+        var code = await new CommandApp<RemoteScheduleEnableCommand>().RunAsync(["not-a-guid"]);
+        Assert.Equal(ExitCodes.InvalidArguments, code);
+    }
+
+    [Fact]
+    public async Task ScheduleDelete_InvalidGuid_ReturnsInvalidArguments()
+    {
+        var code = await new CommandApp<RemoteScheduleDeleteCommand>().RunAsync(["not-a-guid"]);
+        Assert.Equal(ExitCodes.InvalidArguments, code);
+    }
 }
 
 // ─── Stub Server ─────────────────────────────────────────────────────────────

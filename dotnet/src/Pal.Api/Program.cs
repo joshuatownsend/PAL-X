@@ -10,10 +10,12 @@ using Pal.Api.Middleware;
 using Pal.Api.Services;
 using Pal.Api.Worker;
 using Pal.Application.Alerts;
+using Pal.Application.Alerts.Policy;
 using Pal.Application.Analysis;
 using Pal.Application.Auth;
 using Pal.Application.Compare;
 using Pal.Application.Diagnostics;
+using Pal.Application.Ingestion;
 using Pal.Application.Persistence;
 using Pal.Application.Correlation;
 using Pal.Application.Trends;
@@ -109,11 +111,14 @@ builder.Services.AddSingleton<ICompareRepository, CompareRepository>();
 builder.Services.AddSingleton<IAlertRepository, AlertRepository>();
 builder.Services.AddSingleton<IWebhookSinkRepository, WebhookSinkRepository>();
 builder.Services.AddSingleton<IWebhookSinkService, WebhookSinkService>();
+builder.Services.AddSingleton<IIngestionScheduleRepository, IngestionScheduleRepository>();
+builder.Services.AddSingleton<IIngestionScheduleService, IngestionScheduleService>();
 builder.Services.AddSingleton<ITokenRepository, TokenRepository>();
 builder.Services.AddSingleton<IRetentionRepository, RetentionRepository>();
 builder.Services.AddHttpClient("pal-webhook")
     .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddSingleton<INotificationService, NotificationService>();
+builder.Services.AddSingleton<IPolicyEvaluator, PolicyEvaluator>();
 builder.Services.AddSingleton<IAlertService, AlertService>();
 builder.Services.AddSingleton<CompareRunner>();
 builder.Services.AddSingleton<IAutoCompareService, AutoCompareService>();
@@ -128,6 +133,7 @@ builder.Services.AddSingleton<IAnalysisRunner, AnalysisRunner>();
 builder.Services.AddSingleton(Channel.CreateUnbounded<Guid>(new UnboundedChannelOptions { SingleReader = true }));
 builder.Services.AddHostedService<AnalysisWorker>();
 builder.Services.AddHostedService<RetentionWorker>();
+builder.Services.AddHostedService<ScheduledIngestionWorker>();
 
 // Pack registry sync
 builder.Services.AddSingleton<PackRegistrySyncService>();
@@ -189,6 +195,7 @@ wsGroup.MapTrendEndpoints();
 wsGroup.MapCorrelationEndpoints();
 wsGroup.MapAlertEndpoints();
 wsGroup.MapWebhookEndpoints();
+wsGroup.MapScheduleEndpoints();
 wsGroup.MapTokenEndpoints();
 
 // Blazor Server UI
