@@ -120,10 +120,22 @@ User-secrets are loaded in the `Development` environment automatically and are s
 
 ### Port 5432 collision
 
-If you have a native PostgreSQL service installed on Windows (`postgresql-x64-XX`), it owns port 5432 and Docker's port forward will appear to bind but actually only catch IPv6 traffic — the API will fail auth against the *native* server. Two options:
+If you have a native PostgreSQL service installed on Windows (`postgresql-x64-XX`), it owns port 5432 and Docker's port forward will appear to bind but actually only catch IPv6 traffic — the API will silently authenticate against the *wrong* server and fail.
 
-- **Stop the native service** for the duration of dev work: `Stop-Service postgresql-x64-XX`
-- **Remap the container** to a different port — edit `docker-compose.yml`'s `ports:` line to `"5433:5432"` and update `dotnet/src/Pal.Api/appsettings.json` connection string `Port=5433` to match. Recreate the container with `docker compose up -d --force-recreate postgres`.
+The compose `ports:` line reads from `POSTGRES_PORT_HOST` with a default of 5432. To use a different host port (5433 here), set both env vars together — the first tells compose where to publish, the second tells the API where to connect:
+
+```powershell
+# In .env (consumed by docker compose):
+POSTGRES_PORT_HOST=5433
+
+# In your PowerShell session for `dotnet run` (consumed by the API):
+$env:ConnectionStrings__Postgres = "Host=localhost;Port=5433;Database=pal;Username=pal;Password=$env:POSTGRES_PASSWORD"
+
+docker compose up -d --force-recreate postgres
+dotnet run --project dotnet/src/Pal.Api
+```
+
+Or, if you'd rather not run two Postgres servers at all, stop the native service for the duration of dev work: `Stop-Service postgresql-x64-XX`.
 
 ---
 

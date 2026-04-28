@@ -6,7 +6,9 @@ services:
       POSTGRES_USER: pal
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-paldev}"
     ports:
-      - "5432:5432"
+      # Host port is overridable via POSTGRES_PORT_HOST so contributors with a
+      # native Postgres on 5432 can avoid the collision without editing this file.
+      - "${POSTGRES_PORT_HOST:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
