@@ -46,13 +46,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-      # Identity (auth) packages — same coupling rationale as ASP.NET Core.
-      identity:
-        patterns:
-          - "Microsoft.AspNetCore.Identity*"
-        update-types:
-          - "minor"
-          - "patch"
       # Test infrastructure — xUnit, Testcontainers, coverlet, etc. Updates
       # here rarely impact production runtime so they're safe to batch.
       testing:
@@ -83,7 +76,6 @@ updates:
           - "Npgsql*"
           - "Microsoft.AspNetCore.*"
           - "Microsoft.Extensions.*"
-          - "Microsoft.AspNetCore.Identity*"
           - "xunit*"
           - "Microsoft.NET.Test.Sdk"
           - "coverlet*"
@@ -93,6 +85,27 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # Major-version bumps of Microsoft.* packages are tied to .NET runtime
+    # versions — bumping EF Core to 9.x or AspNetCore.* to 9.x requires
+    # changing TargetFramework to net9.0+. Defer until we explicitly plan a
+    # runtime upgrade.
+    #
+    # Spectre.Console 0.50+ changed AsyncCommand<T>.ExecuteAsync signature
+    # (added CancellationToken) — adopting it requires updating ~25 of our
+    # command class overrides. Tracked separately; ignore minor/major until then.
+    ignore:
+      - dependency-name: "Microsoft.EntityFrameworkCore*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Npgsql*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "EFCore.NamingConventions"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "Spectre.Console*"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   # ── GitHub Actions ──────────────────────────────────────────────────────────
   # Currently tracks actions/checkout, actions/setup-dotnet in ci.yml. Future
@@ -127,3 +140,11 @@ updates:
     commit-message:
       prefix: "chore(docker)"
       include: "scope"
+    # Major bumps of dotnet/sdk and dotnet/aspnet would require a
+    # TargetFramework change in our .csproj files. Defer until we explicitly
+    # plan the runtime upgrade.
+    ignore:
+      - dependency-name: "dotnet/sdk"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "dotnet/aspnet"
+        update-types: ["version-update:semver-major"]
