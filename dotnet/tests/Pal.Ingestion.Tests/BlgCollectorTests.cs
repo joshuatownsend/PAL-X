@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using Pal.Engine.Normalization;
 using Pal.Ingestion.Blg;
 using Xunit;
@@ -5,25 +6,33 @@ using Xunit;
 namespace Pal.Ingestion.Tests;
 
 [Trait("Category", "Windows")]
+[SupportedOSPlatform("windows")]
 public class BlgCollectorTests
 {
+    private static ITestOutputHelper Output => TestContext.Current.TestOutputHelper!;
+
     private static string FixtureRoot =>
         Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", "fixtures"));
 
     private static string BlgPath => Path.Combine(FixtureRoot, "cpu-pressure-blg", "input.blg");
 
+    private static bool IsGitHubActions =>
+        Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+
     // GitHub Actions windows-latest exhibits PDH behavior differences from local Windows 11.
-    // The four Collect_BlgFixture_* tests below are short-circuited there pending issue #41.
-    [System.Runtime.Versioning.SupportedOSPlatformGuard("windows")]
-    private static bool CanRunPdhInterop() =>
-        OperatingSystem.IsWindows() &&
-        File.Exists(BlgPath) &&
-        Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true";
+    // The four Collect_BlgFixture_* tests are skipped there pending issue #41; the diagnostic
+    // test below runs only on GHA and dumps the actual failure mode to test output.
+    private static void SkipIfCannotRunPdh()
+    {
+        if (!OperatingSystem.IsWindows()) Assert.Skip("BLG ingestion is Windows-only");
+        if (!File.Exists(BlgPath)) Assert.Skip($"BLG fixture missing at {BlgPath}");
+        if (IsGitHubActions) Assert.Skip("BLG fixture tests skipped on GitHub Actions pending issue #41");
+    }
 
     [Fact]
     public void Collect_BlgFixture_ReturnsDataset()
     {
-        if (!CanRunPdhInterop()) return;
+        SkipIfCannotRunPdh();
 
         var registry = MetricAliasRegistry.BuildDefault();
         var collector = new BlgCollector(registry);
@@ -38,7 +47,7 @@ public class BlgCollectorTests
     [Fact]
     public void Collect_BlgFixture_SamplesHaveUtcOffset()
     {
-        if (!CanRunPdhInterop()) return;
+        SkipIfCannotRunPdh();
 
         var registry = MetricAliasRegistry.BuildDefault();
         var collector = new BlgCollector(registry);
@@ -56,7 +65,7 @@ public class BlgCollectorTests
     [Fact]
     public void Collect_BlgFixture_NormalizesProcessorMetric()
     {
-        if (!CanRunPdhInterop()) return;
+        SkipIfCannotRunPdh();
 
         var registry = MetricAliasRegistry.BuildDefault();
         var collector = new BlgCollector(registry);
@@ -71,7 +80,7 @@ public class BlgCollectorTests
     [Fact]
     public void Collect_BlgFixture_ProducesValidTimeRange()
     {
-        if (!CanRunPdhInterop()) return;
+        SkipIfCannotRunPdh();
 
         var registry = MetricAliasRegistry.BuildDefault();
         var collector = new BlgCollector(registry);
@@ -84,10 +93,50 @@ public class BlgCollectorTests
     [Fact]
     public void CanHandle_BlgExtension_ReturnsTrue()
     {
-        if (!OperatingSystem.IsWindows()) return;
+        if (!OperatingSystem.IsWindows()) Assert.Skip("BLG ingestion is Windows-only");
         var collector = new BlgCollector(MetricAliasRegistry.BuildDefault());
         Assert.True(collector.CanHandle("server.blg"));
         Assert.True(collector.CanHandle(@"C:\logs\server.BLG"));
         Assert.False(collector.CanHandle("data.csv"));
+    }
+
+    // Issue #41 diagnostic — runs the collector only on GHA and dumps the
+    // observed failure mode (exception type/message or warnings + series count)
+    // via ITestOutputHelper so CI logs surface the root cause. Always ends in
+    // Assert.Skip so the test outcome is "skipped" rather than pass/fail —
+    // we're collecting evidence, not asserting behavior.
+    [Fact]
+    public void Diagnostic_PdhInterop_OnGitHubActions()
+    {
+        if (!OperatingSystem.IsWindows()) Assert.Skip("BLG ingestion is Windows-only");
+        if (!File.Exists(BlgPath)) Assert.Skip($"BLG fixture missing at {BlgPath}");
+        if (!IsGitHubActions) Assert.Skip("Diagnostic runs only on GitHub Actions");
+
+        Output.WriteLine($"[issue-41] OS: {Environment.OSVersion}");
+        Output.WriteLine($"[issue-41] BLG fixture: {BlgPath}");
+        Output.WriteLine($"[issue-41] BLG size: {new FileInfo(BlgPath).Length} bytes");
+        Output.WriteLine($"[issue-41] Process arch: {System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
+
+        var registry = MetricAliasRegistry.BuildDefault();
+        var collector = new BlgCollector(registry);
+        try
+        {
+            var result = collector.Collect(BlgPath);
+            Output.WriteLine($"[issue-41] Collect succeeded — series={result.Dataset.SeriesCount}, samples={result.Dataset.SampleCount}");
+            Output.WriteLine($"[issue-41] Warnings ({result.Warnings.Count}):");
+            foreach (var w in result.Warnings) Output.WriteLine($"  - {w}");
+            Output.WriteLine($"[issue-41] First 5 canonical metrics:");
+            foreach (var s in result.Dataset.Series.Take(5))
+                Output.WriteLine($"  - {s.CanonicalMetric} (path={s.CounterPathOriginal})");
+        }
+        catch (Exception ex)
+        {
+            Output.WriteLine($"[issue-41] Collect threw {ex.GetType().FullName}: {ex.Message}");
+            if (ex.InnerException is { } inner)
+                Output.WriteLine($"[issue-41] Inner: {inner.GetType().FullName}: {inner.Message}");
+            Output.WriteLine($"[issue-41] Stack:\n{ex.StackTrace}");
+        }
+
+        Assert.Skip("Diagnostic-only test for issue #41 — see output above");
     }
 }
