@@ -17,18 +17,18 @@ public sealed class RemoteBaselinesListCommand : AsyncCommand<RemoteBaselinesLis
         public string? Type { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
             var url = settings.Type is not null
                 ? $"analysis/baselines?type={Uri.EscapeDataString(settings.Type)}"
                 : "analysis/baselines";
 
-            var resp = await client.GetAsync(url);
+            var resp = await client.GetAsync(url, ct);
             resp.EnsureSuccessStatusCode();
 
-            var body = await resp.Content.ReadFromJsonAsync<BaselinesResponse>(JsonOptions);
+            var body = await resp.Content.ReadFromJsonAsync<BaselinesResponse>(JsonOptions, ct);
 
             if (body?.Items is null || body.Items.Count == 0)
             {

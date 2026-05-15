@@ -22,8 +22,8 @@ public sealed class JobReportCommand : AsyncCommand<JobReportCommand.Settings>
         public string? OutputPath { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.JobId, out var id))
             {
@@ -38,7 +38,7 @@ public sealed class JobReportCommand : AsyncCommand<JobReportCommand.Settings>
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync($"analysis/{id}/report?format={settings.Format}");
+            var resp = await client.GetAsync($"analysis/{id}/report?format={settings.Format}", ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -52,7 +52,7 @@ public sealed class JobReportCommand : AsyncCommand<JobReportCommand.Settings>
             }
             resp.EnsureSuccessStatusCode();
 
-            var content = await resp.Content.ReadAsByteArrayAsync();
+            var content = await resp.Content.ReadAsByteArrayAsync(ct);
 
             if (settings.OutputPath is not null)
             {

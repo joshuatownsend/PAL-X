@@ -18,8 +18,8 @@ public sealed class RemoteAlertResolveCommand : AsyncCommand<RemoteAlertResolveC
         public string? Note { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.Id, out var id))
             {
@@ -28,7 +28,7 @@ public sealed class RemoteAlertResolveCommand : AsyncCommand<RemoteAlertResolveC
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.PatchAsJsonAsync($"alerts/{id}/resolve", new { note = settings.Note });
+            var resp = await client.PatchAsJsonAsync($"alerts/{id}/resolve", new { note = settings.Note }, ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {

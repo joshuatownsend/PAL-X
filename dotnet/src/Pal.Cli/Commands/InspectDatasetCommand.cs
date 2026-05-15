@@ -30,7 +30,7 @@ public sealed class InspectDatasetSettings : CommandSettings
 
 public sealed class InspectDatasetCommand : Command<InspectDatasetSettings>
 {
-    public override int Execute(CommandContext context, InspectDatasetSettings settings)
+    protected override int Execute(CommandContext context, InspectDatasetSettings settings, CancellationToken cancellationToken)
     {
         string format = settings.Format == "auto"
             ? Path.GetExtension(settings.Input).TrimStart('.').ToLowerInvariant()

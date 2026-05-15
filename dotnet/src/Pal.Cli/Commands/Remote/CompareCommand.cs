@@ -19,8 +19,8 @@ public sealed class CompareCommand : AsyncCommand<CompareCommand.Settings>
         public required string CandidateJobId { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.BaselineJobId, out var baselineId))
             {
@@ -40,10 +40,10 @@ public sealed class CompareCommand : AsyncCommand<CompareCommand.Settings>
                 candidateJobId = candidateId
             });
             var resp = await client.PostAsync("compare",
-                new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+                new StringContent(body, System.Text.Encoding.UTF8, "application/json"), ct);
             resp.EnsureSuccessStatusCode();
 
-            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>(ct);
 
             var summary = doc.GetProperty("summary");
             int newF = summary.GetProperty("newFindings").GetInt32();

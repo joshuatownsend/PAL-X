@@ -32,7 +32,7 @@ public sealed class ValidatePackSettings : CommandSettings
 
 public sealed class ValidatePackCommand : Command<ValidatePackSettings>
 {
-    public override int Execute(CommandContext context, ValidatePackSettings settings)
+    protected override int Execute(CommandContext context, ValidatePackSettings settings, CancellationToken cancellationToken)
     {
         var loader = new PackLoader();
         var validator = new PackValidator();

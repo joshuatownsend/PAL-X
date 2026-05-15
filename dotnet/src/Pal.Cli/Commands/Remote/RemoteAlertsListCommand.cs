@@ -21,8 +21,8 @@ public sealed class RemoteAlertsListCommand : AsyncCommand<RemoteAlertsListComma
         public string? Severity { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
 
@@ -31,10 +31,10 @@ public sealed class RemoteAlertsListCommand : AsyncCommand<RemoteAlertsListComma
             if (!string.IsNullOrWhiteSpace(settings.Severity)) query.Add($"severity={Uri.EscapeDataString(settings.Severity!)}");
             var url = "alerts/data" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
 
-            var resp = await client.GetAsync(url);
+            var resp = await client.GetAsync(url, ct);
             resp.EnsureSuccessStatusCode();
 
-            var body = await resp.Content.ReadFromJsonAsync<AlertsResponse>(JsonOptions);
+            var body = await resp.Content.ReadFromJsonAsync<AlertsResponse>(JsonOptions, ct);
             if (body?.Items is null || body.Items.Count == 0)
             {
                 AnsiConsole.MarkupLine("[grey]No alerts.[/]");

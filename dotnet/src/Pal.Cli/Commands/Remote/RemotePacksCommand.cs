@@ -9,14 +9,14 @@ public sealed class RemotePacksCommand : AsyncCommand<RemotePacksCommand.Setting
 {
     public sealed class Settings : RemoteSettings { }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync("packs");
+            var resp = await client.GetAsync("packs", ct);
             resp.EnsureSuccessStatusCode();
 
-            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>(ct);
             if (!doc.TryGetProperty("items", out var items))
             {
                 AnsiConsole.MarkupLine("[yellow]No packs registered[/]");

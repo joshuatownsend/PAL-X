@@ -36,8 +36,8 @@ public sealed class RemoteScheduleCreateCommand : AsyncCommand<RemoteScheduleCre
         public bool Disabled { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
 
@@ -55,17 +55,17 @@ public sealed class RemoteScheduleCreateCommand : AsyncCommand<RemoteScheduleCre
                 sourceConfigJson = sourceConfig,
                 packIds = settings.Packs,
                 enabled = !settings.Disabled
-            });
+            }, ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                var body = await resp.Content.ReadAsStringAsync();
+                var body = await resp.Content.ReadAsStringAsync(ct);
                 AnsiConsole.MarkupLine($"[red]Validation failed:[/] {Markup.Escape(body)}");
                 return ExitCodes.GeneralFailure;
             }
             resp.EnsureSuccessStatusCode();
 
-            var json = await resp.Content.ReadAsStringAsync();
+            var json = await resp.Content.ReadAsStringAsync(ct);
             using var doc = JsonDocument.Parse(json);
             var id = doc.RootElement.GetProperty("id").GetGuid();
 

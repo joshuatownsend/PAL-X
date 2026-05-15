@@ -13,8 +13,8 @@ public sealed class RemoteAlertUnsnoozeCommand : AsyncCommand<RemoteAlertUnsnooz
         public required string Id { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.Id, out var id))
             {
@@ -23,7 +23,7 @@ public sealed class RemoteAlertUnsnoozeCommand : AsyncCommand<RemoteAlertUnsnooz
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.DeleteAsync($"alerts/{id}/snooze");
+            var resp = await client.DeleteAsync($"alerts/{id}/snooze", ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {

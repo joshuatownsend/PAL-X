@@ -17,8 +17,8 @@ public sealed class RemoteDatasetCommand : AsyncCommand<RemoteDatasetCommand.Set
         public required string OutputPath { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.JobId, out var id))
             {
@@ -27,7 +27,7 @@ public sealed class RemoteDatasetCommand : AsyncCommand<RemoteDatasetCommand.Set
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync($"analysis/{id}/dataset", HttpCompletionOption.ResponseHeadersRead);
+            var resp = await client.GetAsync($"analysis/{id}/dataset", HttpCompletionOption.ResponseHeadersRead, ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -42,7 +42,7 @@ public sealed class RemoteDatasetCommand : AsyncCommand<RemoteDatasetCommand.Set
             }
             resp.EnsureSuccessStatusCode();
 
-            await using var responseStream = await resp.Content.ReadAsStreamAsync();
+            await using var responseStream = await resp.Content.ReadAsStreamAsync(ct);
             await using (var fs = new FileStream(settings.OutputPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true))
                 await responseStream.CopyToAsync(fs);
 

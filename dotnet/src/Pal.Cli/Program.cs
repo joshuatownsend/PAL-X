@@ -106,4 +106,10 @@ app.Configure(config =>
     });
 });
 
-return app.Run(args);
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    cts.Cancel();
+};
+return await app.RunAsync(args, cts.Token);

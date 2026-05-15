@@ -32,8 +32,8 @@ public sealed class RemoteBaselineSetCommand : AsyncCommand<RemoteBaselineSetCom
         public bool Clear { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.JobId, out var jobId))
             {
@@ -58,10 +58,10 @@ public sealed class RemoteBaselineSetCommand : AsyncCommand<RemoteBaselineSetCom
                 contextJson = settings.Clear ? null : settings.ContextJson
             };
 
-            var resp = await client.PatchAsJsonAsync($"analysis/{jobId}/baseline", payload);
+            var resp = await client.PatchAsJsonAsync($"analysis/{jobId}/baseline", payload, ct);
             if (!resp.IsSuccessStatusCode)
             {
-                var body = await resp.Content.ReadAsStringAsync();
+                var body = await resp.Content.ReadAsStringAsync(ct);
                 AnsiConsole.MarkupLine($"[red]Failed:[/] {resp.StatusCode} — {Markup.Escape(body)}");
                 return ExitCodes.GeneralFailure;
             }

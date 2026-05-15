@@ -17,8 +17,8 @@ public sealed class RemoteDiagnosticsCommand : AsyncCommand<RemoteDiagnosticsCom
         public required string JobId { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.JobId, out var id))
             {
@@ -27,7 +27,7 @@ public sealed class RemoteDiagnosticsCommand : AsyncCommand<RemoteDiagnosticsCom
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync($"analysis/{id}/diagnostics");
+            var resp = await client.GetAsync($"analysis/{id}/diagnostics", ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -41,7 +41,7 @@ public sealed class RemoteDiagnosticsCommand : AsyncCommand<RemoteDiagnosticsCom
             }
             resp.EnsureSuccessStatusCode();
 
-            var body = await resp.Content.ReadFromJsonAsync<DiagnosticsResponse>(JsonOptions);
+            var body = await resp.Content.ReadFromJsonAsync<DiagnosticsResponse>(JsonOptions, ct);
 
             if (body?.Items is null || body.Items.Count == 0)
             {

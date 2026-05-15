@@ -13,8 +13,8 @@ public sealed class RemoteAlertAcknowledgeCommand : AsyncCommand<RemoteAlertAckn
         public required string Id { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.Id, out var id))
             {
