@@ -51,7 +51,18 @@ What each flag does:
 | `--pack-dir` | Where to look for rule packs. `packs/thresholds/` ships with the repo. |
 | `--auto-resolve-packs` | Load every pack whose `applicability` matches the dataset. For this CSV that means `windows-core` (always-on) and nothing else. |
 
-When it finishes, the CLI prints a one-line summary per finding and an overall status. Exit code `0` means the analysis ran and emitted no critical findings. Exit code `1` means it ran and emitted at least one critical or warning finding (when `--fail-on-warning` is set). See the [exit-codes reference](#exit-codes) at the bottom of this page.
+When it finishes, the CLI prints a six-line summary:
+
+```text
+PAL 2026.2.0
+Input:     fixtures/cpu-pressure/input.csv
+Collector: CSV
+Output:    out/first-analysis
+Analyzing... done — packs: windows-core
+Findings:  1 (0 critical, 1 warning, 0 informational)
+```
+
+The findings themselves go to the report artifacts in `--output`, not to stdout. To see them per-line on the terminal, open the HTML or read the JSON. Exit code `0` means the analysis ran. Pass `--fail-on-warning` to get exit `1` when any warning or critical finding is present — useful as a CI gate. See [exit codes](#exit-codes) below.
 
 ## Read the report
 
@@ -144,7 +155,7 @@ Use exit code `1` (with `--fail-on-warning`) as a CI gate.
 
 ## What's next
 
-- **Use a real perfmon capture** — export one from PerfMon as CSV (Data Collector Set → save as CSV) and rerun with `--input <your-file.csv>`. Add `--host-memory-mb` and `--host-cpu-count` so memory-relative and CPU-count-relative rules can fire. If you have RAM-relative rules and don't pass `--host-memory-mb`, those rules emit an informational warning and are skipped — see the troubleshooting section of the [pack authoring guide](#) once published.
+- **Use a real perfmon capture** — export one from PerfMon as CSV (Data Collector Set → save as CSV) and rerun with `--input <your-file.csv>`. Add `--host-memory-mb` and `--host-cpu-count` so memory-relative and CPU-count-relative rules can fire. If you have RAM-relative rules and don't pass `--host-memory-mb`, those rules emit an informational warning and are skipped (a pack authoring guide will cover this in more depth once published).
 - **Try the BLG fixture** *(Windows only)* — `dotnet run --project dotnet/src/Pal.Cli -c Release -- analyze --input fixtures/cpu-pressure-blg/input.blg --output out/blg-test --pack-dir packs/thresholds --auto-resolve-packs`. On macOS or Linux, see the BLG-conversion note in **[Installation](installation.md)**.
 - **Write your own rule pack** — guide coming in the Guides section. For now, look at `packs/thresholds/windows-core/pack.yaml` and the schema at `dotnet/schemas/pal.pack.v1.json`.
 - **Move to the hosted API** — when you outgrow one-shot local analysis, see **[First analysis — remote API](first-analysis-remote.md)**.
