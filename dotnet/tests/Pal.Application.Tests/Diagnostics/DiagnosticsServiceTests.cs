@@ -69,7 +69,7 @@ public class DiagnosticsServiceTests
         var repo = new FakeAnalysisRepository(jobId, json, []);
 
         var svc = BuildService(repo);
-        var insights = await svc.ForJobAsync(jobId);
+        var insights = await svc.ForJobAsync(jobId, TestContext.Current.CancellationToken);
 
         var insight = Assert.Single(insights, i => i.SourceType == "finding");
         Assert.Equal("critical", insight.Severity);
@@ -112,7 +112,7 @@ public class DiagnosticsServiceTests
         var repo = new FakeAnalysisRepository(jobId, currentFindings, histJobs, histResults);
         var svc = BuildService(repo);
 
-        var insights = await svc.ForJobAsync(jobId);
+        var insights = await svc.ForJobAsync(jobId, TestContext.Current.CancellationToken);
 
         var trendInsight = insights.FirstOrDefault(i => i.SourceType == "trend");
         Assert.NotNull(trendInsight);
@@ -155,7 +155,7 @@ public class DiagnosticsServiceTests
         var repo = new FakeAnalysisRepository(jobId, currentFindings, histJobs, histResults);
         var svc = BuildService(repo);
 
-        var insights = await svc.ForJobAsync(jobId);
+        var insights = await svc.ForJobAsync(jobId, TestContext.Current.CancellationToken);
 
         var corrInsight = insights.FirstOrDefault(i => i.SourceType == "correlation");
         Assert.NotNull(corrInsight);
@@ -172,7 +172,7 @@ public class DiagnosticsServiceTests
         var repo = new FakeAnalysisRepository(jobId, "[]", []);
 
         var svc = BuildService(repo);
-        var insights = await svc.ForJobAsync(jobId);
+        var insights = await svc.ForJobAsync(jobId, TestContext.Current.CancellationToken);
 
         Assert.Empty(insights);
     }
@@ -186,7 +186,7 @@ public class DiagnosticsServiceTests
         var repo = new FakeAnalysisRepository(jobId, json, []);
 
         var svc = BuildService(repo);
-        var insights = await svc.ForJobAsync(jobId);
+        var insights = await svc.ForJobAsync(jobId, TestContext.Current.CancellationToken);
 
         var insight = Assert.Single(insights, i => i.SourceType == "finding");
         Assert.NotEmpty(insight.Recommendations);

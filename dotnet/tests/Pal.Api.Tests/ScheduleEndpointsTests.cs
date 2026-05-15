@@ -30,10 +30,10 @@ public sealed class ScheduleEndpointsTests(PalApiFactory factory)
     [Fact]
     public async Task Post_Create_ValidRequest_Returns201()
     {
-        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest());
+        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest(), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
 
-        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         Assert.NotEqual(Guid.Empty, body.GetProperty("id").GetGuid());
         Assert.Equal(15, body.GetProperty("intervalMinutes").GetInt32());
         Assert.True(body.GetProperty("enabled").GetBoolean());
@@ -42,9 +42,9 @@ public sealed class ScheduleEndpointsTests(PalApiFactory factory)
     [Fact]
     public async Task Post_Create_BadInterval_Returns400()
     {
-        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest(interval: 1));
+        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest(interval: 1), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
-        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         Assert.Contains("intervalMinutes", body.GetProperty("error").GetString());
     }
 
@@ -52,14 +52,14 @@ public sealed class ScheduleEndpointsTests(PalApiFactory factory)
     public async Task Post_Create_RelativePath_Returns400()
     {
         var bad = JsonSerializer.Serialize(new { type = "directory", path = "relative/path", glob = "*.csv" });
-        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest(sourceConfig: bad));
+        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest(sourceConfig: bad), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
 
     [Fact]
     public async Task Post_Create_EmptyPackIds_Returns400()
     {
-        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest(packIds: Array.Empty<string>()));
+        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest(packIds: Array.Empty<string>()), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
 
@@ -67,12 +67,12 @@ public sealed class ScheduleEndpointsTests(PalApiFactory factory)
     public async Task Get_List_ContainsCreated()
     {
         var name = $"list-test-{Guid.NewGuid():N}";
-        await _client.PostAsJsonAsync(Schedules, MakeRequest(name: name));
+        await _client.PostAsJsonAsync(Schedules, MakeRequest(name: name), TestContext.Current.CancellationToken);
 
-        var resp = await _client.GetAsync($"{Schedules}/data");
+        var resp = await _client.GetAsync($"{Schedules}/data", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
 
-        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         var items = body.GetProperty("items").EnumerateArray();
         Assert.Contains(items, i => i.GetProperty("name").GetString() == name);
     }
@@ -80,27 +80,27 @@ public sealed class ScheduleEndpointsTests(PalApiFactory factory)
     [Fact]
     public async Task Patch_Enabled_TogglesFlag()
     {
-        var create = await _client.PostAsJsonAsync(Schedules, MakeRequest(enabled: true));
-        var id = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var create = await _client.PostAsJsonAsync(Schedules, MakeRequest(enabled: true), TestContext.Current.CancellationToken);
+        var id = (await create.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
 
-        var resp = await _client.PatchAsJsonAsync($"{Schedules}/{id}/enabled", new { enabled = false });
+        var resp = await _client.PatchAsJsonAsync($"{Schedules}/{id}/enabled", new { enabled = false }, TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, resp.StatusCode);
 
-        var get = await _client.GetAsync($"{Schedules}/{id}");
-        var body = await get.Content.ReadFromJsonAsync<JsonElement>();
+        var get = await _client.GetAsync($"{Schedules}/{id}", TestContext.Current.CancellationToken);
+        var body = await get.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         Assert.False(body.GetProperty("enabled").GetBoolean());
     }
 
     [Fact]
     public async Task Delete_RemovesSchedule()
     {
-        var create = await _client.PostAsJsonAsync(Schedules, MakeRequest());
-        var id = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var create = await _client.PostAsJsonAsync(Schedules, MakeRequest(), TestContext.Current.CancellationToken);
+        var id = (await create.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken)).GetProperty("id").GetGuid();
 
-        var del = await _client.DeleteAsync($"{Schedules}/{id}");
+        var del = await _client.DeleteAsync($"{Schedules}/{id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NoContent, del.StatusCode);
 
-        var get = await _client.GetAsync($"{Schedules}/{id}");
+        var get = await _client.GetAsync($"{Schedules}/{id}", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
     }
 
@@ -108,21 +108,21 @@ public sealed class ScheduleEndpointsTests(PalApiFactory factory)
     public async Task Post_Create_DuplicateName_Returns409Conflict()
     {
         var name = $"dup-test-{Guid.NewGuid():N}";
-        var first = await _client.PostAsJsonAsync(Schedules, MakeRequest(name: name));
+        var first = await _client.PostAsJsonAsync(Schedules, MakeRequest(name: name), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
 
         // Endpoint maps the unique (workspace_id, name) violation to 409 with a clear
         // error payload rather than letting it bubble as a 500.
-        var second = await _client.PostAsJsonAsync(Schedules, MakeRequest(name: name));
+        var second = await _client.PostAsJsonAsync(Schedules, MakeRequest(name: name), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
-        var body = await second.Content.ReadFromJsonAsync<JsonElement>();
+        var body = await second.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         Assert.Contains("already exists", body.GetProperty("error").GetString());
     }
 
     [Fact]
     public async Task Post_Create_LocationHeaderIsWorkspaceScoped()
     {
-        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest());
+        var resp = await _client.PostAsJsonAsync(Schedules, MakeRequest(), TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
 
         // Location must include the /api/workspaces/{wsId}/ prefix so a client following

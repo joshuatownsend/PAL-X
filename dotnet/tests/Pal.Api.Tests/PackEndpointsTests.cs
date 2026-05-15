@@ -26,16 +26,16 @@ public sealed class PackEndpointsTests(PalApiFactory factory)
     [Fact]
     public async Task Get_Packs_ReturnsOk_WithItemsArray()
     {
-        var resp = await _client.GetAsync("/packs");
+        var resp = await _client.GetAsync("/packs", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-        var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+        var body = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
         Assert.True(body.TryGetProperty("items", out _));
     }
 
     [Fact]
     public async Task Get_PackVersions_UnknownPack_Returns404()
     {
-        var resp = await _client.GetAsync("/packs/nonexistent-pack-id/versions");
+        var resp = await _client.GetAsync("/packs/nonexistent-pack-id/versions", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 
@@ -46,12 +46,12 @@ public sealed class PackEndpointsTests(PalApiFactory factory)
         var tmpYaml = Path.GetTempFileName();
         try
         {
-            await File.WriteAllTextAsync(tmpYaml, MinimalValidPackYaml);
-            await PackRepo.UpsertPackAsync(packId, "1.0.0", "Test Pack", tmpYaml);
+            await File.WriteAllTextAsync(tmpYaml, MinimalValidPackYaml, TestContext.Current.CancellationToken);
+            await PackRepo.UpsertPackAsync(packId, "1.0.0", "Test Pack", tmpYaml, TestContext.Current.CancellationToken);
 
-            var resp = await _client.GetAsync($"/packs/{packId}/versions");
+            var resp = await _client.GetAsync($"/packs/{packId}/versions", TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-            var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var body = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
             Assert.True(body.TryGetProperty("items", out var items));
             Assert.True(items.GetArrayLength() >= 1);
         }
@@ -61,7 +61,7 @@ public sealed class PackEndpointsTests(PalApiFactory factory)
     [Fact]
     public async Task Get_PackValidation_UnknownPack_Returns404()
     {
-        var resp = await _client.GetAsync("/packs/nonexistent-pack-id/versions/1.0.0/validation");
+        var resp = await _client.GetAsync("/packs/nonexistent-pack-id/versions/1.0.0/validation", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 
@@ -72,12 +72,12 @@ public sealed class PackEndpointsTests(PalApiFactory factory)
         var tmpYaml = Path.GetTempFileName();
         try
         {
-            await File.WriteAllTextAsync(tmpYaml, MinimalValidPackYaml);
-            await PackRepo.UpsertPackAsync(packId, "1.0.0", "Test Pack", tmpYaml);
+            await File.WriteAllTextAsync(tmpYaml, MinimalValidPackYaml, TestContext.Current.CancellationToken);
+            await PackRepo.UpsertPackAsync(packId, "1.0.0", "Test Pack", tmpYaml, TestContext.Current.CancellationToken);
 
-            var resp = await _client.GetAsync($"/packs/{packId}/versions/1.0.0/validation");
+            var resp = await _client.GetAsync($"/packs/{packId}/versions/1.0.0/validation", TestContext.Current.CancellationToken);
             Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
-            var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var body = await resp.Content.ReadFromJsonAsync<JsonElement>(TestContext.Current.CancellationToken);
             Assert.True(body.GetProperty("isValid").GetBoolean());
             Assert.Equal(0, body.GetProperty("errors").GetArrayLength());
         }

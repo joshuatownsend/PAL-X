@@ -46,7 +46,7 @@ public class NotificationServiceTests
     public async Task Notify_EnabledMatchingSink_DeliversPOST()
     {
         var (svc, handler) = Build(MakeSink());
-        await svc.NotifyAsync("alert.created", MakeAlert());
+        await svc.NotifyAsync("alert.created", MakeAlert(), TestContext.Current.CancellationToken);
         Assert.NotNull(handler.LastRequest);
         Assert.Equal(HttpMethod.Post, handler.LastRequest!.Method);
     }
@@ -55,7 +55,7 @@ public class NotificationServiceTests
     public async Task Notify_DisabledSink_SkipsDelivery()
     {
         var (svc, handler) = Build(MakeSink(enabled: false));
-        await svc.NotifyAsync("alert.created", MakeAlert());
+        await svc.NotifyAsync("alert.created", MakeAlert(), TestContext.Current.CancellationToken);
         Assert.Null(handler.LastRequest);
     }
 
@@ -63,7 +63,7 @@ public class NotificationServiceTests
     public async Task Notify_SinkNotSubscribedToEvent_SkipsDelivery()
     {
         var (svc, handler) = Build(MakeSink(events: ["alert.resolved"]));
-        await svc.NotifyAsync("alert.created", MakeAlert());
+        await svc.NotifyAsync("alert.created", MakeAlert(), TestContext.Current.CancellationToken);
         Assert.Null(handler.LastRequest);
     }
 
@@ -71,7 +71,7 @@ public class NotificationServiceTests
     public async Task Notify_NoSinks_NoHttpCalls()
     {
         var (svc, handler) = Build(); // no sinks at all
-        await svc.NotifyAsync("alert.created", MakeAlert());
+        await svc.NotifyAsync("alert.created", MakeAlert(), TestContext.Current.CancellationToken);
         Assert.Null(handler.LastRequest);
     }
 
@@ -82,7 +82,7 @@ public class NotificationServiceTests
     {
         var (svc, handler) = Build(MakeSink());
         var alert = MakeAlert();
-        await svc.NotifyAsync("alert.created", alert);
+        await svc.NotifyAsync("alert.created", alert, TestContext.Current.CancellationToken);
 
         var body = JsonDocument.Parse(handler.LastBody!);
         Assert.Equal("alert.created", body.RootElement.GetProperty("event").GetString());
@@ -96,7 +96,7 @@ public class NotificationServiceTests
     {
         var secret = "super-secret";
         var (svc, handler) = Build(MakeSink(secret: secret));
-        await svc.NotifyAsync("alert.created", MakeAlert());
+        await svc.NotifyAsync("alert.created", MakeAlert(), TestContext.Current.CancellationToken);
 
         var bodyBytes = Encoding.UTF8.GetBytes(handler.LastBody!);
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(secret));
@@ -110,7 +110,7 @@ public class NotificationServiceTests
     public async Task Notify_WithoutSecret_NoSignatureHeader()
     {
         var (svc, handler) = Build(MakeSink(secret: null));
-        await svc.NotifyAsync("alert.created", MakeAlert());
+        await svc.NotifyAsync("alert.created", MakeAlert(), TestContext.Current.CancellationToken);
         Assert.False(handler.LastRequest!.Headers.Contains("X-PAL-Signature"));
     }
 
@@ -120,7 +120,7 @@ public class NotificationServiceTests
     public async Task TestAsync_SinkNotFound_ReturnsNull()
     {
         var (svc, _) = Build(); // no sinks
-        var result = await svc.TestAsync(Guid.NewGuid());
+        var result = await svc.TestAsync(Guid.NewGuid(), TestContext.Current.CancellationToken);
         Assert.Null(result);
     }
 
@@ -134,7 +134,7 @@ public class NotificationServiceTests
         var factory = new FakeHttpClientFactory(http);
         var svc = new NotificationService(repo, factory, new TenantContext(), NullLogger<NotificationService>.Instance);
 
-        var result = await svc.TestAsync(sink.Id);
+        var result = await svc.TestAsync(sink.Id, TestContext.Current.CancellationToken);
 
         Assert.Equal(200, result);
         Assert.NotNull(handler.LastRequest);
@@ -149,7 +149,7 @@ public class NotificationServiceTests
         var svc = new NotificationService(repo, new FakeHttpClientFactory(new HttpClient(handler)),
             new TenantContext(), NullLogger<NotificationService>.Instance);
 
-        await svc.TestAsync(sink.Id);
+        await svc.TestAsync(sink.Id, TestContext.Current.CancellationToken);
 
         var body = JsonDocument.Parse(handler.LastBody!);
         Assert.Equal("webhook.test", body.RootElement.GetProperty("event").GetString());
