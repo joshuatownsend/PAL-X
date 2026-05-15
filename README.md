@@ -146,8 +146,11 @@ pal analyze            Analyze a CSV or BLG capture and emit report artifacts
 pal validate-pack      Validate a pack directory against the pal.pack/v1 schema
 pal inspect-dataset    Parse and summarize a capture without running rules
 pal list-packs         List packs found on the search path
+pal packs sign         Sign a pack directory, producing pack.yaml.sig
 pal remote             Interact with a running PAL API server
 ```
+
+`pal remote` exposes a working set against a running API: `submit`, `status`, `results`, `report`, `dataset`, `compare`, `diagnostics`, `trends`, `correlations`, `packs`, `validate-pack`, and the `baselines`, `alerts`, and `schedules` sub-branches. Run `pal remote --help` for the full surface.
 
 ### `pal analyze` key options
 
@@ -155,16 +158,20 @@ pal remote             Interact with a running PAL API server
 |--------|-------------|
 | `--input <path>` | Path to CSV or BLG file |
 | `--output <dir>` | Output directory for report artifacts |
+| `--format <fmt>` | Input format: `auto` (default), `csv`, or `blg` |
 | `--auto-resolve-packs` | Auto-load applicable packs based on dataset counters |
 | `--pack <id>` | Explicit pack ID to load (repeatable) |
 | `--pack-dir <path>` | Additional search path for packs (repeatable) |
 | `--host-memory-mb <n>` | Total physical memory — required for RAM-relative rules |
 | `--host-cpu-count <n>` | Logical processor count — required for CPU-count-relative rules |
+| `--markdown` | Also emit a Markdown report alongside HTML/JSON |
 | `--include-charts` | Emit SVG chart files alongside the report |
+| `--chart-limit <n>` | Maximum charts to generate (default: 20) |
 | `--json-only` / `--html-only` | Emit only one format |
 | `--fail-on-warning` | Exit 1 if any warning finding is produced |
+| `--now <iso>` | Override `generated_at_utc` for deterministic test output |
 
-> **BLG files**: BLG import is not supported in Phase 1. Convert first:
+> **BLG files**: native BLG ingestion is supported on Windows (x64) via PDH interop. On non-Windows platforms, convert first with:
 > `relog -f CSV server.blg -o server.csv`
 
 ### Exit codes
@@ -184,7 +191,7 @@ pal remote             Interact with a running PAL API server
 
 Reports are written to `<output>/<stem>.pal-report.json` and `<output>/<stem>.pal-report.html`.
 
-The JSON report conforms to `schemas/pal.report.v1.json`. Key sections:
+The JSON report conforms to `dotnet/schemas/pal.report.v1.json`. Key sections:
 
 ```json
 {
@@ -215,7 +222,7 @@ Report IDs and finding IDs are **content-hash-based** — the same input and pac
 
 ## Rule packs
 
-Packs live under `packs/thresholds/` and are validated against `schemas/pal.pack.v1.json`.
+Packs live under `packs/thresholds/` and are validated against `dotnet/schemas/pal.pack.v1.json`.
 
 | Pack | Coverage | Auto-loaded when |
 |------|----------|-----------------|
@@ -258,23 +265,24 @@ pal-x/
 ├── dotnet/
 │   ├── src/
 │   │   ├── Pal.Engine/       # Dataset model, rule evaluator, statistics, status classifier
-│   │   ├── Pal.Ingestion/    # CSV collector; BLG stub (Phase 1.5)
-│   │   ├── Pal.Packs/        # YAML pack loader, validator, resolver
-│   │   ├── Pal.Reporting/    # JSON + HTML writers, ScottPlot SVG charts
+│   │   ├── Pal.Ingestion/    # CSV collector; BLG collector (Windows PDH interop)
+│   │   ├── Pal.Packs/        # YAML pack loader, validator, resolver, signature verifier
+│   │   ├── Pal.Reporting/    # JSON + HTML + Markdown writers, ScottPlot SVG charts
 │   │   ├── Pal.Application/  # Shared DTOs and service interfaces
 │   │   ├── Pal.Persistence/  # EF Core 8 + PostgreSQL — entities, migrations, repositories
 │   │   ├── Pal.Api/          # ASP.NET Core minimal API + background workers
 │   │   └── Pal.Cli/          # Spectre.Console.Cli standalone tool
+│   ├── schemas/              # pal.pack.v1.json, pal.report.v1.json (source of truth)
 │   └── tests/
 │       ├── Pal.Engine.Tests/
 │       ├── Pal.Ingestion.Tests/
 │       ├── Pal.Packs.Tests/
 │       ├── Pal.Reporting.Tests/
+│       ├── Pal.Application.Tests/
 │       ├── Pal.Cli.Tests/
 │       └── Pal.Api.Tests/    # Integration tests — requires Docker Desktop
 ├── packs/thresholds/         # Shipped rule packs
-├── schemas/                  # pal.report.v1.json, pal.pack.v1.json
-├── fixtures/                 # Golden-output test fixtures
+├── fixtures/                 # Golden-output test fixtures (CSV and BLG)
 ├── docs/                     # Architecture ADRs and phase specs
 └── legacy/                   # PAL v2 PowerShell tool (read-only reference)
 ```
@@ -284,8 +292,12 @@ pal-x/
 ## Development
 
 ```bash
-# Unit tests (no Docker required)
-dotnet test dotnet/Pal.sln -c Release --filter "FullyQualifiedName!~Pal.Api.Tests"
+# Unit tests (no Docker required) — enumerate projects rather than a solution-level
+# filter; newer Microsoft.NET.Test.Sdk treats a zero-match per-DLL run as exit 1.
+foreach ($p in 'Pal.Engine.Tests','Pal.Packs.Tests','Pal.Ingestion.Tests',
+               'Pal.Reporting.Tests','Pal.Application.Tests','Pal.Cli.Tests') {
+  dotnet test "dotnet/tests/$p" -c Release
+}
 
 # Integration tests (Docker Desktop must be running)
 dotnet test dotnet/tests/Pal.Api.Tests -c Release
@@ -295,13 +307,13 @@ pal validate-pack --path packs/thresholds/windows-core
 pal validate-pack --path packs/thresholds/iis-core
 pal validate-pack --path packs/thresholds/sql-host-core
 
-# Add an EF Core migration
+# Add an EF Core migration (dotnet-ef is not on PATH — invoke via full path)
 & "$env:USERPROFILE\.dotnet\tools\dotnet-ef.exe" migrations add <Name> `
     --project dotnet/src/Pal.Persistence `
     --startup-project dotnet/src/Pal.Api
 ```
 
-CI runs on every push to `main` and every PR — see `.github/workflows/ci.yml`. The Windows runner excludes `Pal.Api.Tests` (no Docker); a separate Ubuntu job runs them via Testcontainers.
+CI runs on every push to `main` and every PR — see `.github/workflows/ci.yml`. The Windows runner enumerates the unit-test projects and excludes `Pal.Api.Tests` (no Docker); a separate Ubuntu job runs them via Testcontainers.
 
 ---
 
@@ -309,9 +321,12 @@ CI runs on every push to `main` and every PR — see `.github/workflows/ci.yml`.
 
 Ratified deviations from the original design docs are recorded in `docs/architecture/adr/`. Key choices:
 
-- **Declarative comparators** instead of a custom expression DSL — every rule condition is `metric + aggregation + operator + threshold + duration_percent`, trivially validatable and diffable
+- **Declarative comparators** ([ADR 0002](docs/architecture/adr/0002-declarative-rule-schema.md)) instead of a custom expression DSL — every rule condition is `metric + aggregation + operator + threshold + duration_percent`, trivially validatable and diffable
 - **Tri-state status** (critical / warning / healthy) instead of an additive numeric score
 - **Content-hash IDs** — `report_id` and `finding_id` are SHA-256-based; the same inputs always produce the same identifiers
 - **snake_case canonical metric IDs** — legacy counter paths (e.g. `\Processor(_Total)\% Processor Time`) map to `processor.percent_processor_time` via a pack-level alias table
+- **Pack signing** ([ADR 0003](docs/architecture/adr/0003-pack-signing-format.md)) — RSA-PSS-SHA256 signatures stored as `pack.yaml.sig` sidecar files; `pal validate-pack --require-signature` enforces them
+- **Rolling-window aggregations** ([ADR 0004](docs/architecture/adr/0004-schema-v1.1-rolling-windows.md)) — `schema_version: "pal.pack/v1.1"` adds an optional `window:` block to rule conditions for time-windowed evaluation (avg, min, max, p90, p95, p99)
+- **Multitenancy** — two-level Org → Workspace hierarchy enforced by EF Core global query filters and DB-level cascade constraints; API routes scope under `/api/workspaces/{workspaceId}`
 
-See `docs/architecture/adr/0001-deviations-from-seed-docs.md` for the full list.
+See [ADR 0001](docs/architecture/adr/0001-deviations-from-seed-docs.md) for the full list of 12 ratified deviations.
