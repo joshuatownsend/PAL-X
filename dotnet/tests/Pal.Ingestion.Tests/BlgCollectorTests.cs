@@ -19,10 +19,20 @@ public class BlgCollectorTests
     private static bool IsGitHubActions =>
         Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
 
-    private static void SkipIfCannotRunPdh()
+    private static void SkipIfNotWindows()
     {
         if (!OperatingSystem.IsWindows()) Assert.Skip("BLG ingestion is Windows-only");
+    }
+
+    private static void SkipIfNoBlgFixture()
+    {
         if (!File.Exists(BlgPath)) Assert.Skip($"BLG fixture missing at {BlgPath}");
+    }
+
+    private static void SkipIfCannotRunPdh()
+    {
+        SkipIfNotWindows();
+        SkipIfNoBlgFixture();
     }
 
     [Fact]
@@ -89,7 +99,7 @@ public class BlgCollectorTests
     [Fact]
     public void CanHandle_BlgExtension_ReturnsTrue()
     {
-        if (!OperatingSystem.IsWindows()) Assert.Skip("BLG ingestion is Windows-only");
+        SkipIfNotWindows();
         var collector = new BlgCollector(MetricAliasRegistry.BuildDefault());
         Assert.True(collector.CanHandle("server.blg"));
         Assert.True(collector.CanHandle(@"C:\logs\server.BLG"));
@@ -104,8 +114,7 @@ public class BlgCollectorTests
     [Fact]
     public void Diagnostic_PdhInterop_OnGitHubActions()
     {
-        if (!OperatingSystem.IsWindows()) Assert.Skip("BLG ingestion is Windows-only");
-        if (!File.Exists(BlgPath)) Assert.Skip($"BLG fixture missing at {BlgPath}");
+        SkipIfCannotRunPdh();
         if (!IsGitHubActions) Assert.Skip("Diagnostic runs only on GitHub Actions");
 
         Output.WriteLine($"[issue-41] OS: {Environment.OSVersion}");

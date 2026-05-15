@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
+using System.Text;
 using Pal.Engine.Model;
 using Pal.Engine.Normalization;
 
@@ -8,6 +9,11 @@ namespace Pal.Ingestion.Blg;
 [SupportedOSPlatform("windows")]
 public sealed class BlgCollector : IDatasetCollector
 {
+    // \*\*     → non-instanced counters (Memory, System, etc.)
+    // \*(*)\*  → instanced counters (Processor(_Total), PhysicalDisk(_Total), etc.)
+    private const string NonInstancedWildcard = @"\*\*";
+    private const string InstancedWildcard = @"\*(*)\*";
+
     private readonly MetricAliasRegistry _registry;
 
     public BlgCollector(MetricAliasRegistry registry) => _registry = registry;
@@ -167,7 +173,7 @@ public sealed class BlgCollector : IDatasetCollector
 
     private static string BuildNoReadableCountersMessage(string filePath, List<string> enumerated, List<string> warnings)
     {
-        var sb = new System.Text.StringBuilder();
+        var sb = new StringBuilder();
         sb.Append($"BLG file '{filePath}' contains no readable counters. ");
         sb.Append($"Enumerated {enumerated.Count} counter path(s); 0 could be opened.");
         if (enumerated.Count > 0)
@@ -199,12 +205,8 @@ public sealed class BlgCollector : IDatasetCollector
 
     private static List<string> EnumerateCounterPaths(IntPtr hDataSource, List<string> warnings)
     {
-        // Two wildcard patterns cover all counter types:
-        // \*\*     → non-instanced (Memory, System, etc.)
-        // \*(*)\*  → instanced (Processor(_Total), PhysicalDisk(_Total), etc.)
-        //
         // On Windows 11 24H2 / Server 2025 (build 26100+), PdhExpandWildCardPathHW returns
-        // success with zero paths unless the wildcard is machine-qualified (\\<machine>\*\*).
+        // success-with-zero-paths unless the wildcard is machine-qualified (\\<machine>\*\*).
         // We enumerate the machine(s) recorded in the BLG via PdhEnumMachinesH and probe
         // with both prefixed wildcards per machine. Falling back to unprefixed wildcards
         // covers any edge case where machine enumeration returns nothing.
@@ -212,60 +214,48 @@ public sealed class BlgCollector : IDatasetCollector
         var machines = EnumerateMachines(hDataSource, warnings);
         foreach (var machine in machines)
         {
-            ExpandWildcard(hDataSource, $@"{machine}\*\*", paths, warnings);
-            ExpandWildcard(hDataSource, $@"{machine}\*(*)\*", paths, warnings);
+            paths.UnionWith(ExpandWildcardPaths(hDataSource, $@"{machine}{NonInstancedWildcard}", warnings));
+            paths.UnionWith(ExpandWildcardPaths(hDataSource, $@"{machine}{InstancedWildcard}", warnings));
         }
         if (paths.Count == 0)
         {
-            ExpandWildcard(hDataSource, @"\*\*", paths, warnings);
-            ExpandWildcard(hDataSource, @"\*(*)\*", paths, warnings);
+            paths.UnionWith(ExpandWildcardPaths(hDataSource, NonInstancedWildcard, warnings));
+            paths.UnionWith(ExpandWildcardPaths(hDataSource, InstancedWildcard, warnings));
         }
         return [.. paths.Order(StringComparer.OrdinalIgnoreCase)];
     }
 
-    private static List<string> EnumerateMachines(IntPtr hDataSource, List<string> warnings)
+    private static List<string> EnumerateMachines(IntPtr hDataSource, List<string> warnings) =>
+        ProbeAndFillMultiSz("PdhEnumMachinesHW",
+            (char[]? buf, ref int size) => PdhInterop.PdhEnumMachinesHW(hDataSource, buf, ref size),
+            warnings);
+
+    private static List<string> ExpandWildcardPaths(IntPtr hDataSource, string wildcard, List<string> warnings) =>
+        ProbeAndFillMultiSz($"PdhExpandWildCardPathHW('{wildcard}')",
+            (char[]? buf, ref int size) => PdhInterop.PdhExpandWildCardPathHW(hDataSource, wildcard, buf, ref size, 0),
+            warnings);
+
+    private delegate int PdhProbeFillCall(char[]? buffer, ref int size);
+
+    private static List<string> ProbeAndFillMultiSz(string opName, PdhProbeFillCall call, List<string> warnings)
     {
         int size = 0;
-        int hr = PdhInterop.PdhEnumMachinesHW(hDataSource, null, ref size);
+        int hr = call(null, ref size);
         if (hr != PdhInterop.PDH_INSUFFICIENT_BUFFER && hr != PdhInterop.PDH_MORE_DATA && hr != 0)
         {
-            warnings.Add($"PdhEnumMachinesHW probe: 0x{hr:X8}");
+            warnings.Add($"{opName} probe: 0x{hr:X8}");
             return [];
         }
         if (size <= 0) return [];
 
         var buf = new char[size];
-        hr = PdhInterop.PdhEnumMachinesHW(hDataSource, buf, ref size);
+        hr = call(buf, ref size);
         if (hr != 0)
         {
-            warnings.Add($"PdhEnumMachinesHW fill: 0x{hr:X8}");
+            warnings.Add($"{opName} fill: 0x{hr:X8}");
             return [];
         }
         return ParseMultiSz(buf);
-    }
-
-    private static void ExpandWildcard(IntPtr hDataSource, string wildcard, HashSet<string> paths, List<string> warnings)
-    {
-        int size = 0;
-        int hr = PdhInterop.PdhExpandWildCardPathHW(hDataSource, wildcard, null, ref size, 0);
-
-        if (hr != PdhInterop.PDH_INSUFFICIENT_BUFFER && hr != PdhInterop.PDH_MORE_DATA && hr != 0)
-        {
-            warnings.Add($"PdhExpandWildCardPathHW('{wildcard}') probe: 0x{hr:X8}");
-            return;
-        }
-        if (size <= 0) return;
-
-        var buf = new char[size];
-        hr = PdhInterop.PdhExpandWildCardPathHW(hDataSource, wildcard, buf, ref size, 0);
-        if (hr != 0)
-        {
-            warnings.Add($"PdhExpandWildCardPathHW('{wildcard}') fill: 0x{hr:X8}");
-            return;
-        }
-
-        foreach (var path in ParseMultiSz(buf))
-            paths.Add(path);
     }
 
     private static List<string> ParseMultiSz(char[] buf)
