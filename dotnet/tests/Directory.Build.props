@@ -1,0 +1,14 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
+
+  <PropertyGroup>
+    <!--
+      xUnit1051 wants every CancellationToken-accepting call inside a test body to receive
+      `TestContext.Current.CancellationToken` so the test cooperates with xunit's own
+      cancellation (test timeouts, Ctrl+C in the runner). Adopting it across the existing
+      ~230 call sites is a separate, deliberate change; the v3 migration deliberately
+      keeps test behavior identical for now.
+    -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+  </PropertyGroup>
+</Project>
