@@ -31,16 +31,14 @@ public sealed class PalApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
     private readonly string _storageRoot = Path.Combine(Path.GetTempPath(), $"pal-test-{Guid.NewGuid():N}");
     private readonly string _packsRoot = Path.Combine(Path.GetTempPath(), $"pal-packs-{Guid.NewGuid():N}");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
         Directory.CreateDirectory(_storageRoot);
         Directory.CreateDirectory(_packsRoot);
     }
 
-    // WebApplicationFactory<T>.DisposeAsync() returns ValueTask (IAsyncDisposable);
-    // IAsyncLifetime.DisposeAsync() requires Task — incompatible return types, so `new` is the only option.
-    public new async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
         await _postgres.DisposeAsync();
