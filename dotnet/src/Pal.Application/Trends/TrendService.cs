@@ -7,12 +7,7 @@ public sealed class TrendService(IAnalysisRepository analysis, TrendAnalyzer ana
     public async Task<TrendResultDto> ComputeAsync(int window, CancellationToken ct = default)
     {
         int clampedWindow = Math.Clamp(window, 1, 100);
-        var jobs = await analysis.ListJobsAsync("completed", ct);
-
-        var recent = jobs
-            .OrderByDescending(j => j.CompletedAt ?? j.CreatedAt)
-            .Take(clampedWindow)
-            .ToList();
+        var recent = await analysis.GetRecentCompletedJobsAsync(clampedWindow, ct);
 
         if (recent.Count == 0)
             return new TrendResultDto { JobCount = 0, WindowStart = default, WindowEnd = default, Trends = [] };

@@ -33,15 +33,10 @@ public sealed class PolicyEvaluator : IPolicyEvaluator
         if (currentWarnings.Count == 0)
             return PolicyResult.Empty;
 
-        // Pull the prior (WindowSize - 1) completed jobs. The current job is still 'running'
-        // at this point, so it won't be in this list. ListJobsAsync respects the EF tenant
-        // filter — this method must be called from inside a SetWorkspace block.
-        var jobs = await _analysis.ListJobsAsync("completed", ct);
-        var priorIds = jobs
-            .OrderByDescending(j => j.CompletedAt ?? j.CreatedAt)
-            .Take(WindowSize - 1)
-            .Select(j => j.Id)
-            .ToList();
+        // The current job is still 'running' when this evaluates, so it won't appear in the
+        // window — the repository's tenant filter requires a SetWorkspace block on the caller.
+        var jobs = await _analysis.GetRecentCompletedJobsAsync(WindowSize - 1, ct);
+        var priorIds = jobs.Select(j => j.Id).ToList();
 
         // Need at least (EscalationThreshold - 1) prior runs to even have a chance of meeting
         // the bar. Skip cheap when we can't possibly escalate.

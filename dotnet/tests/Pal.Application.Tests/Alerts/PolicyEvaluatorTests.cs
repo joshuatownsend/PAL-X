@@ -175,6 +175,16 @@ public class PolicyEvaluatorTests
                 _jobs.Where(j => statusFilter is null || j.job.Status == statusFilter)
                      .Select(j => j.job).ToList());
 
+        public Task<IReadOnlyList<AnalysisJobDto>> GetRecentCompletedJobsAsync(int limit, CancellationToken ct = default)
+            => Task.FromResult<IReadOnlyList<AnalysisJobDto>>(
+                _jobs.Select(j => j.job)
+                     .Where(j => j.Status == "completed")
+                     .OrderByDescending(j => j.CompletedAt ?? j.CreatedAt)
+                     .ThenByDescending(j => j.CreatedAt)
+                     .ThenByDescending(j => j.Id)
+                     .Take(limit)
+                     .ToList());
+
         public Task<IReadOnlyList<AnalysisResultDto>> GetResultsAsync(IEnumerable<Guid> jobIds, CancellationToken ct = default)
         {
             var ids = jobIds.ToHashSet();

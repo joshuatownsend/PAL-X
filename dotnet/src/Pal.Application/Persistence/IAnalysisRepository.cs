@@ -5,6 +5,11 @@ public interface IAnalysisRepository
     Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, bool includeDataset = false, Guid? selectedBaselineId = null, CancellationToken ct = default);
     Task<AnalysisJobDto?> GetJobAsync(Guid id, CancellationToken ct = default);
     Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(string? statusFilter, CancellationToken ct = default);
+
+    // LIMIT and status filter pushed into SQL — prevents materializing every completed
+    // job into memory for the trend/policy windowing callers.
+    Task<IReadOnlyList<AnalysisJobDto>> GetRecentCompletedJobsAsync(int limit, CancellationToken ct = default);
+
     Task<IReadOnlyList<Guid>> GetQueuedJobIdsAsync(CancellationToken ct = default);
 
     // Returns true if the claim succeeded (job was in 'queued' state)
