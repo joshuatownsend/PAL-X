@@ -49,7 +49,28 @@ public sealed class AnalysisRepository : IAnalysisRepository
         if (statusFilter is not null)
             query = query.Where(j => j.Status == statusFilter);
         var jobs = await query.OrderByDescending(j => j.CreatedAt).ToListAsync(ct);
-        return jobs.Select(j => ToDto(j, j.Packs.Select(ToPackDto).ToList())).ToList();
+        return ProjectJobs(jobs);
+    }
+
+    public async Task<IReadOnlyList<AnalysisJobDto>> GetRecentCompletedJobsAsync(int limit, CancellationToken ct = default)
+    {
+        if (limit <= 0) return [];
+        await using var db = await _factory.CreateDbContextAsync(ct);
+        // The (Status, CreatedAt) index serves the WHERE clause; the COALESCE ORDER BY isn't
+        // index-driven, so Postgres does a top-K sort over the filtered set. That's bounded
+        // by completed-job count, fine at the limits we use (4 for policy, 100 for trends).
+        // Secondary keys make tie ordering deterministic — without them, two jobs sharing a
+        // CompletedAt value could flap into/out of the window across runs.
+        var jobs = await db.AnalysisJobs
+            .AsNoTracking()
+            .Include(j => j.Packs)
+            .Where(j => j.Status == "completed")
+            .OrderByDescending(j => j.CompletedAt ?? j.CreatedAt)
+            .ThenByDescending(j => j.CreatedAt)
+            .ThenByDescending(j => j.Id)
+            .Take(limit)
+            .ToListAsync(ct);
+        return ProjectJobs(jobs);
     }
 
     public async Task<IReadOnlyList<Guid>> GetQueuedJobIdsAsync(CancellationToken ct = default)
@@ -220,7 +241,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
         if (type is not null)
             query = query.Where(j => j.BaselineType == type);
         var jobs = await query.OrderByDescending(j => j.CreatedAt).ToListAsync(ct);
-        return jobs.Select(j => ToDto(j, j.Packs.Select(ToPackDto).ToList())).ToList();
+        return ProjectJobs(jobs);
     }
 
     public async Task<IReadOnlyList<AnalysisJobDto>> GetBaselineVersionsAsync(string type, string contextJson, CancellationToken ct = default)
@@ -231,7 +252,7 @@ public sealed class AnalysisRepository : IAnalysisRepository
             .Where(j => j.IsBaseline && j.BaselineType == type && j.BaselineContextJson == contextJson)
             .OrderByDescending(j => j.CreatedAt)
             .ToListAsync(ct);
-        return jobs.Select(j => ToDto(j, j.Packs.Select(ToPackDto).ToList())).ToList();
+        return ProjectJobs(jobs);
     }
 
     public async Task SaveDatasetArtifactAsync(Guid jobId, string storagePath, long byteLength, bool compressed, CancellationToken ct = default)
@@ -257,6 +278,9 @@ public sealed class AnalysisRepository : IAnalysisRepository
             Compressed = e.DatasetCompressed ?? false
         };
     }
+
+    private static List<AnalysisJobDto> ProjectJobs(IEnumerable<AnalysisJobEntity> jobs)
+        => jobs.Select(j => ToDto(j, j.Packs.Select(ToPackDto).ToList())).ToList();
 
     private static AnalysisJobDto ToDto(AnalysisJobEntity j, IReadOnlyList<JobPackDto> packs) => new()
     {

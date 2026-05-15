@@ -230,6 +230,16 @@ internal sealed class FakeAnalysisRepository : IAnalysisRepository
     public Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(string? statusFilter, CancellationToken ct = default) =>
         Task.FromResult(_histJobs);
 
+    public Task<IReadOnlyList<AnalysisJobDto>> GetRecentCompletedJobsAsync(int limit, CancellationToken ct = default)
+        => Task.FromResult<IReadOnlyList<AnalysisJobDto>>(
+            _histJobs
+                .Where(j => j.Status == "completed")
+                .OrderByDescending(j => j.CompletedAt ?? j.CreatedAt)
+                .ThenByDescending(j => j.CreatedAt)
+                .ThenByDescending(j => j.Id)
+                .Take(limit)
+                .ToList());
+
     public Task<IReadOnlyList<AnalysisResultDto>> GetResultsAsync(IEnumerable<Guid> jobIds, CancellationToken ct = default)
     {
         var ids = new HashSet<Guid>(jobIds);
