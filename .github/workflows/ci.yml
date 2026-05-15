@@ -27,9 +27,24 @@ jobs:
         run: dotnet build dotnet/Pal.sln -c Release --no-restore
 
       - name: Test
-        # Exclude Pal.Api.Tests — it requires Docker (Testcontainers), which is unavailable on Windows runners.
-        # Those tests run in the api-integration-tests job below on ubuntu-latest.
-        run: dotnet test dotnet/Pal.sln -c Release --no-build --filter "FullyQualifiedName!~Pal.Api.Tests" --logger "console;verbosity=normal"
+        # Pal.Api.Tests is intentionally excluded — it requires Docker (Testcontainers), which is
+        # unavailable on Windows runners. Those tests run in api-integration-tests on ubuntu-latest.
+        # Enumerating projects (rather than --filter against the solution) avoids the per-DLL
+        # zero-match exit 1 behavior introduced by newer Microsoft.NET.Test.Sdk versions.
+        shell: pwsh
+        run: |
+          $projects = @(
+            'dotnet/tests/Pal.Engine.Tests',
+            'dotnet/tests/Pal.Packs.Tests',
+            'dotnet/tests/Pal.Ingestion.Tests',
+            'dotnet/tests/Pal.Reporting.Tests',
+            'dotnet/tests/Pal.Application.Tests',
+            'dotnet/tests/Pal.Cli.Tests'
+          )
+          foreach ($p in $projects) {
+            dotnet test $p -c Release --no-build --logger "console;verbosity=normal"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
       - name: Validate packs
         run: |

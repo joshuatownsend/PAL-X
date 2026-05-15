@@ -21,8 +21,7 @@ public sealed class PalApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
 {
     public const string TestUserId = "test-user-id";
     public static readonly string WsBase = $"/api/workspaces/{DefaultTenant.WorkspaceId}";
-    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:16-alpine")
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder("postgres:16-alpine")
         .WithDatabase("pal_test")
         .WithUsername("pal")
         .WithPassword("paltest")
