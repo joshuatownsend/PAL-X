@@ -19,14 +19,10 @@ public class BlgCollectorTests
     private static bool IsGitHubActions =>
         Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
 
-    // GitHub Actions windows-latest exhibits PDH behavior differences from local Windows 11.
-    // The four Collect_BlgFixture_* tests are skipped there pending issue #41; the diagnostic
-    // test below runs only on GHA and dumps the actual failure mode to test output.
     private static void SkipIfCannotRunPdh()
     {
         if (!OperatingSystem.IsWindows()) Assert.Skip("BLG ingestion is Windows-only");
         if (!File.Exists(BlgPath)) Assert.Skip($"BLG fixture missing at {BlgPath}");
-        if (IsGitHubActions) Assert.Skip("BLG fixture tests skipped on GitHub Actions pending issue #41");
     }
 
     [Fact]

@@ -202,12 +202,46 @@ public sealed class BlgCollector : IDatasetCollector
         // Two wildcard patterns cover all counter types:
         // \*\*     → non-instanced (Memory, System, etc.)
         // \*(*)\*  → instanced (Processor(_Total), PhysicalDisk(_Total), etc.)
-        // Probe returns PDH_INSUFFICIENT_BUFFER (0x800007D2) with required char count;
-        // fill call (correctly-sized buffer) returns 0.
+        //
+        // On Windows 11 24H2 / Server 2025 (build 26100+), PdhExpandWildCardPathHW returns
+        // success with zero paths unless the wildcard is machine-qualified (\\<machine>\*\*).
+        // We enumerate the machine(s) recorded in the BLG via PdhEnumMachinesH and probe
+        // with both prefixed wildcards per machine. Falling back to unprefixed wildcards
+        // covers any edge case where machine enumeration returns nothing.
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        ExpandWildcard(hDataSource, @"\*\*", paths, warnings);
-        ExpandWildcard(hDataSource, @"\*(*)\*", paths, warnings);
+        var machines = EnumerateMachines(hDataSource, warnings);
+        foreach (var machine in machines)
+        {
+            ExpandWildcard(hDataSource, $@"{machine}\*\*", paths, warnings);
+            ExpandWildcard(hDataSource, $@"{machine}\*(*)\*", paths, warnings);
+        }
+        if (paths.Count == 0)
+        {
+            ExpandWildcard(hDataSource, @"\*\*", paths, warnings);
+            ExpandWildcard(hDataSource, @"\*(*)\*", paths, warnings);
+        }
         return [.. paths.Order(StringComparer.OrdinalIgnoreCase)];
+    }
+
+    private static List<string> EnumerateMachines(IntPtr hDataSource, List<string> warnings)
+    {
+        int size = 0;
+        int hr = PdhInterop.PdhEnumMachinesHW(hDataSource, null, ref size);
+        if (hr != PdhInterop.PDH_INSUFFICIENT_BUFFER && hr != PdhInterop.PDH_MORE_DATA && hr != 0)
+        {
+            warnings.Add($"PdhEnumMachinesHW probe: 0x{hr:X8}");
+            return [];
+        }
+        if (size <= 0) return [];
+
+        var buf = new char[size];
+        hr = PdhInterop.PdhEnumMachinesHW(hDataSource, buf, ref size);
+        if (hr != 0)
+        {
+            warnings.Add($"PdhEnumMachinesHW fill: 0x{hr:X8}");
+            return [];
+        }
+        return ParseMultiSz(buf);
     }
 
     private static void ExpandWildcard(IntPtr hDataSource, string wildcard, HashSet<string> paths, List<string> warnings)

@@ -61,6 +61,17 @@ internal static class PdhInterop
         ref int pcchPathListLength,
         int dwFlags);
 
+    // Returns the machine name(s) recorded in the bound BLG data source.
+    // Required prefix for wildcard expansion on Windows 11 24H2 / Server 2025 (build 26100+) —
+    // older PDH versions accepted unprefixed wildcards (\*\*) against a data source, newer
+    // versions return success-with-zero-paths unless the wildcard is machine-qualified
+    // (\\<machine>\*\*). See issue #41.
+    [DllImport("pdh.dll", CharSet = CharSet.Unicode)]
+    internal static extern int PdhEnumMachinesHW(
+        IntPtr hDataSource,
+        char[]? mszMachineList,
+        ref int pcchBufferSize);
+
     internal static void ThrowIfFailed(int hr, string operation)
     {
         if (hr != 0)
