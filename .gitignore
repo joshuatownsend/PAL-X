@@ -24,6 +24,8 @@ Thumbs.db
 
 # Claude Code runtime files
 .claude/scheduled_tasks.lock
+.claudelint-cache/
+.codegraph/
 INSIGHTS.md
 
 # PAL output artifacts (not fixtures)

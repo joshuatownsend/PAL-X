@@ -15,8 +15,8 @@ public sealed class JobStatusCommand : AsyncCommand<JobStatusCommand.Settings>
         public required string JobId { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.JobId, out var id))
             {
@@ -25,7 +25,7 @@ public sealed class JobStatusCommand : AsyncCommand<JobStatusCommand.Settings>
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync($"analysis/{id}");
+            var resp = await client.GetAsync($"analysis/{id}", ct);
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
                 AnsiConsole.MarkupLine($"[red]Job not found:[/] {id}");
@@ -33,7 +33,7 @@ public sealed class JobStatusCommand : AsyncCommand<JobStatusCommand.Settings>
             }
             resp.EnsureSuccessStatusCode();
 
-            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>(ct);
             var status = doc.GetProperty("status").GetString() ?? "unknown";
 
             var color = status switch

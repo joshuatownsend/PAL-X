@@ -24,8 +24,8 @@ public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
         public bool Verbose { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.JobId, out var id))
             {
@@ -34,7 +34,7 @@ public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync($"analysis/{id}/results");
+            var resp = await client.GetAsync($"analysis/{id}/results", ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -48,7 +48,7 @@ public sealed class JobResultsCommand : AsyncCommand<JobResultsCommand.Settings>
             }
             resp.EnsureSuccessStatusCode();
 
-            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>(ct);
 
             if (settings.Json)
             {

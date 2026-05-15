@@ -18,7 +18,7 @@ public sealed class SignPackSettings : CommandSettings
 
 public sealed class SignPackCommand : Command<SignPackSettings>
 {
-    public override int Execute(CommandContext context, SignPackSettings settings)
+    protected override int Execute(CommandContext context, SignPackSettings settings, CancellationToken cancellationToken)
     {
         try
         {

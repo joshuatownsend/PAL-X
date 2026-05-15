@@ -19,11 +19,11 @@ public sealed class RemoteValidatePackCommand : AsyncCommand<RemoteValidatePackC
         public required string Version { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync($"packs/{settings.PackId}/versions/{settings.Version}/validation");
+            var resp = await client.GetAsync($"packs/{settings.PackId}/versions/{settings.Version}/validation", ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -32,7 +32,7 @@ public sealed class RemoteValidatePackCommand : AsyncCommand<RemoteValidatePackC
             }
             resp.EnsureSuccessStatusCode();
 
-            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>(ct);
             bool isValid = doc.TryGetProperty("isValid", out var v) && v.GetBoolean();
 
             if (isValid)

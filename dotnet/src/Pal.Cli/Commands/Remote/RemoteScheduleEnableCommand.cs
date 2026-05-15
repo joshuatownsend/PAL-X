@@ -14,11 +14,11 @@ public sealed class RemoteScheduleEnableCommand : AsyncCommand<RemoteScheduleEna
         public required string Id { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => Toggle(settings, enable: true);
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => Toggle(settings, enable: true, cancellationToken);
 
-    internal static Task<int> Toggle(Settings settings, bool enable)
-        => RemoteCommand.RunAsync(async () =>
+    internal static Task<int> Toggle(Settings settings, bool enable, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.Id, out var id))
             {
@@ -27,7 +27,7 @@ public sealed class RemoteScheduleEnableCommand : AsyncCommand<RemoteScheduleEna
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.PatchAsJsonAsync($"schedules/{id}/enabled", new { enabled = enable });
+            var resp = await client.PatchAsJsonAsync($"schedules/{id}/enabled", new { enabled = enable }, ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -45,6 +45,6 @@ public sealed class RemoteScheduleEnableCommand : AsyncCommand<RemoteScheduleEna
 
 public sealed class RemoteScheduleDisableCommand : AsyncCommand<RemoteScheduleEnableCommand.Settings>
 {
-    public override Task<int> ExecuteAsync(CommandContext context, RemoteScheduleEnableCommand.Settings settings)
-        => RemoteScheduleEnableCommand.Toggle(settings, enable: false);
+    protected override Task<int> ExecuteAsync(CommandContext context, RemoteScheduleEnableCommand.Settings settings, CancellationToken cancellationToken)
+        => RemoteScheduleEnableCommand.Toggle(settings, enable: false, cancellationToken);
 }

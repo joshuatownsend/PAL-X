@@ -98,7 +98,7 @@ public sealed class AnalyzeSettings : CommandSettings
 
 public sealed class AnalyzeCommand : Command<AnalyzeSettings>
 {
-    public override ValidationResult Validate(CommandContext context, AnalyzeSettings settings)
+    protected override ValidationResult Validate(CommandContext context, AnalyzeSettings settings)
     {
         if (string.IsNullOrWhiteSpace(settings.Input))
             return ValidationResult.Error("--input is required");
@@ -112,7 +112,7 @@ public sealed class AnalyzeCommand : Command<AnalyzeSettings>
         return ValidationResult.Success();
     }
 
-    public override int Execute(CommandContext context, AnalyzeSettings settings)
+    protected override int Execute(CommandContext context, AnalyzeSettings settings, CancellationToken cancellationToken)
     {
         if (settings.HtmlOnly && settings.JsonOnly)
         {

@@ -25,8 +25,8 @@ public sealed class RemoteAlertSnoozeCommand : AsyncCommand<RemoteAlertSnoozeCom
         public string? Until { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!Guid.TryParse(settings.Id, out var id))
             {
@@ -69,7 +69,7 @@ public sealed class RemoteAlertSnoozeCommand : AsyncCommand<RemoteAlertSnoozeCom
             }
 
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.PatchAsJsonAsync($"alerts/{id}/snooze", new { until });
+            var resp = await client.PatchAsJsonAsync($"alerts/{id}/snooze", new { until }, ct);
 
             if (resp.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -78,7 +78,7 @@ public sealed class RemoteAlertSnoozeCommand : AsyncCommand<RemoteAlertSnoozeCom
             }
             if (resp.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                var body = await resp.Content.ReadAsStringAsync();
+                var body = await resp.Content.ReadAsStringAsync(ct);
                 AnsiConsole.MarkupLine($"[red]Snooze rejected:[/] {Markup.Escape(body)}");
                 return ExitCodes.GeneralFailure;
             }

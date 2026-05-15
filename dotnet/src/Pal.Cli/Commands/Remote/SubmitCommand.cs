@@ -26,8 +26,8 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
         public string? BaselineId { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             if (!System.IO.File.Exists(settings.File))
             {
@@ -44,14 +44,14 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
                 form.Add(new StreamContent(fs), "file", Path.GetFileName(settings.File));
 
                 AnsiConsole.MarkupLine($"[grey]Uploading {Path.GetFileName(settings.File)}…[/]");
-                var uploadResp = await client.PostAsync("uploads", form);
+                var uploadResp = await client.PostAsync("uploads", form, ct);
                 if (!uploadResp.IsSuccessStatusCode)
                 {
                     AnsiConsole.MarkupLine($"[red]Upload failed:[/] {uploadResp.StatusCode}");
                     return ExitCodes.GeneralFailure;
                 }
 
-                var uploadBody = await uploadResp.Content.ReadFromJsonAsync<UploadResponse>();
+                var uploadBody = await uploadResp.Content.ReadFromJsonAsync<UploadResponse>(ct);
                 uploadId = uploadBody!.UploadId;
                 AnsiConsole.MarkupLine($"[grey]Upload id:[/] {uploadId}");
             }
@@ -73,7 +73,7 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
                 packs = settings.Packs,
                 includeDataset = settings.IncludeDataset,
                 selectedBaselineId
-            });
+            }, ct);
 
             if (!jobResp.IsSuccessStatusCode)
             {
@@ -81,7 +81,7 @@ public sealed class SubmitCommand : AsyncCommand<SubmitCommand.Settings>
                 return ExitCodes.GeneralFailure;
             }
 
-            var job = await jobResp.Content.ReadFromJsonAsync<JobCreatedResponse>();
+            var job = await jobResp.Content.ReadFromJsonAsync<JobCreatedResponse>(ct);
             AnsiConsole.MarkupLine($"[green]Job queued:[/] {job!.AnalysisId}");
             AnsiConsole.MarkupLine($"[grey]Poll status:[/] pal remote status {job.AnalysisId} --api {settings.ApiBase}");
             return ExitCodes.Success;

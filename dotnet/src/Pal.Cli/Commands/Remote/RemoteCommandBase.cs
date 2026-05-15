@@ -47,9 +47,9 @@ internal static class RemoteMarkup
 
 internal static class RemoteCommand
 {
-    internal static async Task<int> RunAsync(Func<Task<int>> body)
+    internal static async Task<int> RunAsync(CancellationToken ct, Func<CancellationToken, Task<int>> body)
     {
-        try { return await body(); }
+        try { return await body(ct); }
         catch (HttpRequestException ex)
         {
             if (ex.StatusCode is { } statusCode)
@@ -58,7 +58,12 @@ internal static class RemoteCommand
                 AnsiConsole.MarkupLine($"[red]API unreachable:[/] {Markup.Escape(ex.Message)}");
             return ExitCodes.GeneralFailure;
         }
-        catch (TaskCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            AnsiConsole.MarkupLine("[yellow]Cancelled[/]");
+            return ExitCodes.GeneralFailure;
+        }
+        catch (OperationCanceledException)
         {
             AnsiConsole.MarkupLine("[red]Request timed out[/]");
             return ExitCodes.GeneralFailure;

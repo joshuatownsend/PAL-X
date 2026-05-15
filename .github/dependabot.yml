@@ -89,10 +89,6 @@ updates:
     # versions — bumping EF Core to 9.x or AspNetCore.* to 9.x requires
     # changing TargetFramework to net9.0+. Defer until we explicitly plan a
     # runtime upgrade.
-    #
-    # Spectre.Console 0.50+ changed AsyncCommand<T>.ExecuteAsync signature
-    # (added CancellationToken) — adopting it requires updating ~25 of our
-    # command class overrides. Tracked separately; ignore minor/major until then.
     ignore:
       - dependency-name: "Microsoft.EntityFrameworkCore*"
         update-types: ["version-update:semver-major"]
@@ -104,8 +100,6 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "EFCore.NamingConventions"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "Spectre.Console*"
-        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   # ── GitHub Actions ──────────────────────────────────────────────────────────
   # Currently tracks actions/checkout, actions/setup-dotnet in ci.yml. Future

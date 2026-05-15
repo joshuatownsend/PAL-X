@@ -19,7 +19,7 @@ public sealed class ListPacksSettings : CommandSettings
 
 public sealed class ListPacksCommand : Command<ListPacksSettings>
 {
-    public override int Execute(CommandContext context, ListPacksSettings settings)
+    protected override int Execute(CommandContext context, ListPacksSettings settings, CancellationToken cancellationToken)
     {
         var resolver = new PackResolver();
         var result = resolver.Resolve([], settings.PackDirs, autoResolve: false);

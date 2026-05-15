@@ -20,14 +20,14 @@ public sealed class TrendsCommand : AsyncCommand<TrendsCommand.Settings>
         public bool Json { get; init; }
     }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync($"trends/data?last={settings.Last}");
+            var resp = await client.GetAsync($"trends/data?last={settings.Last}", ct);
             resp.EnsureSuccessStatusCode();
 
-            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>();
+            var doc = await resp.Content.ReadFromJsonAsync<JsonElement>(ct);
 
             if (settings.Json)
             {

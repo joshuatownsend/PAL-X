@@ -11,14 +11,14 @@ public sealed class RemoteSchedulesListCommand : AsyncCommand<RemoteSchedulesLis
 
     public sealed class Settings : RemoteSettings { }
 
-    public override Task<int> ExecuteAsync(CommandContext context, Settings settings)
-        => RemoteCommand.RunAsync(async () =>
+    protected override Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellationToken)
+        => RemoteCommand.RunAsync(cancellationToken, async ct =>
         {
             using var client = RemoteHttpClient.Create(settings.ApiBase, settings.ApiKey);
-            var resp = await client.GetAsync("schedules/data");
+            var resp = await client.GetAsync("schedules/data", ct);
             resp.EnsureSuccessStatusCode();
 
-            var body = await resp.Content.ReadFromJsonAsync<SchedulesResponse>(JsonOptions);
+            var body = await resp.Content.ReadFromJsonAsync<SchedulesResponse>(JsonOptions, ct);
             if (body?.Items is null || body.Items.Count == 0)
             {
                 AnsiConsole.MarkupLine("[grey]No schedules.[/]");
