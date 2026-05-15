@@ -6,15 +6,7 @@ description: Performance Analysis of Logs — modernized, opinionated, automatab
 
 # PAL-X
 
-<!--
-LEARNING-MODE TODO (hero copy): replace the placeholder paragraph below with your own one-sentence value proposition.
-Constraints: ≤30 words, present tense, names the audience (Windows ops engineers / SREs / platform teams),
-names the input (perfmon CSV/BLG captures), and names the deliverable (findings + report).
-Example prompt: "PAL-X reads your perfmon CSV or BLG capture and produces a ranked, evidence-cited list of
-performance findings, locally or as a multi-tenant service." — improve on this.
--->
-
-**PAL-X reads a perfmon CSV or BLG capture and produces a ranked, evidence-cited report of performance findings — locally from the command line, or hosted as a multi-tenant API.**
+**PAL-X turns a perfmon CSV or BLG capture into a ranked, evidence-cited report of what's wrong — every finding traces back to the rule and measurement that fired it. No scores you can't explain.**
 
 ## What's here
 
