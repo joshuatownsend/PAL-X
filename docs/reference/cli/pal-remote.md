@@ -26,59 +26,49 @@ The default workspace ID (`00000000-0000-0000-0000-000000000002`) is seeded by t
 
 ## Subcommands
 
-> Per-subcommand reference pages are being written in a follow-on commit. Until each page exists, the entries below are bold rather than linked. The flag-level reference is captured at `docs/internal/ground-truth/cli-help-output.md` in the meantime.
-
 ### Working with jobs
 
 | Command | Purpose |
 |---|---|
-| **`pal remote submit`** | Upload a file and queue an analysis job. |
-| **`pal remote status <job-id>`** | Poll a job until it completes. |
-| **`pal remote results <job-id>`** | Show findings from a completed job. |
-| **`pal remote report <job-id>`** | Download the HTML, JSON, or Markdown report. |
-| **`pal remote dataset <job-id>`** | Download the normalized dataset artifact. |
-| **`pal remote diagnostics <job-id>`** | Show guided diagnostics insights. |
+| **[pal remote submit](pal-remote-submit.md)** | Upload a file and queue an analysis job. |
+| **[pal remote status](pal-remote-status.md)** | Poll a job until it completes. |
+| **[pal remote results](pal-remote-results.md)** | Show findings from a completed job. |
+| **[pal remote report](pal-remote-report.md)** | Download the HTML, JSON, or Markdown report. |
+| **[pal remote dataset](pal-remote-dataset.md)** | Download the normalized dataset artifact. |
+| **[pal remote diagnostics](pal-remote-diagnostics.md)** | Show guided diagnostics insights. |
 
 ### Analytics across multiple jobs
 
 | Command | Purpose |
 |---|---|
-| **`pal remote compare`** | Diff two completed jobs. |
-| **`pal remote trends`** | Finding trends across the last N jobs. |
-| **`pal remote correlations`** | Co-occurring finding pairs across the last N jobs. |
+| **[pal remote compare](pal-remote-compare.md)** | Diff two completed jobs. |
+| **[pal remote trends](pal-remote-trends.md)** | Finding trends across the last N jobs. |
+| **[pal remote correlations](pal-remote-correlations.md)** | Co-occurring finding pairs across the last N jobs. |
 
 ### Packs
 
 | Command | Purpose |
 |---|---|
-| **`pal remote packs`** | List packs registered on the server. |
-| **`pal remote validate-pack <pack-id> <version>`** | Validate a stored pack version on the server. |
+| **[pal remote packs](pal-remote-packs.md)** | List packs registered on the server. |
+| **[pal remote validate-pack](pal-remote-validate-pack.md)** | Validate a stored pack version on the server. |
 
 ### Baselines
 
 | Command | Purpose |
 |---|---|
-| **`pal remote baselines list`** | List baseline designations, optionally filtered by type. |
-| **`pal remote baselines set <job-id>`** | Designate a completed job as a baseline. |
+| **[pal remote baselines](pal-remote-baselines.md)** | List and set baseline designations. |
 
 ### Alerts (Phase 4)
 
 | Command | Purpose |
 |---|---|
-| **`pal remote alerts list`** | List alerts in the workspace. |
-| **`pal remote alerts acknowledge <id>`** | Acknowledge an alert. |
-| **`pal remote alerts resolve <id>`** | Mark an alert resolved. |
-| **`pal remote alerts snooze <id>`** | Snooze an alert for a duration. |
-| **`pal remote alerts unsnooze <id>`** | Cancel a snooze. |
+| **[pal remote alerts](pal-remote-alerts.md)** | List, acknowledge, resolve, snooze, and unsnooze alerts. |
 
 ### Schedules (Phase 4)
 
 | Command | Purpose |
 |---|---|
-| **`pal remote schedules list`** | List ingestion schedules. |
-| **`pal remote schedules create`** | Create a recurring ingestion schedule. |
-| **`pal remote schedules enable <id>`** | Toggle a schedule on or off. |
-| **`pal remote schedules delete <id>`** | Delete a schedule. |
+| **[pal remote schedules](pal-remote-schedules.md)** | List, create, enable, disable, and delete ingestion schedules. |
 
 ## Exit codes
 

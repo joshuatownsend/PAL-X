@@ -1,14 +1,46 @@
 - name: Overview
   href: index.md
-- name: pal analyze
-  href: pal-analyze.md
-- name: pal validate-pack
-  href: pal-validate-pack.md
-- name: pal inspect-dataset
-  href: pal-inspect-dataset.md
-- name: pal list-packs
-  href: pal-list-packs.md
-- name: pal packs
-  href: pal-packs.md
-- name: pal remote
-  href: pal-remote.md
+- name: Local commands
+  items:
+    - name: pal analyze
+      href: pal-analyze.md
+    - name: pal validate-pack
+      href: pal-validate-pack.md
+    - name: pal inspect-dataset
+      href: pal-inspect-dataset.md
+    - name: pal list-packs
+      href: pal-list-packs.md
+    - name: pal packs
+      href: pal-packs.md
+- name: Remote
+  items:
+    - name: pal remote (overview)
+      href: pal-remote.md
+    - name: pal remote submit
+      href: pal-remote-submit.md
+    - name: pal remote status
+      href: pal-remote-status.md
+    - name: pal remote results
+      href: pal-remote-results.md
+    - name: pal remote report
+      href: pal-remote-report.md
+    - name: pal remote dataset
+      href: pal-remote-dataset.md
+    - name: pal remote diagnostics
+      href: pal-remote-diagnostics.md
+    - name: pal remote compare
+      href: pal-remote-compare.md
+    - name: pal remote trends
+      href: pal-remote-trends.md
+    - name: pal remote correlations
+      href: pal-remote-correlations.md
+    - name: pal remote packs
+      href: pal-remote-packs.md
+    - name: pal remote validate-pack
+      href: pal-remote-validate-pack.md
+    - name: pal remote baselines
+      href: pal-remote-baselines.md
+    - name: pal remote alerts
+      href: pal-remote-alerts.md
+    - name: pal remote schedules
+      href: pal-remote-schedules.md

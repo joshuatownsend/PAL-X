@@ -11,6 +11,10 @@ Every term in this list shows up in either the report JSON, the pack YAML, the A
 
 A function that reduces a series of metric samples to a single value before applying an operator. The pack schema supports `avg`, `min`, `max`, `p90`, `p95`, `p99`. Schema v1 applies the aggregation across the entire dataset; schema v1.1 adds an optional [window](#window) for rolling-window evaluation. See [ADR 0004](../architecture/adr/0004-schema-v1.1-rolling-windows.md).
 
+### Alert
+
+A Phase 4 construct that turns a fired rule into an ongoing notification target. Alerts have a lifecycle: `open` → `acknowledged` → `resolved`. They can be `snoozed` to temporarily suppress notifications. Alert events are typically delivered through [webhooks](#webhook). Managed via `pal remote alerts` or the `/alerts` UI page.
+
 ### Applicability
 
 The conditions under which a pack should auto-load. Specified at the pack's top level. Three modes: `always`, `requires_any: [<metric-id>, ...]`, `requires_all: [<metric-id>, ...]`. The CLI honors applicability when you pass `--auto-resolve-packs`.
@@ -115,6 +119,10 @@ A SHA-256-derived content hash uniquely identifying a report. Same inputs + same
 
 A single threshold check. Identified by `rule_id`, scoped to a `category` and `severity`. A rule has one or more conditions (all must hold for the finding to fire) and references zero or more recommendations.
 
+### Schedule
+
+A Phase 4 construct that tells the `ScheduledIngestionWorker` to scan a directory on an interval, queue an analysis job for every new file that matches a glob, and route the result through the standard analysis pipeline. Managed via `pal remote schedules` or the `/schedules` UI page.
+
 ### Severity
 
 The fired rule's impact level: `critical` > `warning` > `informational`. The report's `overall_status` is the maximum severity present (with `informational` mapped to `healthy`).
@@ -122,6 +130,10 @@ The fired rule's impact level: `critical` > `warning` > `informational`. The rep
 ### Trends
 
 The analytics surface that tracks metric trajectories across multiple jobs in the same workspace. Each metric is classified as `improving`, `stable`, `worsening`, or `appearing`.
+
+### Webhook
+
+A Phase 4 construct: a registered HTTP endpoint the API calls when alerts fire (or transition state). Webhook deliveries can be tested via `POST /webhooks/{id}/test`. Managed via the `/webhooks` UI page.
 
 ### Window
 
