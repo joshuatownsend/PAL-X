@@ -33,3 +33,9 @@ INSIGHTS.md
 !fixtures/**/golden.pal-report.json
 *.pal-report.html
 out/
+
+# DocFX build outputs
+docs/_site/
+docs/reference/api/
+docs/obj/
+

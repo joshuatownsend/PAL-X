@@ -11,7 +11,7 @@ specifications covering a 4-phase platform build. A skeptical second-pass review
 where the seed documents prescribed choices that experienced engineers would push back on. All 12 deviations
 were presented to the project lead and ratified before implementation began.
 
-The seed docs remain on disk as historical reference in `docs/PAL-2026-Implementation-Spec-Pack/`. This ADR
+The seed docs remain on disk as historical reference in `docs/internal/seed-specs/implementation-spec-pack/`. This ADR
 documents what changed and why, so future contributors understand the authority of each document.
 
 ---
@@ -41,7 +41,7 @@ declarative form. CEL/Jsonnet remain a future upgrade path if needed.
 
 ### 3. Seeded pack schema → Revised pack schema v1
 
-**Seed:** `docs/PAL-2026-Implementation-Spec-Pack/PAL-Pack-Schema-v1.md`  
+**Seed:** `docs/internal/seed-specs/implementation-spec-pack/PAL-Pack-Schema-v1.md`  
 **Phase 1:** `dotnet/schemas/pal.pack.v1.json` (this codebase) is the authoritative schema.  
 **Why:** The seeded schema used the custom expression DSL, lacked `host_context` support, and used
 non-snake_case metric IDs. The revised schema is consistent with the engine we actually built.  
