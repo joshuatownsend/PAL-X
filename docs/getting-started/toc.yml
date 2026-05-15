@@ -1,0 +1,10 @@
+- name: Overview
+  href: index.md
+- name: Installation
+  href: installation.md
+- name: First analysis — local CLI
+  href: first-analysis-local.md
+- name: First analysis — remote API
+  href: first-analysis-remote.md
+- name: Glossary
+  href: glossary.md
