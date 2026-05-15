@@ -71,7 +71,7 @@ public sealed class BlgCollector : IDatasetCollector
         }
 
         if (counters.Count == 0)
-            throw new InvalidDataException($"BLG file '{filePath}' contains no readable counters.");
+            throw new InvalidDataException(BuildNoReadableCountersMessage(filePath, counterPaths, warnings));
 
         DateTimeOffset? firstTs = null, lastTs = null;
         DateTimeOffset? prevTs = null;
@@ -163,6 +163,38 @@ public sealed class BlgCollector : IDatasetCollector
             Warnings = warnings,
             InputDigest = inputDigest
         };
+    }
+
+    private static string BuildNoReadableCountersMessage(string filePath, List<string> enumerated, List<string> warnings)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"BLG file '{filePath}' contains no readable counters. ");
+        sb.Append($"Enumerated {enumerated.Count} counter path(s); 0 could be opened.");
+        if (enumerated.Count > 0)
+        {
+            sb.Append(" Sample paths: ");
+            sb.AppendJoin(", ", enumerated.Take(2).Select(p => $"'{p}'"));
+            sb.Append('.');
+        }
+        if (warnings.Count > 0)
+        {
+            sb.AppendLine();
+            sb.Append("PDH warnings (");
+            sb.Append(warnings.Count);
+            sb.Append("):");
+            foreach (var w in warnings.Take(10))
+            {
+                sb.AppendLine();
+                sb.Append("  - ");
+                sb.Append(w);
+            }
+            if (warnings.Count > 10)
+            {
+                sb.AppendLine();
+                sb.Append($"  ... and {warnings.Count - 10} more");
+            }
+        }
+        return sb.ToString();
     }
 
     private static List<string> EnumerateCounterPaths(IntPtr hDataSource, List<string> warnings)
