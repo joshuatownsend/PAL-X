@@ -26,7 +26,7 @@ Overall status: CRITICAL  (3 findings — 1 critical, 2 warnings)
 | 1 — Engine | CLI analysis tool, rule packs, JSON + HTML reports | **Shipped** |
 | 2 — Platform | REST API, async job queue, upload storage, multitenancy | **Shipped** |
 | 3 — Intelligence | Baselines, run comparison, trends, cross-signal correlation | **Shipped** |
-| 4 — Operations | Scheduled ingestion, alerting, webhook notifications, retention | **In progress** |
+| 4 — Operations | Scheduled ingestion, alerting, webhook notifications, retention | **Shipped** |
 
 ---
 
