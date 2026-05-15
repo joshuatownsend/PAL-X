@@ -41,7 +41,7 @@ public class PolicyEvaluatorTests
         var repo = new FakeAnalysisRepo();
         var ev = new PolicyEvaluator(repo);
 
-        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("cpu-high", "informational") });
+        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("cpu-high", "informational") }, TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Escalations);
         Assert.Empty(result.NotificationSuppressed);
@@ -55,7 +55,7 @@ public class PolicyEvaluatorTests
         repo.AddJob("rule-a");
         var ev = new PolicyEvaluator(repo);
 
-        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") });
+        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") }, TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Escalations);
     }
@@ -71,7 +71,7 @@ public class PolicyEvaluatorTests
         repo.AddJob(/* nothing relevant */);
         var ev = new PolicyEvaluator(repo);
 
-        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") });
+        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") }, TestContext.Current.CancellationToken);
 
         var esc = Assert.Single(result.Escalations);
         Assert.Equal("rule-a", esc.Key);
@@ -90,7 +90,7 @@ public class PolicyEvaluatorTests
         repo.AddJob(/* nothing relevant */);
         var ev = new PolicyEvaluator(repo);
 
-        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") });
+        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") }, TestContext.Current.CancellationToken);
 
         Assert.Empty(result.Escalations);
     }
@@ -111,7 +111,7 @@ public class PolicyEvaluatorTests
         repo.AddJob(/* nothing relevant */);
         var ev = new PolicyEvaluator(repo);
 
-        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") });
+        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") }, TestContext.Current.CancellationToken);
 
         // 1 prior hit + current = 2 → no escalation
         Assert.Empty(result.Escalations);
@@ -127,7 +127,7 @@ public class PolicyEvaluatorTests
         repo.AddJob("rule-a");              // 3 prior hits + current = 4 of 5
         var ev = new PolicyEvaluator(repo);
 
-        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") });
+        var result = await ev.EvaluateAsync(Ws, new[] { MakeFinding("rule-a") }, TestContext.Current.CancellationToken);
 
         // Even with malformed entry, valid jobs still count → escalation
         var esc = Assert.Single(result.Escalations);

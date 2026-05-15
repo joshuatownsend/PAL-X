@@ -37,9 +37,9 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
 
-        var alerts = await svc.ListAsync();
+        var alerts = await svc.ListAsync(ct: TestContext.Current.CancellationToken);
         var a = Assert.Single(alerts);
         Assert.Equal("cpu-high", a.RuleId);
         Assert.Equal("warning", a.Severity);
@@ -57,10 +57,10 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
 
-        var alerts = await svc.ListAsync();
+        var alerts = await svc.ListAsync(ct: TestContext.Current.CancellationToken);
         var a = Assert.Single(alerts);
         Assert.Equal(Job1, a.TriggeringJobId);
         Assert.Equal(Job2, a.LatestJobId);
@@ -75,10 +75,10 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")], TestContext.Current.CancellationToken);
 
-        var a = Assert.Single(await svc.ListAsync());
+        var a = Assert.Single(await svc.ListAsync(ct: TestContext.Current.CancellationToken));
         Assert.Equal("critical", a.Severity);
         Assert.Single(notifications.Calls, c => c.Event == "alert.escalated");
     }
@@ -89,10 +89,10 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "critical")]);
-        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "critical")], TestContext.Current.CancellationToken);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
 
-        var a = Assert.Single(await svc.ListAsync());
+        var a = Assert.Single(await svc.ListAsync(ct: TestContext.Current.CancellationToken));
         Assert.Equal("critical", a.Severity);
     }
 
@@ -107,9 +107,9 @@ public class AlertServiceTests
         await svc.EvaluateAsync(Job1, WsId, [
             MakeFinding("cpu-high", "warning"),
             MakeFinding("cpu-high", "critical"),
-        ]);
+        ], TestContext.Current.CancellationToken);
 
-        var a = Assert.Single(await svc.ListAsync());
+        var a = Assert.Single(await svc.ListAsync(ct: TestContext.Current.CancellationToken));
         Assert.Equal("critical", a.Severity);
     }
 
@@ -124,9 +124,9 @@ public class AlertServiceTests
         await svc.EvaluateAsync(Job1, WsId, [
             MakeFinding("cpu-high", "warning"),
             MakeFinding("mem-low", "critical"),
-        ]);
+        ], TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, (await svc.ListAsync()).Count);
+        Assert.Equal(2, (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Count);
     }
 
     // ── acknowledge ───────────────────────────────────────────────────────
@@ -138,13 +138,13 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
 
-        var ok = await svc.AcknowledgeAsync(id);
+        var ok = await svc.AcknowledgeAsync(id, TestContext.Current.CancellationToken);
         Assert.True(ok);
 
-        var a = await svc.GetAsync(id);
+        var a = await svc.GetAsync(id, TestContext.Current.CancellationToken);
         Assert.Equal("acknowledged", a!.Status);
         Assert.NotNull(a.AcknowledgedAt);
         Assert.Single(notifications.Calls, c => c.Event == "alert.acknowledged");
@@ -156,11 +156,11 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
-        await svc.AcknowledgeAsync(id);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
+        await svc.AcknowledgeAsync(id, TestContext.Current.CancellationToken);
 
-        var ok = await svc.AcknowledgeAsync(id);
+        var ok = await svc.AcknowledgeAsync(id, TestContext.Current.CancellationToken);
         Assert.False(ok);
     }
 
@@ -173,13 +173,13 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
 
-        var ok = await svc.ResolveAsync(id, "fixed by reboot");
+        var ok = await svc.ResolveAsync(id, "fixed by reboot", TestContext.Current.CancellationToken);
         Assert.True(ok);
 
-        var a = await svc.GetAsync(id);
+        var a = await svc.GetAsync(id, TestContext.Current.CancellationToken);
         Assert.Equal("resolved", a!.Status);
         Assert.Equal("fixed by reboot", a.ResolutionNote);
         Assert.NotNull(a.ResolvedAt);
@@ -192,13 +192,13 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
-        await svc.AcknowledgeAsync(id);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
+        await svc.AcknowledgeAsync(id, TestContext.Current.CancellationToken);
 
-        var ok = await svc.ResolveAsync(id, null);
+        var ok = await svc.ResolveAsync(id, null, TestContext.Current.CancellationToken);
         Assert.True(ok);
-        Assert.Equal("resolved", (await svc.GetAsync(id))!.Status);
+        Assert.Equal("resolved", (await svc.GetAsync(id, TestContext.Current.CancellationToken))!.Status);
     }
 
     [Fact]
@@ -207,11 +207,11 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
-        await svc.ResolveAsync(id, null);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
+        await svc.ResolveAsync(id, null, TestContext.Current.CancellationToken);
 
-        var ok = await svc.ResolveAsync(id, null);
+        var ok = await svc.ResolveAsync(id, null, TestContext.Current.CancellationToken);
         Assert.False(ok);
     }
 
@@ -223,14 +223,14 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
-        await svc.ResolveAsync(id, null);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
+        await svc.ResolveAsync(id, null, TestContext.Current.CancellationToken);
 
         // Same finding reappears — should create a fresh alert, not reuse the resolved one
-        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")]);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
 
-        var all = await svc.ListAsync(status: null);
+        var all = await svc.ListAsync(status: null, ct: TestContext.Current.CancellationToken);
         Assert.Equal(2, all.Count);
         Assert.Single(all, a => a.Status == "resolved");
         Assert.Single(all, a => a.Status == "open");
@@ -256,16 +256,16 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
 
         var until = DateTimeOffset.UtcNow.AddHours(1);
-        Assert.True(await svc.SetSnoozedUntilAsync(id, until));
+        Assert.True(await svc.SetSnoozedUntilAsync(id, until, TestContext.Current.CancellationToken));
 
-        var alert = await svc.GetAsync(id);
+        var alert = await svc.GetAsync(id, TestContext.Current.CancellationToken);
         Assert.NotNull(alert!.SnoozedUntil);
         // Alert still appears in default list (snooze doesn't hide it)
-        Assert.Contains(await svc.ListAsync(), a => a.Id == id);
+        Assert.Contains(await svc.ListAsync(ct: TestContext.Current.CancellationToken), a => a.Id == id);
     }
 
     [Fact]
@@ -275,17 +275,17 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
-        await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddHours(1));
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
+        await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddHours(1), TestContext.Current.CancellationToken);
         notifications.Calls.Clear();
 
         // Re-fire as critical — would normally produce alert.escalated. Snoozed → no notify.
-        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")], TestContext.Current.CancellationToken);
 
         Assert.DoesNotContain(notifications.Calls, c => c.Event == "alert.escalated");
         // Severity still updates in the DB — audit trail intact
-        Assert.Equal("critical", (await svc.GetAsync(id))!.Severity);
+        Assert.Equal("critical", (await svc.GetAsync(id, TestContext.Current.CancellationToken))!.Severity);
     }
 
     [Fact]
@@ -295,13 +295,13 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
         // Set snooze in the past — already expired
-        await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddMinutes(-5));
+        await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddMinutes(-5), TestContext.Current.CancellationToken);
         notifications.Calls.Clear();
 
-        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")], TestContext.Current.CancellationToken);
 
         Assert.Single(notifications.Calls, c => c.Event == "alert.escalated");
     }
@@ -312,11 +312,11 @@ public class AlertServiceTests
         var repo = new FakeAlertRepository();
         var svc = new AlertService(repo, new FakeNotificationService(), new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
-        await svc.ResolveAsync(id, null);
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
+        await svc.ResolveAsync(id, null, TestContext.Current.CancellationToken);
 
-        var ok = await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddHours(1));
+        var ok = await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddHours(1), TestContext.Current.CancellationToken);
         Assert.False(ok);
     }
 
@@ -327,13 +327,13 @@ public class AlertServiceTests
         var notifications = new FakeNotificationService();
         var svc = new AlertService(repo, notifications, new NoopPolicyEvaluator());
 
-        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")]);
-        var id = (await svc.ListAsync()).Single().Id;
-        await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddHours(1));
-        await svc.SetSnoozedUntilAsync(id, null);  // unsnooze
+        await svc.EvaluateAsync(Job1, WsId, [MakeFinding("cpu-high", "warning")], TestContext.Current.CancellationToken);
+        var id = (await svc.ListAsync(ct: TestContext.Current.CancellationToken)).Single().Id;
+        await svc.SetSnoozedUntilAsync(id, DateTimeOffset.UtcNow.AddHours(1), TestContext.Current.CancellationToken);
+        await svc.SetSnoozedUntilAsync(id, null, TestContext.Current.CancellationToken);  // unsnooze
         notifications.Calls.Clear();
 
-        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")]);
+        await svc.EvaluateAsync(Job2, WsId, [MakeFinding("cpu-high", "critical")], TestContext.Current.CancellationToken);
 
         Assert.Single(notifications.Calls, c => c.Event == "alert.escalated");
     }

@@ -24,7 +24,7 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
     [Fact]
     public async Task PurgeJobs_ZeroDays_ReturnsEmpty_TouchesNothing()
     {
-        var result = await Repo.PurgeJobsAsync(0);
+        var result = await Repo.PurgeJobsAsync(0, TestContext.Current.CancellationToken);
 
         Assert.Equal(RetentionRunResult.Empty, result);
     }
@@ -36,11 +36,11 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
     [Fact]
     public async Task PurgeJobs_DeletesEligibleJobs_LeavesBaselinesAndRecentJobsIntact()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         var upload = MakeUpload();
         db.Uploads.Add(upload);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Old completed job — should be purged
         var oldJob = MakeJob(upload.Id, "completed", completedDaysAgo: 10);
@@ -52,33 +52,33 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
         var queuedJob = MakeJob(upload.Id, "queued", completedDaysAgo: null);
 
         db.AnalysisJobs.AddRange(oldJob, recentJob, baselineJob, queuedJob);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var result = await Repo.PurgeJobsAsync(jobRetentionDays: 5);
+        var result = await Repo.PurgeJobsAsync(jobRetentionDays: 5, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, result.JobsDeleted);
         Assert.Contains(oldJob.Id, result.DeletedJobIds);
 
-        await using var verify = await DbFactory.CreateDbContextAsync();
-        Assert.Null(await verify.AnalysisJobs.FindAsync(oldJob.Id));
-        Assert.NotNull(await verify.AnalysisJobs.FindAsync(recentJob.Id));
-        Assert.NotNull(await verify.AnalysisJobs.FindAsync(baselineJob.Id));
-        Assert.NotNull(await verify.AnalysisJobs.FindAsync(queuedJob.Id));
+        await using var verify = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+        Assert.Null(await verify.AnalysisJobs.FindAsync([oldJob.Id], TestContext.Current.CancellationToken));
+        Assert.NotNull(await verify.AnalysisJobs.FindAsync([recentJob.Id], TestContext.Current.CancellationToken));
+        Assert.NotNull(await verify.AnalysisJobs.FindAsync([baselineJob.Id], TestContext.Current.CancellationToken));
+        Assert.NotNull(await verify.AnalysisJobs.FindAsync([queuedJob.Id], TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task PurgeJobs_DeletesCompareResultsForPurgedJobs_BeforeDeletingJobs()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         var upload = MakeUpload();
         db.Uploads.Add(upload);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var baselineJob = MakeJob(upload.Id, "completed", completedDaysAgo: 10, isBaseline: true);
         var candidateJob = MakeJob(upload.Id, "completed", completedDaysAgo: 10);
         db.AnalysisJobs.AddRange(baselineJob, candidateJob);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var compare = new CompareResultEntity
         {
@@ -90,65 +90,65 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
             CreatedAt = DateTimeOffset.UtcNow.AddDays(-10)
         };
         db.CompareResults.Add(compare);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // candidateJob is eligible (not baseline, old enough). baselineJob is not.
-        var result = await Repo.PurgeJobsAsync(jobRetentionDays: 5);
+        var result = await Repo.PurgeJobsAsync(jobRetentionDays: 5, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, result.JobsDeleted);
         Assert.Equal(1, result.CompareResultsDeleted);
 
-        await using var verify = await DbFactory.CreateDbContextAsync();
-        Assert.Null(await verify.CompareResults.FindAsync(compare.Id));
-        Assert.Null(await verify.AnalysisJobs.FindAsync(candidateJob.Id));
-        Assert.NotNull(await verify.AnalysisJobs.FindAsync(baselineJob.Id));
+        await using var verify = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+        Assert.Null(await verify.CompareResults.FindAsync([compare.Id], TestContext.Current.CancellationToken));
+        Assert.Null(await verify.AnalysisJobs.FindAsync([candidateJob.Id], TestContext.Current.CancellationToken));
+        Assert.NotNull(await verify.AnalysisJobs.FindAsync([baselineJob.Id], TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task PurgeJobs_DeletesOrphanedUploads_PreservesSharedUploads()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         // uploadA has only old jobs — should be deleted
         var uploadA = MakeUpload();
         // uploadB is shared with a recent job — should survive
         var uploadB = MakeUpload();
         db.Uploads.AddRange(uploadA, uploadB);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var oldJobA = MakeJob(uploadA.Id, "completed", completedDaysAgo: 10);
         var oldJobB = MakeJob(uploadB.Id, "completed", completedDaysAgo: 10);
         var recentJobB = MakeJob(uploadB.Id, "completed", completedDaysAgo: 0);
         db.AnalysisJobs.AddRange(oldJobA, oldJobB, recentJobB);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        await Repo.PurgeJobsAsync(jobRetentionDays: 5);
+        await Repo.PurgeJobsAsync(jobRetentionDays: 5, TestContext.Current.CancellationToken);
 
-        await using var verify = await DbFactory.CreateDbContextAsync();
-        Assert.Null(await verify.Uploads.FindAsync(uploadA.Id));
-        Assert.NotNull(await verify.Uploads.FindAsync(uploadB.Id));
+        await using var verify = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+        Assert.Null(await verify.Uploads.FindAsync([uploadA.Id], TestContext.Current.CancellationToken));
+        Assert.NotNull(await verify.Uploads.FindAsync([uploadB.Id], TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task PurgeJobs_WritesAuditEvent()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         var upload = MakeUpload();
         db.Uploads.Add(upload);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var oldJob = MakeJob(upload.Id, "completed", completedDaysAgo: 10);
         db.AnalysisJobs.Add(oldJob);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var before = DateTimeOffset.UtcNow;
-        await Repo.PurgeJobsAsync(jobRetentionDays: 5);
+        await Repo.PurgeJobsAsync(jobRetentionDays: 5, TestContext.Current.CancellationToken);
 
-        await using var verify = await DbFactory.CreateDbContextAsync();
+        await using var verify = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
         var auditEvent = await verify.AuditEvents
             .Where(e => e.EventType == "retention.jobs_purged" && e.CreatedAt >= before)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(auditEvent);
         Assert.Equal("system", auditEvent.EntityId);
@@ -161,14 +161,14 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
     [Fact]
     public async Task PurgeAuditEvents_ZeroDays_TouchesNothing()
     {
-        var deleted = await Repo.PurgeAuditEventsAsync(0);
+        var deleted = await Repo.PurgeAuditEventsAsync(0, TestContext.Current.CancellationToken);
         Assert.Equal(0, deleted);
     }
 
     [Fact]
     public async Task PurgeAuditEvents_DeletesOldEvents_LeavesRecentOnes()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         var old = new AuditEventEntity
         {
@@ -181,15 +181,15 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
             EventJson = "{}", CreatedAt = DateTimeOffset.UtcNow
         };
         db.AuditEvents.AddRange(old, recent);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var deleted = await Repo.PurgeAuditEventsAsync(auditRetentionDays: 30);
+        var deleted = await Repo.PurgeAuditEventsAsync(auditRetentionDays: 30, TestContext.Current.CancellationToken);
 
         Assert.True(deleted >= 1);
 
-        await using var verify = await DbFactory.CreateDbContextAsync();
-        Assert.Null(await verify.AuditEvents.FindAsync(old.Id));
-        Assert.NotNull(await verify.AuditEvents.FindAsync(recent.Id));
+        await using var verify = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+        Assert.Null(await verify.AuditEvents.FindAsync([old.Id], TestContext.Current.CancellationToken));
+        Assert.NotNull(await verify.AuditEvents.FindAsync([recent.Id], TestContext.Current.CancellationToken));
     }
 
     // -------------------------------------------------------------------------
@@ -199,13 +199,13 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
     [Fact]
     public async Task PurgeJobs_WithDatasetArtifact_ClearsResultRowOnCascade()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         var upload = MakeUpload();
         var job = MakeJob(upload.Id, "completed", completedDaysAgo: 10);
         db.Uploads.Add(upload);
         db.AnalysisJobs.Add(job);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var storage = factory.Services.GetRequiredService<IStorageProvider>();
         var dsPath = await storage.WriteDatasetAsync(job.Id, async (stream, ct) =>
@@ -213,7 +213,7 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
             await using var gz = new GZipStream(stream, CompressionLevel.Fastest, leaveOpen: true);
             await gz.WriteAsync("{\"series\":[]}"u8.ToArray(), ct);
             await gz.FlushAsync(ct);
-        }, default);
+        }, TestContext.Current.CancellationToken);
 
         db.AnalysisResults.Add(new AnalysisResultEntity
         {
@@ -225,13 +225,13 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
             DatasetByteLength = 20,
             DatasetCompressed = true
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        await Repo.PurgeJobsAsync(jobRetentionDays: 5);
+        await Repo.PurgeJobsAsync(jobRetentionDays: 5, TestContext.Current.CancellationToken);
 
-        await using var verify = await DbFactory.CreateDbContextAsync();
-        Assert.Null(await verify.AnalysisJobs.FindAsync(job.Id));
-        Assert.Null(await verify.AnalysisResults.FindAsync(job.Id));
+        await using var verify = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
+        Assert.Null(await verify.AnalysisJobs.FindAsync([job.Id], TestContext.Current.CancellationToken));
+        Assert.Null(await verify.AnalysisResults.FindAsync([job.Id], TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -245,7 +245,7 @@ public sealed class RetentionRepositoryTests(PalApiFactory factory)
             await using var gz = new GZipStream(stream, CompressionLevel.Fastest, leaveOpen: true);
             await gz.WriteAsync("{\"series\":[]}"u8.ToArray(), ct);
             await gz.FlushAsync(ct);
-        }, default);
+        }, TestContext.Current.CancellationToken);
 
         var absPath = storage.GetAbsolutePath(dsPath);
         Assert.True(File.Exists(absPath), "Dataset gz file should exist before deletion");

@@ -23,29 +23,29 @@ public sealed class DatasetEndpointTests(PalApiFactory factory)
     [Fact]
     public async Task Get_Dataset_UnknownJob_Returns404()
     {
-        var resp = await _client.GetAsync($"{Analysis}/{Guid.NewGuid()}/dataset");
+        var resp = await _client.GetAsync($"{Analysis}/{Guid.NewGuid()}/dataset", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 
     [Fact]
     public async Task Get_Dataset_IncompleteJob_Returns409()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         var upload = MakeUpload();
         var job = MakeJob(upload.Id, "queued");
         db.Uploads.Add(upload);
         db.AnalysisJobs.Add(job);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var resp = await _client.GetAsync($"{Analysis}/{job.Id}/dataset");
+        var resp = await _client.GetAsync($"{Analysis}/{job.Id}/dataset", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.Conflict, resp.StatusCode);
     }
 
     [Fact]
     public async Task Get_Dataset_CompletedJob_NoArtifact_Returns404()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         var upload = MakeUpload();
         var job = MakeJob(upload.Id, "completed");
@@ -59,29 +59,29 @@ public sealed class DatasetEndpointTests(PalApiFactory factory)
             GeneratedAt = DateTimeOffset.UtcNow
             // DatasetStoragePath intentionally not set
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var resp = await _client.GetAsync($"{Analysis}/{job.Id}/dataset");
+        var resp = await _client.GetAsync($"{Analysis}/{job.Id}/dataset", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 
     [Fact]
     public async Task Get_Dataset_WithArtifact_Returns200_GzipContent()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(TestContext.Current.CancellationToken);
 
         var upload = MakeUpload();
         var job = MakeJob(upload.Id, "completed");
         db.Uploads.Add(upload);
         db.AnalysisJobs.Add(job);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var dsPath = await Storage.WriteDatasetAsync(job.Id, async (stream, ct) =>
         {
             await using var gz = new GZipStream(stream, CompressionLevel.Fastest, leaveOpen: true);
             await gz.WriteAsync("{\"series\":[]}"u8.ToArray(), ct);
             await gz.FlushAsync(ct);
-        }, default);
+        }, TestContext.Current.CancellationToken);
 
         db.AnalysisResults.Add(new AnalysisResultEntity
         {
@@ -93,12 +93,12 @@ public sealed class DatasetEndpointTests(PalApiFactory factory)
             DatasetByteLength = 50,
             DatasetCompressed = true
         });
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var resp = await _client.GetAsync($"{Analysis}/{job.Id}/dataset");
+        var resp = await _client.GetAsync($"{Analysis}/{job.Id}/dataset", TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         Assert.Equal("application/gzip", resp.Content.Headers.ContentType?.MediaType);
-        var bytes = await resp.Content.ReadAsByteArrayAsync();
+        var bytes = await resp.Content.ReadAsByteArrayAsync(TestContext.Current.CancellationToken);
         Assert.NotEmpty(bytes);
     }
 

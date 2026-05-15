@@ -25,7 +25,7 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
     [Fact]
     public async Task GetRecentCompletedJobs_ZeroLimit_ReturnsEmpty_WithoutDbContext()
     {
-        var result = await Repo.GetRecentCompletedJobsAsync(0);
+        var result = await Repo.GetRecentCompletedJobsAsync(0, TestContext.Current.CancellationToken);
         Assert.Empty(result);
     }
 
@@ -33,16 +33,16 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
     public async Task GetRecentCompletedJobs_FiltersToCompletedOnly_AndOrdersNewestFirst()
     {
         using var _ = Tenant.SetWorkspace(DefaultTenant.WorkspaceId);
-        var upload = await SeedUploadAsync();
+        var upload = await SeedUploadAsync(TestContext.Current.CancellationToken);
 
         var now = DateTimeOffset.UtcNow;
-        var completedNewest = await SeedJobAsync(upload.Id, "completed", createdAt: now.AddMinutes(-2), completedAt: now.AddMinutes(-1));
-        var completedMiddle = await SeedJobAsync(upload.Id, "completed", createdAt: now.AddMinutes(-11), completedAt: now.AddMinutes(-10));
-        var completedOldest = await SeedJobAsync(upload.Id, "completed", createdAt: now.AddMinutes(-101), completedAt: now.AddMinutes(-100));
-        var queuedJob = await SeedJobAsync(upload.Id, "queued", createdAt: now.AddMinutes(-1), completedAt: null);
-        var failedJob = await SeedJobAsync(upload.Id, "failed", createdAt: now.AddMinutes(-4), completedAt: now.AddMinutes(-3));
+        var completedNewest = await SeedJobAsync(upload.Id, "completed", createdAt: now.AddMinutes(-2), completedAt: now.AddMinutes(-1), ct: TestContext.Current.CancellationToken);
+        var completedMiddle = await SeedJobAsync(upload.Id, "completed", createdAt: now.AddMinutes(-11), completedAt: now.AddMinutes(-10), ct: TestContext.Current.CancellationToken);
+        var completedOldest = await SeedJobAsync(upload.Id, "completed", createdAt: now.AddMinutes(-101), completedAt: now.AddMinutes(-100), ct: TestContext.Current.CancellationToken);
+        var queuedJob = await SeedJobAsync(upload.Id, "queued", createdAt: now.AddMinutes(-1), completedAt: null, ct: TestContext.Current.CancellationToken);
+        var failedJob = await SeedJobAsync(upload.Id, "failed", createdAt: now.AddMinutes(-4), completedAt: now.AddMinutes(-3), ct: TestContext.Current.CancellationToken);
 
-        var result = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue);
+        var result = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue, TestContext.Current.CancellationToken);
         var myIds = result.Select(j => j.Id)
             .Where(id => id == completedNewest.Id || id == completedMiddle.Id || id == completedOldest.Id
                       || id == queuedJob.Id || id == failedJob.Id)
@@ -55,17 +55,17 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
     public async Task GetRecentCompletedJobs_TieOnCompletedAt_IsDeterministicByIdDescending()
     {
         using var _ = Tenant.SetWorkspace(DefaultTenant.WorkspaceId);
-        var upload = await SeedUploadAsync();
+        var upload = await SeedUploadAsync(TestContext.Current.CancellationToken);
 
         var sharedCompleted = DateTimeOffset.UtcNow.AddMinutes(-5);
         var sharedCreated = sharedCompleted.AddSeconds(-30);
         var smallerId = new Guid("00000000-0000-0000-0000-000000000001");
         var largerId = new Guid("ffffffff-ffff-ffff-ffff-fffffffffffe");
-        await SeedJobAsync(upload.Id, "completed", completedAt: sharedCompleted, createdAt: sharedCreated, id: smallerId);
-        await SeedJobAsync(upload.Id, "completed", completedAt: sharedCompleted, createdAt: sharedCreated, id: largerId);
+        await SeedJobAsync(upload.Id, "completed", completedAt: sharedCompleted, createdAt: sharedCreated, id: smallerId, ct: TestContext.Current.CancellationToken);
+        await SeedJobAsync(upload.Id, "completed", completedAt: sharedCompleted, createdAt: sharedCreated, id: largerId, ct: TestContext.Current.CancellationToken);
 
-        var firstCall = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue);
-        var secondCall = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue);
+        var firstCall = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue, TestContext.Current.CancellationToken);
+        var secondCall = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue, TestContext.Current.CancellationToken);
 
         var firstPair = firstCall.Select(j => j.Id).Where(id => id == smallerId || id == largerId).ToList();
         var secondPair = secondCall.Select(j => j.Id).Where(id => id == smallerId || id == largerId).ToList();
@@ -78,18 +78,18 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
     public async Task GetRecentCompletedJobs_OrdersByCompletedAtNotCreatedAt()
     {
         using var _ = Tenant.SetWorkspace(DefaultTenant.WorkspaceId);
-        var upload = await SeedUploadAsync();
+        var upload = await SeedUploadAsync(TestContext.Current.CancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         // Old-created but recently-completed should win over newly-created but older-completed.
         var slowJob = await SeedJobAsync(upload.Id, "completed",
             createdAt: now.AddHours(-2),
-            completedAt: now.AddMinutes(-1));
+            completedAt: now.AddMinutes(-1), ct: TestContext.Current.CancellationToken);
         var quickJob = await SeedJobAsync(upload.Id, "completed",
             createdAt: now.AddMinutes(-30),
-            completedAt: now.AddMinutes(-25));
+            completedAt: now.AddMinutes(-25), ct: TestContext.Current.CancellationToken);
 
-        var result = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue);
+        var result = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue, TestContext.Current.CancellationToken);
         var myIds = result.Select(j => j.Id)
             .Where(id => id == slowJob.Id || id == quickJob.Id)
             .ToList();
@@ -103,20 +103,20 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
         using var _ = Tenant.SetWorkspace(DefaultTenant.WorkspaceId);
 
         // Snapshot the current completed-job count, then seed enough to ensure limit truncates.
-        var before = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue);
-        var upload = await SeedUploadAsync();
+        var before = await Repo.GetRecentCompletedJobsAsync(limit: int.MaxValue, TestContext.Current.CancellationToken);
+        var upload = await SeedUploadAsync(TestContext.Current.CancellationToken);
         var now = DateTimeOffset.UtcNow;
         for (int i = 0; i < 3; i++)
-            await SeedJobAsync(upload.Id, "completed", createdAt: now.AddMinutes(-i - 1), completedAt: now.AddMinutes(-i));
+            await SeedJobAsync(upload.Id, "completed", createdAt: now.AddMinutes(-i - 1), completedAt: now.AddMinutes(-i), ct: TestContext.Current.CancellationToken);
 
-        var limited = await Repo.GetRecentCompletedJobsAsync(limit: before.Count + 1);
+        var limited = await Repo.GetRecentCompletedJobsAsync(limit: before.Count + 1, TestContext.Current.CancellationToken);
 
         Assert.Equal(before.Count + 1, limited.Count);
     }
 
-    private async Task<UploadEntity> SeedUploadAsync()
+    private async Task<UploadEntity> SeedUploadAsync(CancellationToken ct = default)
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
         var upload = new UploadEntity
         {
             Id = Guid.NewGuid(),
@@ -129,7 +129,7 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
             CreatedAt = DateTimeOffset.UtcNow.AddHours(-1)
         };
         db.Uploads.Add(upload);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
         return upload;
     }
 
@@ -138,9 +138,10 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
         string status,
         DateTimeOffset createdAt,
         DateTimeOffset? completedAt,
-        Guid? id = null)
+        Guid? id = null,
+        CancellationToken ct = default)
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
         var job = new AnalysisJobEntity
         {
             Id = id ?? Guid.NewGuid(),
@@ -151,7 +152,7 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
             CompletedAt = completedAt
         };
         db.AnalysisJobs.Add(job);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
         return job;
     }
 }
