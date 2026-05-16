@@ -1,0 +1,12 @@
+- name: Overview
+  href: index.md
+- name: Pack authoring
+  items:
+    - name: Write a pack
+      href: write-a-pack.md
+    - name: Validate a pack
+      href: validate-a-pack.md
+    - name: Rolling-window rules
+      href: rolling-window-rules.md
+    - name: Sign and trust packs
+      href: sign-and-trust-packs.md
