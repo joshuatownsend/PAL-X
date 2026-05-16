@@ -34,10 +34,10 @@ public sealed class Finding
     /// <summary>Longer paragraph explaining what the signal means and what to investigate.</summary>
     public required string Explanation { get; init; }
 
-    /// <summary>For rolling-window rules (schema v1.1), the start of the window that fired. Null for capture-wide rules.</summary>
+    /// <summary>Start of the time window the rule was evaluated over. Today's engine sets this to the full capture's <see cref="Dataset.StartTimeUtc"/>; the v1.1 rolling-window evaluator (when active) sets it to the specific window that fired.</summary>
     public DateTimeOffset? WindowStart { get; init; }
 
-    /// <summary>For rolling-window rules, the end of the window that fired. Null for capture-wide rules.</summary>
+    /// <summary>End of the evaluated time window. Same semantics as <see cref="WindowStart"/>.</summary>
     public DateTimeOffset? WindowEnd { get; init; }
 
     /// <summary>Series that contributed evidence — one entry per metric matched by the rule's conditions.</summary>
@@ -59,7 +59,7 @@ public sealed class EvidenceMetric
     /// <summary>Summary statistics for the matched samples.</summary>
     public required SeriesStatistics Statistics { get; init; }
 
-    /// <summary>One entry per condition that fired. Multi-condition rules emit multiple rows.</summary>
+    /// <summary>Trigger details for the condition that produced this evidence row. Currently a single-element list: each <see cref="EvidenceMetric"/> represents one (condition, series) pairing that fired, with one corresponding <see cref="TriggerDetail"/>. Multi-condition rules produce multiple <see cref="EvidenceMetric"/> rows, not multiple <see cref="TriggerDetail"/>s per row.</summary>
     public required IReadOnlyList<TriggerDetail> TriggerDetails { get; init; }
 }
 
@@ -69,7 +69,7 @@ public sealed class TriggerDetail
     /// <summary>Human-readable form of the condition that fired (e.g., <c>avg(processor.percent_processor_time) &gt; 80 for &gt;= 20% of samples</c>).</summary>
     public required string Expression { get; init; }
 
-    /// <summary>True if the condition fired; false if it didn't (false rows appear for partial multi-condition matches).</summary>
+    /// <summary>Whether the condition fired. Today's engine only emits <see cref="TriggerDetail"/>s for fired conditions, so this is always <c>true</c> in current code. The field is preserved for future use cases (e.g., emitting partial-match diagnostics).</summary>
     public required bool Result { get; init; }
 
     /// <summary>The aggregated value computed from the input.</summary>

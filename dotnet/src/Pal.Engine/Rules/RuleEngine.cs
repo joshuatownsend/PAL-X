@@ -46,7 +46,7 @@ public sealed class RuleEngine
     /// Evaluates the given packs against the given dataset and returns the findings.
     /// </summary>
     /// <param name="packs">Packs to evaluate. Applicability is checked per pack.</param>
-    /// <param name="dataset">Dataset to evaluate against. Series statistics are computed lazily on first access.</param>
+    /// <param name="dataset">Dataset to evaluate against. Series statistics are computed eagerly at the start of this method for every series whose <see cref="TimeSeries.Statistics"/> is null.</param>
     /// <returns>Findings (sorted) plus any non-fatal warnings.</returns>
     public RunResult Run(IReadOnlyList<Pack> packs, Dataset dataset)
     {

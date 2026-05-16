@@ -92,7 +92,7 @@ pal analyze \
   --pack-dir packs/local/my-cpu-pack
 ```
 
-`--pack-dir` is repeatable; the analyzer walks each directory looking for `pack.yaml`. Findings from your pack appear in the same report under `findings[]` with `pack_id: "my-cpu-pack"`.
+`--pack-dir` is repeatable. For each path, the resolver checks the directory itself for a `pack.yaml` and then its **immediate subdirectories** — not arbitrary nested layouts. So `--pack-dir packs/local/my-cpu-pack` works, and so does `--pack-dir packs/local` (where `packs/local/my-cpu-pack/pack.yaml` lives), but a deeper layout like `packs/local/team1/my-cpu-pack/pack.yaml` would not be picked up from `--pack-dir packs/local`. Findings from your pack appear in the same report under `findings[]` with `pack_id: "my-cpu-pack"`.
 
 If you only want your pack to run (no shipped rules), drop the first `--pack-dir`.
 

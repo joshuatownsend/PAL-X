@@ -14,7 +14,9 @@ For authoring, see **[Write a pack](../guides/write-a-pack.md)** *(in concepts/g
 
 ## What loads at startup
 
-On every API startup, `PackRegistrySyncService` walks `Packs:Directory` looking for subdirectories containing `pack.yaml`. Each one becomes a pack entry in the database — with the YAML stored verbatim and versioned by the pack's `version` field. If a pack with the same `(pack_id, version)` already exists in the database, it's updated; if not, it's inserted.
+On every API startup, `PackRegistrySyncService` recursively walks `Packs:Directory` (using `SearchOption.AllDirectories`) looking for every `pack.yaml` file under the tree. Each one becomes a pack entry in the database — with the YAML stored verbatim and versioned by the pack's `version` field. If a pack with the same `(pack_id, version)` already exists in the database, it's updated; if not, it's inserted.
+
+(Note: this differs from the CLI's `--pack-dir` discovery, which only checks the directory itself and its immediate subdirectories. The API's startup sync is more permissive.)
 
 This is the **canonical path** for putting packs into production: drop them on disk under the configured directory and restart. No API calls needed.
 
@@ -36,7 +38,7 @@ ${Packs:Directory}/
     └── pack.yaml.sig
 ```
 
-Each pack is one directory containing one `pack.yaml`. Sub-directories within the pack are ignored.
+Each pack is one directory containing one `pack.yaml`. Because the API's sync walks recursively, you can also nest packs under sub-directories (e.g., `${Packs:Directory}/vendor/acme-pack/pack.yaml`) — but doing so means the CLI's `--pack-dir` flag won't see those nested packs without pointing at each parent directly.
 
 Set the directory:
 
