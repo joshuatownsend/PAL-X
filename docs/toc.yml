@@ -15,3 +15,6 @@
 - name: Operations
   href: operations/
   homepage: operations/index.md
+- name: Architecture
+  href: architecture/
+  homepage: architecture/index.md
