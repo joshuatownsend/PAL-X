@@ -2,3 +2,13 @@
   href: index.md
 - name: Packs and rules
   href: packs-and-rules.md
+- name: Datasets and inputs
+  href: datasets-and-inputs.md
+- name: Baselines and comparisons
+  href: baselines-and-comparisons.md
+- name: Analytics surfaces
+  href: analytics-surfaces.md
+- name: Alerting and notification
+  href: alerting-and-notification.md
+- name: Multitenancy and auth
+  href: multitenancy-and-auth.md

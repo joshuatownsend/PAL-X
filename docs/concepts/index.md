@@ -11,6 +11,9 @@ If you want to know what a specific field does, look in Reference. If you want t
 
 ## Pages
 
-- **[Packs and rules](packs-and-rules.md)** — the unit of distribution and the unit of evaluation. When to write a pack vs use the shipped ones, and what "declarative" means in practice.
-
-*(More concept pages land in subsequent clusters.)*
+- **[Packs and rules](packs-and-rules.md)** — the unit of distribution and the unit of evaluation; why declarative not DSL.
+- **[Datasets and inputs](datasets-and-inputs.md)** — how CSV/BLG inputs become the dataset the engine evaluates; host_context, canonical IDs, determinism.
+- **[Baselines and comparisons](baselines-and-comparisons.md)** — the designate-a-job model, implicit versioning, what the diff actually reports.
+- **[Analytics surfaces](analytics-surfaces.md)** — trends, correlations, and guided diagnostics; descriptive not causal.
+- **[Alerting and notification](alerting-and-notification.md)** — the 3-of-5 policy, alert lifecycle, webhook events, end-to-end automation shape.
+- **[Multitenancy and auth](multitenancy-and-auth.md)** — orgs, workspaces, two auth schemes, three roles, default tenant.
