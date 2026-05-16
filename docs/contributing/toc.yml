@@ -1,0 +1,14 @@
+- name: Overview
+  href: index.md
+- name: Development setup
+  href: development-setup.md
+- name: Testing
+  href: testing.md
+- name: Adding a migration
+  href: migrations.md
+- name: Adding an ADR
+  href: adding-an-adr.md
+- name: Docs workflow
+  href: docs-workflow.md
+- name: Code style
+  href: code-style.md
