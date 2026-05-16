@@ -1,0 +1,10 @@
+- name: Index
+  href: index.md
+- name: "0001 — Deviations from seed docs"
+  href: 0001-deviations-from-seed-docs.md
+- name: "0002 — Declarative rule schema"
+  href: 0002-declarative-rule-schema.md
+- name: "0003 — Pack signing format"
+  href: 0003-pack-signing-format.md
+- name: "0004 — Schema v1.1 rolling windows"
+  href: 0004-schema-v1.1-rolling-windows.md
