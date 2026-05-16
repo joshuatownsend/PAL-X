@@ -10,7 +10,7 @@ There is no JavaScript, TypeScript, or Node.js in Phase 1. Do not create `packag
 
 ## Pack schema source of truth
 
-`dotnet/schemas/pal.pack.v1.json` is the authoritative pack schema — it supersedes `docs/PAL-2026-Implementation-Spec-Pack/PAL-Pack-Schema-v1.md` (the seeded doc is ChatGPT-generated and was revised). Similarly, `dotnet/schemas/pal.report.v1.json` supersedes the seeded report schema doc.
+`dotnet/schemas/pal.pack.v1.json` is the authoritative pack schema — it supersedes `docs/internal/seed-specs/implementation-spec-pack/PAL-Pack-Schema-v1.md` (the seeded doc is ChatGPT-generated and was revised). Similarly, `dotnet/schemas/pal.report.v1.json` supersedes the seeded report schema doc.
 
 ## Key deviations from seeded docs
 

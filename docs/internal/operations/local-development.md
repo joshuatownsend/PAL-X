@@ -57,7 +57,7 @@ dotnet run --project dotnet/src/Pal.Cli -- analyze `
 
 ## Running the API (Docker)
 
-To run the full API + Blazor UI locally, see `docs/operations/deployment.md`.  The short version:
+To run the full API + Blazor UI locally, see `docs/internal/operations/deployment.md`.  The short version:
 
 ```bash
 cp .env.example .env  # edit to set passwords
@@ -67,7 +67,7 @@ open http://localhost:8080
 
 ## Project Structure
 
-See `docs/architecture/dotnet-layout.md` for the full project dependency graph and key types.
+See `docs/internal/architecture/dotnet-layout.md` for the full project dependency graph and key types.
 
 ## Writing a Pack
 
