@@ -20,13 +20,13 @@ ${Storage:LocalRoot}/
 │   └── <jobId>/
 │       ├── report.json
 │       ├── report.html
-│       ├── report.md        (only if Markdown was generated)
-│       └── charts/
-│           └── *.svg        (only if --include-charts was used)
+│       └── report.md
 └── datasets/
     └── <jobId>/
-        └── dataset.json.gz
+        └── dataset.json.gz       (only if includeDataset:true)
 ```
+
+Chart SVGs are CLI-only (`pal analyze --include-charts` writes to `<output>/charts/`). The API does not produce chart artifacts.
 
 That's it. There's no per-workspace prefix on disk — the workspace-id scoping is enforced at the database / repository layer, not at the filesystem. Multiple workspaces share the same on-disk pool because of upload SHA-256 dedup, which is workspace-blind.
 
@@ -40,12 +40,13 @@ Multiple jobs can reference the same upload. The upload is deleted by the retent
 
 ## `reports/<jobId>/`
 
-When an analysis job completes, `AnalysisRunner` writes:
+When an analysis job completes on the **API server**, `AnalysisWorker` writes all three formats unconditionally:
 
-- `report.json` — the canonical JSON document (always written).
-- `report.html` — the HTML rendering (always written).
-- `report.md` — only if Markdown was requested (`pal analyze --markdown` for local runs; API does not generate Markdown server-side today).
-- `charts/<chart-id>.svg` — only if charts were enabled at submit time.
+- `report.json` — the canonical JSON document.
+- `report.html` — the HTML rendering.
+- `report.md` — GFM Markdown.
+
+The **CLI** is different: `pal analyze` writes JSON and HTML by default and only writes Markdown if `--markdown` is passed. Chart SVGs are also CLI-only — `pal analyze --include-charts` writes to `<output>/charts/`; the API does not generate charts.
 
 The directory name is the job's `Guid` in string form. The report endpoint streams these files directly.
 

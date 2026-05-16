@@ -40,15 +40,20 @@ pal validate-pack \
   --json-output validation.json
 ```
 
-The JSON shape matches the HTTP API's pack-validation response:
+The CLI emits snake_case fields plus pack metadata:
 
 ```json
 {
-  "isValid": true,
+  "pack_id": "my-cpu-pack",
+  "version": "0.1.0",
+  "rule_count": 3,
+  "is_valid": true,
   "errors": [],
   "warnings": []
 }
 ```
+
+The **HTTP API**'s pack-validation endpoint emits a slimmer camelCase shape — see [`GET /packs/{id}/versions/{version}/validation`](../reference/http-api/packs.md#get-packsidversionsversionvalidation). The two shapes are not identical today.
 
 ## With signature enforcement
 
@@ -62,7 +67,7 @@ pal validate-pack \
   --strict
 ```
 
-`--trust-key` is repeatable. The trust list is the union of the project's built-in key and every `--trust-key` you pass. Without `--require-signature`, a missing or invalid signature is silently ignored — which is the right default for local authoring but wrong for CI on published packs.
+`--trust-key` accepts a single extra public key (in addition to the project's built-in trust list). If you need to trust multiple external keys today, concatenate them into a single PEM file or hand-roll the trust list via the .NET API. Without `--require-signature`, a missing or invalid signature is silently ignored — which is the right default for local authoring but wrong for CI on published packs.
 
 ## A worked CI snippet (GitHub Actions)
 

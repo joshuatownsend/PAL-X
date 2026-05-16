@@ -7,12 +7,22 @@ on:
       - 'docs/**'
       - '.config/dotnet-tools.json'
       - '.github/workflows/docs.yml'
+      # XML doc comments on the four documented projects feed the
+      # auto-generated .NET API reference under docs/reference/api/.
+      - 'dotnet/src/Pal.Application/**'
+      - 'dotnet/src/Pal.Engine/**'
+      - 'dotnet/src/Pal.Packs/**'
+      - 'dotnet/src/Pal.Reporting/**'
   pull_request:
     branches: [main]
     paths:
       - 'docs/**'
       - '.config/dotnet-tools.json'
       - '.github/workflows/docs.yml'
+      - 'dotnet/src/Pal.Application/**'
+      - 'dotnet/src/Pal.Engine/**'
+      - 'dotnet/src/Pal.Packs/**'
+      - 'dotnet/src/Pal.Reporting/**'
   workflow_dispatch:
 
 permissions:
@@ -44,6 +54,16 @@ jobs:
 
       - name: Restore docfx tool
         run: dotnet tool restore
+
+      # Build the four documented projects so XML doc files exist before
+      # DocFX's metadata extractor runs. The full solution build also covers
+      # this; building just the leaf projects keeps the workflow fast.
+      - name: Build documented projects
+        run: |
+          dotnet build dotnet/src/Pal.Application/Pal.Application.csproj -c Release
+          dotnet build dotnet/src/Pal.Engine/Pal.Engine.csproj -c Release
+          dotnet build dotnet/src/Pal.Packs/Pal.Packs.csproj -c Release
+          dotnet build dotnet/src/Pal.Reporting/Pal.Reporting.csproj -c Release
 
       - name: Build docs site
         run: dotnet docfx docs/docfx.json --warningsAsErrors
