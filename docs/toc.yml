@@ -12,3 +12,6 @@
 - name: Reference
   href: reference/
   homepage: reference/index.md
+- name: Operations
+  href: operations/
+  homepage: operations/index.md

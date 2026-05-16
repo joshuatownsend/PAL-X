@@ -1,0 +1,32 @@
+- name: Overview
+  href: index.md
+- name: Get the stack running
+  items:
+    - name: Installation
+      href: installation.md
+    - name: Docker Compose
+      href: docker-compose.md
+    - name: Postgres setup
+      href: postgres-setup.md
+    - name: Authentication and tokens
+      href: auth-and-tokens.md
+    - name: Orgs and workspaces setup
+      href: orgs-and-workspaces-setup.md
+- name: Run the stack
+  items:
+    - name: Pack distribution
+      href: pack-distribution.md
+    - name: Storage layout
+      href: storage-layout.md
+    - name: Retention
+      href: retention.md
+    - name: Monitoring
+      href: monitoring.md
+- name: Keep the stack running
+  items:
+    - name: Backup and restore
+      href: backup-and-restore.md
+    - name: Upgrading
+      href: upgrading.md
+    - name: Troubleshooting
+      href: troubleshooting.md
