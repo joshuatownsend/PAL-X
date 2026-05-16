@@ -1,4 +1,26 @@
 {
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": [
+            "src/Pal.Application/Pal.Application.csproj",
+            "src/Pal.Engine/Pal.Engine.csproj",
+            "src/Pal.Packs/Pal.Packs.csproj",
+            "src/Pal.Reporting/Pal.Reporting.csproj"
+          ],
+          "src": "../dotnet"
+        }
+      ],
+      "dest": "reference/api",
+      "disableGitFeatures": false,
+      "disableDefaultFilter": false,
+      "includePrivateMembers": false,
+      "includeExplicitInterfaceImplementations": false,
+      "memberLayout": "samePage",
+      "namespaceLayout": "flattened"
+    }
+  ],
   "build": {
     "content": [
       {
@@ -8,8 +30,7 @@
         "exclude": [
           "_site/**",
           "internal/**",
-          "obj/**",
-          "reference/api/**"
+          "obj/**"
         ]
       }
     ],

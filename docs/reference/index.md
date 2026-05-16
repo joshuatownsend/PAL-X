@@ -15,6 +15,10 @@ Reference is for lookup, not for learning. If you want to understand a concept o
 
 **[HTTP API reference](http-api/index.md)** — every endpoint under `/api/...`, grouped by feature (15 pages across global + workspace-scoped). Includes the auth and authorization model, the workspace routing prefix, the default-tenant IDs, the error model, and per-endpoint request/response shapes with example `curl` invocations.
 
+## .NET API
+
+**[.NET API reference](dotnet-api.md)** — auto-generated documentation for the public surface of `Pal.Application`, `Pal.Engine`, `Pal.Packs`, and `Pal.Reporting`. Useful when embedding the engine in your own .NET application or contributing to the codebase. Coverage is patchy today and improves incrementally as XML docs are added.
+
 ## Pack schema
 
 Field-by-field walkthrough of the YAML pack format:

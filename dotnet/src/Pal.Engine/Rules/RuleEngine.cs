@@ -5,22 +5,49 @@ using Pal.Engine.Statistics;
 
 namespace Pal.Engine.Rules;
 
+/// <summary>
+/// The rule engine. Evaluates a set of <see cref="Pack"/>s against a <see cref="Dataset"/> and
+/// emits <see cref="Finding"/>s in deterministic sort order.
+/// </summary>
+/// <remarks>
+/// The engine performs no I/O. It takes already-loaded packs and an already-ingested dataset
+/// and returns findings. Pack loading lives in <c>Pal.Packs</c>; report writing lives in
+/// <c>Pal.Reporting</c>. Findings are sorted: severity desc → category asc → rule_id asc → finding_id asc.
+/// </remarks>
 public sealed class RuleEngine
 {
+    /// <summary>The result of a <see cref="Run(IReadOnlyList{Pack}, Dataset)"/> call.</summary>
     public sealed class RunResult
     {
+        /// <summary>Findings emitted by every rule that fired, in deterministic sort order.</summary>
         public required IReadOnlyList<Finding> Findings { get; init; }
+
+        /// <summary>Non-fatal issues the engine encountered (e.g., host_context unknown, unmapped counter).</summary>
         public required IReadOnlyList<EngineWarning> Warnings { get; init; }
     }
 
+    /// <summary>A non-fatal issue surfaced by the engine — informational, doesn't fail the run.</summary>
     public sealed class EngineWarning
     {
+        /// <summary>Stable identifier (e.g., <c>host_context.unknown</c>, <c>metric.unmapped</c>).</summary>
         public required string Code { get; init; }
+
+        /// <summary>Human-readable description.</summary>
         public required string Message { get; init; }
+
+        /// <summary>One of <c>warning</c> or <c>informational</c>.</summary>
         public required string Severity { get; init; }
+
+        /// <summary>Optional structured context (which rule, which metric, etc.).</summary>
         public object? Details { get; init; }
     }
 
+    /// <summary>
+    /// Evaluates the given packs against the given dataset and returns the findings.
+    /// </summary>
+    /// <param name="packs">Packs to evaluate. Applicability is checked per pack.</param>
+    /// <param name="dataset">Dataset to evaluate against. Series statistics are computed lazily on first access.</param>
+    /// <returns>Findings (sorted) plus any non-fatal warnings.</returns>
     public RunResult Run(IReadOnlyList<Pack> packs, Dataset dataset)
     {
         // Precompute stats for all series
