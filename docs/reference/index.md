@@ -17,15 +17,26 @@ Hand-written reference for the 53 endpoints under `/api/...`. *(Coming up.)*
 
 ## Pack schema
 
-Field-by-field walkthrough of `pal.pack/v1` and the v1.1 rolling-window addition. *(Coming up.)*
+Field-by-field walkthrough of the YAML pack format:
+
+- **[Pack schema v1](pack-schema-v1.md)** — the base schema: packs, rules, conditions, `host_context` thresholds, recommendations.
+- **[Pack schema v1.1](pack-schema-v1.1.md)** — adds rolling-window aggregations via the `window:` block.
 
 ## Report schema
 
-Field-by-field walkthrough of `pal.report/v1`. *(Coming up.)*
+**[Report schema](report-schema.md)** — field-by-field walkthrough of `pal.report/v1`: the JSON document every analysis run emits. HTML and Markdown are derived views.
+
+## Canonical metric IDs
+
+**[Canonical metric IDs](metric-ids.md)** — the snake_case identifiers PAL-X recognises and how they map to Windows counter paths. Covers Processor, Memory, PhysicalDisk, Network, Process, SQL Server (default and named instances), and IIS/ASP.NET.
 
 ## Configuration
 
-Every `appsettings` section the API reads, with env-var equivalents. *(Coming up.)*
+**[Configuration](configuration.md)** — every `appsettings` section the API reads (`ConnectionStrings`, `Storage`, `Packs`, `Retention`, `Schedules`, `Logging`) with environment-variable equivalents and a production-ready example.
+
+## Exit codes
+
+**[Exit codes](exit-codes.md)** — every code the `pal` CLI emits, mapped to its meaning and the commands that can fire it.
 
 ## Conventions
 
