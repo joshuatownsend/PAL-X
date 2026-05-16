@@ -1,0 +1,52 @@
+- name: Overview
+  href: index.md
+- name: Capture and analyze
+  items:
+    - name: Analyze a CSV
+      href: analyze-csv.md
+    - name: Analyze a BLG on Windows
+      href: analyze-blg-windows.md
+    - name: Convert BLG on Linux
+      href: convert-blg-on-linux.md
+    - name: Interpret the HTML report
+      href: interpret-html-report.md
+- name: Pack authoring
+  items:
+    - name: Write a pack
+      href: write-a-pack.md
+    - name: Validate a pack
+      href: validate-a-pack.md
+    - name: Rolling-window rules
+      href: rolling-window-rules.md
+    - name: Sign and trust packs
+      href: sign-and-trust-packs.md
+- name: Baselines and comparisons
+  items:
+    - name: Set a baseline
+      href: set-a-baseline.md
+    - name: Compare jobs
+      href: compare-jobs.md
+- name: Analytics and diagnostics
+  items:
+    - name: Work with trends
+      href: work-with-trends.md
+    - name: Work with correlations
+      href: work-with-correlations.md
+    - name: Use guided diagnostics
+      href: use-guided-diagnostics.md
+- name: Alerting
+  items:
+    - name: Configure alerts
+      href: configure-alerts.md
+    - name: Configure webhooks
+      href: configure-webhooks.md
+    - name: Schedule ingestion
+      href: schedule-ingestion.md
+- name: API and edges
+  items:
+    - name: Use the HTTP API
+      href: use-the-http-api.md
+    - name: Generate a Markdown report
+      href: generate-markdown-report.md
+    - name: Download a dataset
+      href: download-dataset.md
