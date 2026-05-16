@@ -13,7 +13,7 @@ Reference is for lookup, not for learning. If you want to understand a concept o
 
 ## HTTP API
 
-Hand-written reference for the 53 endpoints under `/api/...`. *(Coming up.)*
+**[HTTP API reference](http-api/index.md)** — every endpoint under `/api/...`, grouped by feature (15 pages across global + workspace-scoped). Includes the auth and authorization model, the workspace routing prefix, the default-tenant IDs, the error model, and per-endpoint request/response shapes with example `curl` invocations.
 
 ## Pack schema
 

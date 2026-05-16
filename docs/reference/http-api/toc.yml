@@ -1,0 +1,38 @@
+- name: Overview
+  href: index.md
+- name: Global
+  items:
+    - name: Health
+      href: health.md
+    - name: Account
+      href: account.md
+    - name: Orgs and workspaces
+      href: orgs-and-workspaces.md
+    - name: Packs
+      href: packs.md
+- name: Workspace-scoped
+  items:
+    - name: Tokens
+      href: tokens.md
+    - name: Uploads
+      href: uploads.md
+    - name: Analysis jobs
+      href: analysis-jobs.md
+    - name: Reports
+      href: reports.md
+    - name: Datasets
+      href: datasets.md
+    - name: Baselines
+      href: baselines.md
+    - name: Compare
+      href: compare.md
+    - name: Trends
+      href: trends.md
+    - name: Correlations
+      href: correlations.md
+    - name: Alerts
+      href: alerts.md
+    - name: Webhooks
+      href: webhooks.md
+    - name: Schedules
+      href: schedules.md

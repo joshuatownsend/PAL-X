@@ -3,6 +3,9 @@
 - name: CLI
   href: cli/
   homepage: cli/index.md
+- name: HTTP API
+  href: http-api/
+  homepage: http-api/index.md
 - name: Pack schema v1
   href: pack-schema-v1.md
 - name: Pack schema v1.1
