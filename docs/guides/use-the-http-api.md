@@ -11,13 +11,19 @@ For the auth model, see **[Concepts — Multitenancy and auth](../concepts/multi
 
 ## 1. Bootstrap a token
 
-API keys are minted via the workspace-scoped `/tokens` endpoint, which requires authentication itself. The first time, use Basic auth with your bootstrap admin credentials:
+API keys are minted via the workspace-scoped `/tokens` endpoint, which requires authentication itself. The API doesn't accept HTTP Basic auth — non-`Bearer` `Authorization` headers are forwarded to the cookie scheme. Log in first to capture a cookie, then mint:
 
 ```bash
 WS=00000000-0000-0000-0000-000000000002   # default workspace id
 
-curl -X POST http://localhost:5043/api/workspaces/$WS/tokens \
-  -u admin@example.com:your-bootstrap-password \
+# Log in (form POST), capture cookie
+curl -X POST http://localhost:5043/account/login \
+  -c cookies.txt -L \
+  -d "email=admin@example.com&password=your-bootstrap-password"
+
+# Mint a token using the cookie
+curl -X POST "http://localhost:5043/api/workspaces/$WS/tokens" \
+  -b cookies.txt \
   -H "Content-Type: application/json" \
   -d '{"name":"automation"}'
 ```

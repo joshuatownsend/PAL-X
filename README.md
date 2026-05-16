@@ -79,14 +79,27 @@ docker compose up
 
 On first run the seeder creates an `admin@pal.local` account using `PAL_BOOTSTRAP_ADMIN_PASSWORD`. Sign in at `http://localhost:8080/account/login`. The API is also documented at `http://localhost:8080/swagger`.
 
-To get an API token for CLI use:
+To get an API token for CLI use, either:
+
+**Easiest — Blazor UI:** sign in at `http://localhost:8080/account/login`, navigate to `http://localhost:8080/account/tokens`, click "Create token", and copy the value (it's shown exactly once).
+
+**Or via curl** — form-POST login captures a session cookie, then mint the token under the default workspace:
 
 ```bash
-curl -X POST http://localhost:8080/api/tokens \
-  -u admin@pal.local:<password> \
+# 1. Log in; capture the auth cookie
+curl -X POST http://localhost:8080/account/login \
+  -c cookies.txt -L \
+  -d "email=admin@pal.local&password=<password>"
+
+# 2. Mint a token (cookies.txt carries the auth)
+WS=00000000-0000-0000-0000-000000000002   # default workspace id
+curl -X POST "http://localhost:8080/api/workspaces/$WS/tokens" \
+  -b cookies.txt \
   -H "Content-Type: application/json" \
-  -d '{"name": "my-token"}'
+  -d '{"name":"my-token"}'
 ```
+
+The raw token is in the response's `token` field — capture it; it's returned exactly once. Use it as `Authorization: Bearer pal_…` on subsequent requests.
 
 > **Bootstrap is one-shot**: if `admin@pal.local` already exists, the seeder skips silently — changing `PAL_BOOTSTRAP_ADMIN_PASSWORD` afterwards has no effect. Rotate via the `/account/users` admin UI or reset directly in the DB.
 
