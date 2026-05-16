@@ -60,23 +60,24 @@ Or via the browser at `http://localhost:8080/account/login`.
 
 API keys are the right credential for non-browser callers — CLI, automation, scripts. They're workspace-scoped under `/api/workspaces/{workspaceId}/tokens` and tied to the user who minted them.
 
-The first time, you need to authenticate via the cookie (you've just logged in) or via Basic auth:
+The API doesn't accept HTTP Basic auth — the `CookieOrApiKey` policy scheme inspects the `Authorization` header and forwards anything that isn't a `Bearer …` to the cookie scheme. Bootstrap your first token by logging in (cookie) first, then minting:
 
 ```bash
 WS=00000000-0000-0000-0000-000000000002   # default workspace
 
-# Via cookie (after browser/curl login)
-curl -X POST http://localhost:8080/api/workspaces/$WS/tokens \
+# 1. Log in via form POST; capture the auth cookie
+curl -X POST http://localhost:8080/account/login \
+  -c cookies.txt -L \
+  -d "email=admin@pal.local&password=<your-bootstrap-password>"
+
+# 2. Mint the token; cookies.txt carries the auth
+curl -X POST "http://localhost:8080/api/workspaces/$WS/tokens" \
   -b cookies.txt \
   -H "Content-Type: application/json" \
   -d '{"name":"automation"}'
-
-# Via Basic auth (no cookie needed)
-curl -X POST http://localhost:8080/api/workspaces/$WS/tokens \
-  -u admin@pal.local:<your-bootstrap-password> \
-  -H "Content-Type: application/json" \
-  -d '{"name":"automation"}'
 ```
+
+The Blazor UI at `/account/tokens` is the easier path; the curl flow above is for non-interactive automation.
 
 Response:
 

@@ -65,15 +65,24 @@ Use `token` thereafter as `Authorization: Bearer pal_AbCdEf0123…`.
 
 ### Example
 
+The API doesn't accept HTTP Basic auth — the auth pipeline forwards non-`Bearer` `Authorization` headers to the cookie scheme. To mint your first token with curl, log in via form POST to capture a session cookie, then send the token-create request with that cookie:
+
 ```bash
 WS=00000000-0000-0000-0000-000000000002
-curl -X POST http://localhost:5043/api/workspaces/$WS/tokens \
+
+# 1. Log in; capture the auth cookie
+curl -X POST http://localhost:5043/account/login \
+  -c cookies.txt -L \
+  -d "email=admin@example.com&password=<password>"
+
+# 2. Mint the token (cookies.txt carries the auth)
+curl -X POST "http://localhost:5043/api/workspaces/$WS/tokens" \
+  -b cookies.txt \
   -H "Content-Type: application/json" \
-  -u admin@example.com:password \
   -d '{"name":"ci-runner"}'
 ```
 
-(For the bootstrap call the cookie isn't available, so Basic auth via `-u` is the only way to mint the first token. See [Getting started — remote](../../getting-started/first-analysis-remote.md).)
+The easier path is the Blazor UI at `/account/tokens`. The curl flow is documented because automation might prefer it.
 
 ## `DELETE /api/workspaces/{workspaceId}/tokens/{id}`
 
