@@ -171,7 +171,7 @@ pal remote schedules delete \
 |---|---|
 | `0` | Operation succeeded. |
 | `2` | Missing required flag, malformed schedule ID, or invalid `--interval`. |
-| `5` | Schedule not found, name conflict, or server error. |
+| `1` | Schedule not found, name conflict, or server error. |
 
 ## Related
 

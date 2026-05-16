@@ -54,7 +54,7 @@ pal remote trends \
 |---|---|
 | `0` | Trends retrieved. |
 | `2` | Invalid `--last` value. |
-| `5` | API unreachable or server error. |
+| `1` | API unreachable or server error. |
 
 ## Related
 

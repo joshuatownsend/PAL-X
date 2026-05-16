@@ -77,9 +77,9 @@ Same scheme as the local commands:
 | Code | Meaning |
 |---|---|
 | `0` | Request succeeded. |
-| `1` | Request succeeded but result is below a threshold (rarely used in remote commands). |
+| `1` | HTTP request failed, request timed out, or server returned an unexpected error — including 404 and 409. The wrapper `RemoteCommand.RunAsync` and the per-command 404/409 branches both surface as `GeneralFailure` (= `1`). |
 | `2` | Invalid arguments (malformed GUID, mutually-exclusive flags). |
-| `5` | HTTP request failed or server returned an unexpected error. |
+| `4` | Pack validation failed (`pal remote validate-pack` only). |
 
 A `404` from the API typically means your `--api` base URL is missing the workspace prefix. Double-check that.
 

@@ -53,7 +53,7 @@ pal remote baselines list \
 | Code | Meaning |
 |---|---|
 | `0` | List retrieved. |
-| `5` | Server error. |
+| `1` | Server error. |
 
 ---
 
@@ -111,7 +111,7 @@ Multiple baselines sharing the same `(type, context)` are treated as versions, o
 |---|---|
 | `0` | Designation set or cleared. |
 | `2` | Malformed job ID or `--context` JSON. |
-| `5` | Job not found or server error. |
+| `1` | Job not found or server error. |
 
 ## Related
 

@@ -62,7 +62,7 @@ pal remote report \
 |---|---|
 | `0` | Report saved or printed. |
 | `2` | Malformed job ID or invalid `--format`. |
-| `5` | Job not found, not yet complete (409 from server), or other server error. |
+| `1` | Job not found, not yet complete (409 from server), or other server error. |
 
 ## Related
 

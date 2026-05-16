@@ -51,7 +51,7 @@ A list of insights, each with:
 |---|---|
 | `0` | Diagnostics retrieved. |
 | `2` | Malformed job ID. |
-| `5` | Job not found or other server error. |
+| `1` | Job not found or other server error. |
 
 ## Related
 

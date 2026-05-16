@@ -67,7 +67,7 @@ The submit operation is fast (upload + enqueue); the actual analysis runs on a b
 |---|---|
 | `0` | Job queued successfully. |
 | `2` | `--file` does not exist, malformed `--baseline` GUID, or other argument error. |
-| `5` | API unreachable or returned non-success. A `404` typically means `--api` is missing the workspace path prefix. |
+| `1` | API unreachable, request timed out, or server returned a non-success status. A `404` typically means `--api` is missing the workspace path prefix. |
 
 ## Related
 

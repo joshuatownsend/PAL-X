@@ -191,7 +191,7 @@ pal remote alerts unsnooze \
 |---|---|
 | `0` | Operation succeeded. |
 | `2` | Malformed alert ID, bad `--duration`/`--until`, or mutually-exclusive flags both set. |
-| `5` | Alert not found or server error. |
+| `1` | Alert not found or server error. |
 
 ## Related
 

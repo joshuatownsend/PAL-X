@@ -52,7 +52,7 @@ pal remote results \
 |---|---|
 | `0` | Results retrieved. |
 | `2` | Malformed job ID. |
-| `5` | Job not found, not yet complete, or other server error. |
+| `1` | Job not found, not yet complete, or other server error. |
 
 ## Related
 

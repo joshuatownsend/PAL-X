@@ -51,7 +51,7 @@ If the job stays `queued` for more than a few seconds, the background `AnalysisW
 |---|---|
 | `0` | Status retrieved. |
 | `2` | Malformed job ID. |
-| `5` | API unreachable, job not found, or other server error. |
+| `1` | API unreachable, job not found, or other server error. |
 
 ## Related
 

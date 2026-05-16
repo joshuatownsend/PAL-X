@@ -46,7 +46,7 @@ A JSON-shaped response with `isValid`, `errors[]`, `warnings[]`. The same shape 
 | `0` | Pack validated successfully (no errors). |
 | `2` | Bad arguments. |
 | `4` | Validation produced errors. |
-| `5` | Server error or pack/version not found. |
+| `1` | Server error or pack/version not found. |
 
 ## Related
 

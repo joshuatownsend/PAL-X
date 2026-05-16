@@ -35,7 +35,7 @@ A table of pack IDs and the versions registered for each. Use **[pal remote vali
 | Code | Meaning |
 |---|---|
 | `0` | List retrieved. |
-| `5` | API unreachable or server error. |
+| `1` | API unreachable or server error. |
 
 ## Related
 

@@ -49,7 +49,7 @@ For each rule that fired in either job:
 |---|---|
 | `0` | Comparison retrieved. |
 | `2` | Malformed GUIDs or missing arguments. |
-| `5` | Either job not found or other server error. |
+| `1` | Either job not found or other server error. |
 
 ## Related
 

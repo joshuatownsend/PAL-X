@@ -59,7 +59,7 @@ A gzipped JSON document containing:
 |---|---|
 | `0` | Artifact saved. |
 | `2` | Malformed job ID or missing `--output`. |
-| `5` | Job not found, dataset not persisted for this job, or other server error. |
+| `1` | Job not found, dataset not persisted for this job, or other server error. |
 
 ## Notes
 

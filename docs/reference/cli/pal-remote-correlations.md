@@ -46,7 +46,7 @@ For each correlated rule pair:
 |---|---|
 | `0` | Correlations retrieved. |
 | `2` | Invalid `--last` value. |
-| `5` | API unreachable or server error. |
+| `1` | API unreachable or server error. |
 
 ## Related
 
