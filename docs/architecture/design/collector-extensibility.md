@@ -30,8 +30,11 @@ public sealed class CollectResult
 
 The interface is clean and self-contained. `CanHandle` provides a content/extension-based
 self-selection hook; `Collect` returns a `Dataset` (the engine's input model) plus an
-SHA-256 hex digest of the raw file bytes (`InputDigest`, used for deduplication and
-report-ID derivation).
+SHA-256 hex digest of the raw file bytes (`InputDigest`). This digest is used to derive
+`DatasetId` (via `CounterPathHelper.MakeDatasetId`) and to seed the `report_id`
+computation in `JsonReportWriter` — it is **not** used for upload deduplication. Upload
+dedup uses a separate SHA-256 computed by `IStorageProvider.WriteToTempAsync` in
+`UploadEndpoints` and stored in `UploadEntity.Sha256`.
 
 ### Factory — `CollectorFactory`
 
@@ -52,8 +55,9 @@ This is a hardcoded switch — not a registry.
 **Key asymmetry**: The interface promises self-selection (`CanHandle`), but the factory
 never asks a collector whether it can handle the file. The `format` string originates
 externally (see callers below) and must match a hardcoded branch. If a future format is
-not added to the switch, the factory silently routes it to `CsvCollector`, which will
-fail with a confusing parse error rather than a "format not supported" message.
+not added to the switch, the factory silently routes it to `CsvCollector`, which may
+fail with a confusing parse error or produce misleading output rather than a clear
+"format not supported" message.
 
 ### Platform guard pattern
 
@@ -72,8 +76,9 @@ but currently applies only to BLG.
 | `BlgPlatformGuard` | `Blg/BlgPlatformGuard.cs` | never (returns false) | All (throws) | no |
 
 Both real collectors call `_registry.Resolve(path)` to map raw counter paths to
-canonical snake_case metric IDs. They fall back to `"unknown." + SanitizePath(path)` for
-unmapped counters.
+canonical metric IDs. These IDs are **dot-delimited** (e.g.
+`processor.percent_processor_time`), where each dot-separated segment uses snake_case.
+They fall back to `"unknown." + SanitizePath(path)` for unmapped counters.
 
 ### Callers of `CollectorFactory.Create`
 
@@ -94,8 +99,15 @@ unmapped counters.
   `sourceType` defaults to the file extension when the `sourceType` form field is absent
   (`UploadEndpoints.cs:20-21`).
 
-So the `format` string that reaches `CollectorFactory.Create` is always a file-extension
-string (`csv`, `blg`) in normal usage.
+In the CLI path the format string is always a file-extension string (`csv`, `blg`) — the
+`--format auto` default normalises to the extension, and explicit `--format` values are
+validated by the command itself. In the **API path**, however, `sourceType` originates
+from an **unvalidated form field**: `UploadEndpoints.cs:20-21` reads
+`form["sourceType"].FirstOrDefault()` with no validation, and falls back to the file
+extension only when the field is absent. Any string a client submits is persisted in
+`UploadEntity.SourceType` and later passed as `InputFormat` to `CollectorFactory.Create`.
+This is precisely the gap that Option C's `NotSupportedException` on unrecognized format
+IDs would close.
 
 ### Report output — `source_type` and `collector` fields
 
@@ -180,8 +192,17 @@ select one:
 ```csharp
 public sealed class CollectorResolver(IEnumerable<IDatasetCollector> collectors)
 {
-    public IDatasetCollector Resolve(string filePath)
+    // explicitFormatId: honored first when supplied (e.g. from upload.SourceType or --format);
+    // falls back to CanHandle(filePath) for auto-detection when null.
+    public IDatasetCollector Resolve(string filePath, string? explicitFormatId = null)
     {
+        if (explicitFormatId is not null)
+        {
+            var byId = collectors.FirstOrDefault(c => c.FormatId.Equals(
+                explicitFormatId.Trim().ToLowerInvariant(), StringComparison.Ordinal));
+            if (byId is not null) return byId;
+            throw new NotSupportedException($"No collector registered for format: {explicitFormatId}");
+        }
         return collectors.FirstOrDefault(c => c.CanHandle(filePath))
             ?? throw new NotSupportedException($"No collector can handle: {filePath}");
     }
@@ -189,7 +210,10 @@ public sealed class CollectorResolver(IEnumerable<IDatasetCollector> collectors)
 ```
 
 `CanHandle` implementations use the file extension (or content sniffing if desired).
-The format string becomes optional — the file path alone is sufficient for selection.
+The explicit format id — sourced from `upload.SourceType` in the API path or `--format`
+in the CLI — is honored first when supplied; `CanHandle(filePath)` is used only for
+auto-detection. This preserves the current behaviour where a CSV file uploaded with a
+non-`.csv` name and an explicit `sourceType = "csv"` is routed correctly.
 
 **Pros**:
 - `CanHandle` is finally used; the interface asymmetry is resolved.
@@ -256,8 +280,10 @@ with testable, injectable components. The CLI can migrate to DI when `Pal.Cli` p
 ### 4a. Selection by file extension vs. content sniffing vs. explicit `format`?
 
 **Current evidence**: Both `CsvCollector.CanHandle` and `BlgCollector.CanHandle` use file
-extension only (`Path.GetExtension(...).Equals(".csv" | ".blg")`). The CLI's `--format
-auto` also resolves to extension. Content sniffing is not used anywhere.
+extension only — e.g. `Path.GetExtension(filePath).Equals(".csv", StringComparison.OrdinalIgnoreCase)`.
+The factory lowercases the format string and switches: `"blg" => CreateBlgCollector(registry),
+_ => new CsvCollector(registry)`. The CLI's `--format auto` also resolves to extension.
+Content sniffing is not used anywhere.
 
 **Proposed answer**: Extension-based selection is sufficient for Phase 1 formats. Content
 sniffing (reading the first N bytes) should be reserved for formats where extension is
@@ -331,23 +357,41 @@ the next two phases.
 analysis time. Neither `IDatasetCollector` nor `CollectorFactory` exposes a mechanism for
 a collector to contribute aliases before `BuildDefault` is called.
 
-**Proposed answer**: Collectors should not be responsible for alias registration. Aliases
-belong in packs (using `metric_aliases:` in `pack.yaml`), which is the existing pattern
-for format-specific counter paths. A `JsonCollector` targeting a well-known JSON export
-format would ship with a companion pack that covers its counter naming conventions.
+**Ordering constraint**: `AnalysisRunner` calls `collector.Collect(...)` at line 21
+**before** `PackResolver.Resolve(...)` at line 26. The `MetricAliasRegistry` is built
+from `BuildDefault()` alone — `AddFromPack` is defined on the registry but is not invoked
+anywhere in the analysis path today. This means a new collector **cannot rely on a
+companion pack to supply its aliases at collection time**: the pack is not loaded yet when
+`Collect` runs, so any counter path that lacks a `BuildDefault` entry resolves to
+`"unknown.*"` regardless of what the pack declares.
 
-If a collector genuinely needs to contribute aliases that cannot be expressed in a pack
-(e.g., a collector that discovers counter names dynamically from the file's metadata),
+**Proposed answer**: A new collector must handle its own raw→canonical normalization
+within `Collect` — either by contributing entries to `MetricAliasRegistry.BuildDefault`
+directly, or by pre-processing counter paths before creating `TimeSeries` objects. Packs
+(`metric_aliases:` in `pack.yaml`) cannot serve as the alias mechanism for a collector's
+own counter names under the current execution order. If the project later requires alias
+loading before collection, `AnalysisRunner` would need to load packs in a first pass,
+call `registry.AddFromPack(...)`, then run `Collect` — a deliberate ordering change that
+would require its own ADR.
+
+If a collector genuinely needs to contribute aliases that cannot be expressed in
+`BuildDefault` (e.g., it discovers counter names dynamically from the file's metadata),
 `IDatasetCollector` should expose:
 
 ```csharp
 void ContributeAliases(MetricAliasRegistry registry);  // optional; default = no-op
 ```
 
+`AnalysisRunner` would call this before `Collect`, giving the collector a chance to
+register its aliases into the shared registry first.
+
 This is low-cost to add but should be deferred until a concrete case arises.
 
-**Proposed answer**: Keep alias registration in packs; defer the `ContributeAliases`
-hook to the first follow-up plan that actually needs it.
+**Proposed answer**: New collectors must normalize their own counter paths within
+`Collect`, using `BuildDefault` or a `ContributeAliases` pre-pass. Do not prescribe
+companion packs as the alias mechanism without first moving alias-loading ahead of
+collection in `AnalysisRunner`. Defer the `ContributeAliases` hook to the first follow-up
+plan that actually needs it.
 
 ---
 
