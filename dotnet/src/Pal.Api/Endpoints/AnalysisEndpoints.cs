@@ -40,9 +40,9 @@ public static class AnalysisEndpoints
         .WithName("CreateAnalysis")
         .WithTags("Analysis");
 
-        app.MapGet("/analysis", async (string? status, IAnalysisRepository analysis) =>
+        app.MapGet("/analysis", async (string? status, int? limit, int? offset, IAnalysisRepository analysis) =>
         {
-            var jobs = await analysis.ListJobsAsync(status);
+            var jobs = await analysis.ListJobsAsync(status, limit, offset);
             return Results.Ok(new { items = jobs });
         })
         .WithName("ListAnalysis")

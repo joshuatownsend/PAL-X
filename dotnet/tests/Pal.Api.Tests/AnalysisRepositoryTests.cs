@@ -114,6 +114,45 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
         Assert.Equal(before.Count + 1, limited.Count);
     }
 
+    [Fact]
+    public async Task ListJobs_AppliesLimit()
+    {
+        using var _ = Tenant.SetWorkspace(DefaultTenant.WorkspaceId);
+        var upload = await SeedUploadAsync(TestContext.Current.CancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        for (int i = 0; i < 5; i++)
+            await SeedJobAsync(upload.Id, "queued", createdAt: now.AddMinutes(-i - 1), completedAt: null, ct: TestContext.Current.CancellationToken);
+
+        var page = await Repo.ListJobsAsync("queued", limit: 2, offset: 0, ct: TestContext.Current.CancellationToken);
+        Assert.True(page.Count <= 2);
+    }
+
+    [Fact]
+    public async Task ListJobs_AppliesOffset()
+    {
+        using var _ = Tenant.SetWorkspace(DefaultTenant.WorkspaceId);
+        var upload = await SeedUploadAsync(TestContext.Current.CancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        // Seed 4 jobs with distinct timestamps so ordering is deterministic.
+        var seededIds = new List<Guid>();
+        for (int i = 0; i < 4; i++)
+        {
+            var job = await SeedJobAsync(upload.Id, "queued", createdAt: now.AddMinutes(-i - 1), completedAt: null, ct: TestContext.Current.CancellationToken);
+            seededIds.Add(job.Id);
+        }
+
+        // First page: newest 2.
+        var firstPage = await Repo.ListJobsAsync("queued", limit: 2, offset: 0, ct: TestContext.Current.CancellationToken);
+        var firstPageIds = firstPage.Select(j => j.Id).ToHashSet();
+
+        // Second page: next 2 — must not overlap with the first page.
+        var secondPage = await Repo.ListJobsAsync("queued", limit: 2, offset: 2, ct: TestContext.Current.CancellationToken);
+        var secondPageIds = secondPage.Select(j => j.Id).ToHashSet();
+
+        Assert.Empty(firstPageIds.Intersect(secondPageIds));
+    }
+
     private async Task<UploadEntity> SeedUploadAsync(CancellationToken ct = default)
     {
         await using var db = await DbFactory.CreateDbContextAsync(ct);

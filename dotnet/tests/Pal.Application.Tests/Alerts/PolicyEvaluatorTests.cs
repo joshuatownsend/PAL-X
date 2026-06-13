@@ -170,7 +170,7 @@ public class PolicyEvaluatorTests
             ));
         }
 
-        public Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(string? statusFilter, CancellationToken ct = default)
+        public Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(string? statusFilter, int? limit = null, int? offset = null, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<AnalysisJobDto>>(
                 _jobs.Where(j => statusFilter is null || j.job.Status == statusFilter)
                      .Select(j => j.job).ToList());
@@ -208,7 +208,7 @@ public class PolicyEvaluatorTests
         public Task<IReadOnlyList<AnalysisReportDto>> GetReportsAsync(Guid jobId, CancellationToken ct = default) => throw new NotImplementedException();
         public Task SetJobPackVersionsAsync(Guid jobId, IReadOnlyList<JobPackDto> packs, CancellationToken ct = default) => throw new NotImplementedException();
         public Task SetBaselineAsync(Guid jobId, bool isBaseline, string? label, string? type = null, string? contextJson = null, CancellationToken ct = default) => throw new NotImplementedException();
-        public Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(string? type = null, CancellationToken ct = default) => throw new NotImplementedException();
+        public Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(string? type = null, int? limit = null, int? offset = null, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<IReadOnlyList<AnalysisJobDto>> GetBaselineVersionsAsync(string type, string contextJson, CancellationToken ct = default) => throw new NotImplementedException();
         public Task SaveDatasetArtifactAsync(Guid jobId, string storagePath, long byteLength, bool compressed, CancellationToken ct = default) => throw new NotImplementedException();
         public Task<DatasetArtifactDto?> GetDatasetArtifactAsync(Guid jobId, CancellationToken ct = default) => throw new NotImplementedException();

@@ -7,6 +7,16 @@ namespace Pal.Persistence.Repositories;
 
 public sealed class AnalysisRepository : IAnalysisRepository
 {
+    private const int DefaultPageSize = 100;
+    private const int MaxPageSize = 500;
+
+    private static (int Take, int Skip) Page(int? limit, int? offset)
+    {
+        int take = limit is > 0 ? Math.Min(limit.Value, MaxPageSize) : DefaultPageSize;
+        int skip = offset is > 0 ? offset.Value : 0;
+        return (take, skip);
+    }
+
     private readonly IDbContextFactory<PalDbContext> _factory;
     private readonly ITenantContext _tenant;
 
@@ -42,13 +52,20 @@ public sealed class AnalysisRepository : IAnalysisRepository
         return job is null ? null : ToDto(job, job.Packs.Select(ToPackDto).ToList());
     }
 
-    public async Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(string? statusFilter, CancellationToken ct = default)
+    public async Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(
+        string? statusFilter, int? limit = null, int? offset = null, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
         var query = db.AnalysisJobs.Include(j => j.Packs).AsQueryable();
         if (statusFilter is not null)
             query = query.Where(j => j.Status == statusFilter);
-        var jobs = await query.OrderByDescending(j => j.CreatedAt).ToListAsync(ct);
+        var (take, skip) = Page(limit, offset);
+        var jobs = await query
+            .OrderByDescending(j => j.CreatedAt)
+            .ThenByDescending(j => j.Id)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(ct);
         return ProjectJobs(jobs);
     }
 
@@ -234,13 +251,20 @@ public sealed class AnalysisRepository : IAnalysisRepository
                 .SetProperty(j => j.BaselineContextJson, isBaseline ? contextJson : null), ct);
     }
 
-    public async Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(string? type = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(
+        string? type = null, int? limit = null, int? offset = null, CancellationToken ct = default)
     {
         await using var db = await _factory.CreateDbContextAsync(ct);
         var query = db.AnalysisJobs.Include(j => j.Packs).Where(j => j.IsBaseline);
         if (type is not null)
             query = query.Where(j => j.BaselineType == type);
-        var jobs = await query.OrderByDescending(j => j.CreatedAt).ToListAsync(ct);
+        var (take, skip) = Page(limit, offset);
+        var jobs = await query
+            .OrderByDescending(j => j.CreatedAt)
+            .ThenByDescending(j => j.Id)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(ct);
         return ProjectJobs(jobs);
     }
 

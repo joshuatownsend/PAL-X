@@ -4,7 +4,7 @@ public interface IAnalysisRepository
 {
     Task<AnalysisJobDto> CreateJobAsync(Guid uploadId, IReadOnlyList<string> packIds, bool includeDataset = false, Guid? selectedBaselineId = null, CancellationToken ct = default);
     Task<AnalysisJobDto?> GetJobAsync(Guid id, CancellationToken ct = default);
-    Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(string? statusFilter, CancellationToken ct = default);
+    Task<IReadOnlyList<AnalysisJobDto>> ListJobsAsync(string? statusFilter, int? limit = null, int? offset = null, CancellationToken ct = default);
 
     // LIMIT and status filter pushed into SQL — prevents materializing every completed
     // job into memory for the trend/policy windowing callers.
@@ -31,7 +31,7 @@ public interface IAnalysisRepository
 
     // Baseline designation
     Task SetBaselineAsync(Guid jobId, bool isBaseline, string? label, string? type = null, string? contextJson = null, CancellationToken ct = default);
-    Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(string? type = null, CancellationToken ct = default);
+    Task<IReadOnlyList<AnalysisJobDto>> ListBaselinesAsync(string? type = null, int? limit = null, int? offset = null, CancellationToken ct = default);
     Task<IReadOnlyList<AnalysisJobDto>> GetBaselineVersionsAsync(string type, string contextJson, CancellationToken ct = default);
 
     // Dataset artifact (optional, only present when job was submitted with IncludeDataset=true)
