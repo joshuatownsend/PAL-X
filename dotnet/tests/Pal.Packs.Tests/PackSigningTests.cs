@@ -158,4 +158,45 @@ public class PackSigningTests : IDisposable
         pub.Dispose();
         Assert.Equal("test-signing-pack", pack.PackId);
     }
+
+    // ── gap tests ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Verify_MalformedSidecar_ReturnsMalformedSignature()
+    {
+        // Sign the pack so a sidecar exists, then overwrite it with a single
+        // garbage line (< 2 lines → ParseSidecar throws → VerificationResult with
+        // FailureReason == "MalformedSignature").
+        var (privPath, pub) = MakeTestKeyPair(_tempDir);
+
+        var signer = new PackSigner();
+        signer.Sign(_tempDir, privPath);
+
+        string sigPath = Path.Combine(_tempDir, "pack.yaml.sig");
+        File.WriteAllText(sigPath, "not-a-valid-sidecar-single-line",
+            new System.Text.UTF8Encoding(false));
+
+        var verifier = new PackVerifier();
+        var result = verifier.Verify(_tempDir, [pub]);
+
+        pub.Dispose();
+        Assert.False(result.IsValid);
+        Assert.Equal("MalformedSignature", result.FailureReason);
+    }
+
+    [Fact]
+    public void PackLoader_ForbiddenSignature_Throws_WhenSidecarPresent()
+    {
+        // Sign the pack so pack.yaml.sig exists; then loading with
+        // SignatureRequirement.Forbidden must throw PackSignatureException.
+        var (privPath, pub) = MakeTestKeyPair(_tempDir);
+        pub.Dispose();
+
+        var signer = new PackSigner();
+        signer.Sign(_tempDir, privPath);
+
+        var loader = new PackLoader();
+        Assert.Throws<PackSignatureException>(
+            () => loader.LoadFromDirectory(_tempDir, SignatureRequirement.Forbidden, []));
+    }
 }
