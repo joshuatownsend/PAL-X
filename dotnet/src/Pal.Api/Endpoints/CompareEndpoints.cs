@@ -36,12 +36,12 @@ public static class CompareEndpoints
         .WithName("SetBaseline")
         .WithTags("Compare");
 
-        app.MapGet("/analysis/baselines", async (string? type, IAnalysisRepository analysis) =>
+        app.MapGet("/analysis/baselines", async (string? type, int? limit, int? offset, IAnalysisRepository analysis) =>
         {
             if (type is not null && !ValidBaselineTypes.Contains(type))
                 return Results.BadRequest($"type must be one of: {string.Join(", ", ValidBaselineTypes)}");
 
-            var baselines = await analysis.ListBaselinesAsync(type?.ToLowerInvariant());
+            var baselines = await analysis.ListBaselinesAsync(type?.ToLowerInvariant(), limit, offset);
             return Results.Ok(new { items = baselines });
         })
         .WithName("ListBaselines")

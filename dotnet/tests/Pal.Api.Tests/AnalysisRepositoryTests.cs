@@ -124,7 +124,7 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
             await SeedJobAsync(upload.Id, "queued", createdAt: now.AddMinutes(-i - 1), completedAt: null, ct: TestContext.Current.CancellationToken);
 
         var page = await Repo.ListJobsAsync("queued", limit: 2, offset: 0, ct: TestContext.Current.CancellationToken);
-        Assert.True(page.Count <= 2);
+        Assert.Equal(2, page.Count);
     }
 
     [Fact]
@@ -135,12 +135,8 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
         var now = DateTimeOffset.UtcNow;
 
         // Seed 4 jobs with distinct timestamps so ordering is deterministic.
-        var seededIds = new List<Guid>();
         for (int i = 0; i < 4; i++)
-        {
-            var job = await SeedJobAsync(upload.Id, "queued", createdAt: now.AddMinutes(-i - 1), completedAt: null, ct: TestContext.Current.CancellationToken);
-            seededIds.Add(job.Id);
-        }
+            await SeedJobAsync(upload.Id, "queued", createdAt: now.AddMinutes(-i - 1), completedAt: null, ct: TestContext.Current.CancellationToken);
 
         // First page: newest 2.
         var firstPage = await Repo.ListJobsAsync("queued", limit: 2, offset: 0, ct: TestContext.Current.CancellationToken);
@@ -150,6 +146,34 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
         var secondPage = await Repo.ListJobsAsync("queued", limit: 2, offset: 2, ct: TestContext.Current.CancellationToken);
         var secondPageIds = secondPage.Select(j => j.Id).ToHashSet();
 
+        Assert.Empty(firstPageIds.Intersect(secondPageIds));
+    }
+
+    [Fact]
+    public async Task ListBaselines_AppliesLimitAndOffset()
+    {
+        using var _ = Tenant.SetWorkspace(DefaultTenant.WorkspaceId);
+        var upload = await SeedUploadAsync(TestContext.Current.CancellationToken);
+        var now = DateTimeOffset.UtcNow;
+
+        // Seed 4 completed baseline jobs with distinct timestamps.
+        var baselineIds = new List<Guid>();
+        for (int i = 0; i < 4; i++)
+        {
+            var job = await SeedBaselineJobAsync(upload.Id, createdAt: now.AddMinutes(-i - 1), ct: TestContext.Current.CancellationToken);
+            baselineIds.Add(job.Id);
+        }
+
+        // First page: newest 2.
+        var firstPage = await Repo.ListBaselinesAsync(limit: 2, offset: 0, ct: TestContext.Current.CancellationToken);
+        var firstPageIds = firstPage.Select(j => j.Id).Where(id => baselineIds.Contains(id)).ToList();
+
+        // Second page: next 2 — must not overlap with the first page.
+        var secondPage = await Repo.ListBaselinesAsync(limit: 2, offset: 2, ct: TestContext.Current.CancellationToken);
+        var secondPageIds = secondPage.Select(j => j.Id).Where(id => baselineIds.Contains(id)).ToList();
+
+        Assert.Equal(2, firstPageIds.Count);
+        Assert.Equal(2, secondPageIds.Count);
         Assert.Empty(firstPageIds.Intersect(secondPageIds));
     }
 
@@ -189,6 +213,27 @@ public sealed class AnalysisRepositoryTests(PalApiFactory factory)
             Status = status,
             CreatedAt = createdAt,
             CompletedAt = completedAt
+        };
+        db.AnalysisJobs.Add(job);
+        await db.SaveChangesAsync(ct);
+        return job;
+    }
+
+    private async Task<AnalysisJobEntity> SeedBaselineJobAsync(
+        Guid uploadId,
+        DateTimeOffset createdAt,
+        CancellationToken ct = default)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync(ct);
+        var job = new AnalysisJobEntity
+        {
+            Id = Guid.NewGuid(),
+            WorkspaceId = DefaultTenant.WorkspaceId,
+            UploadId = uploadId,
+            Status = "completed",
+            CreatedAt = createdAt,
+            CompletedAt = createdAt.AddMinutes(1),
+            IsBaseline = true
         };
         db.AnalysisJobs.Add(job);
         await db.SaveChangesAsync(ct);

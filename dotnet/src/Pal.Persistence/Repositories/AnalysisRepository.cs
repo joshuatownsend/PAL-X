@@ -10,6 +10,15 @@ public sealed class AnalysisRepository : IAnalysisRepository
     private const int DefaultPageSize = 100;
     private const int MaxPageSize = 500;
 
+    /// <summary>
+    /// Converts caller-supplied pagination arguments into a (Take, Skip) tuple.
+    /// Contract:
+    /// <list type="bullet">
+    ///   <item><description><c>null</c> or non-positive <paramref name="limit"/> (e.g. 0 or absent) ⇒ <see cref="DefaultPageSize"/> (100). This means "caller did not specify a page size", not "return an empty page".</description></item>
+    ///   <item><description>A positive <paramref name="limit"/> is clamped to at most <see cref="MaxPageSize"/> (500).</description></item>
+    ///   <item><description><paramref name="offset"/> &lt; 0 or <c>null</c> ⇒ 0 (start from the beginning).</description></item>
+    /// </list>
+    /// </summary>
     private static (int Take, int Skip) Page(int? limit, int? offset)
     {
         int take = limit is > 0 ? Math.Min(limit.Value, MaxPageSize) : DefaultPageSize;
