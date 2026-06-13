@@ -81,7 +81,7 @@ filtered by `TenantResolutionEndpointFilter` (lines 188-199 of `Program.cs`).
 | Endpoint group | File | Consumer readiness |
 |---|---|---|
 | `GET /health` | `HealthEndpoints.cs` | Ready. Anonymous, returns `{ status, version }`. |
-| `POST /account/login` | `AccountEndpoints.cs` | Ready for browser cookie flow. Form-POST, no antiforgery (credentials prevent CSRF per comment). Redirects to `/jobs` on success — not suitable for SPA (needs a JSON response). |
+| `POST /account/login` | `AccountEndpoints.cs` | Ready for browser cookie flow. Form-POST, antiforgery disabled on this endpoint. Redirects to `/jobs` on success — not suitable for SPA (needs a JSON response). |
 | `GET /account/logout` | `AccountEndpoints.cs` | Ready for browser. Returns redirect — not JSON. |
 | `GET /account/me` | `AccountEndpoints.cs` | Ready. Returns `{ id, email, roles }`. |
 | `POST /account/users` | `AccountEndpoints.cs` | Admin-only. Ready. |
@@ -132,9 +132,9 @@ filtered by `TenantResolutionEndpointFilter` (lines 188-199 of `Program.cs`).
 | `PUT /schedules/{id}` | `ScheduleEndpoints.cs` | Admin-only. Ready. |
 | `PATCH /schedules/{id}/enabled` | `ScheduleEndpoints.cs` | Admin-only. Ready. |
 | `DELETE /schedules/{id}` | `ScheduleEndpoints.cs` | Admin-only. Ready. |
-| `GET /tokens` | `TokenEndpoints.cs` | Ready. Returns metadata (no raw token). |
-| `POST /tokens` | `TokenEndpoints.cs` | Ready. Raw token returned once. |
-| `DELETE /tokens/{id}` | `TokenEndpoints.cs` | Ready. |
+| `GET /tokens` | `TokenEndpoints.cs` | Ready. Returns metadata (no raw token). Full route: `/api/workspaces/{workspaceId}/tokens`. |
+| `POST /tokens` | `TokenEndpoints.cs` | Ready. Raw token returned once. Full route: `/api/workspaces/{workspaceId}/tokens`. |
+| `DELETE /tokens/{id}` | `TokenEndpoints.cs` | Ready. Full route: `/api/workspaces/{workspaceId}/tokens/{id}`. |
 
 **Summary:** The API surface is broad and functionally complete for all
 operations the Blazor UI performs. The primary readiness gaps are: (1) no
@@ -156,13 +156,17 @@ Blazor Server uses the `IdentityConstants.ApplicationScheme` cookie (set by
 navigates to the server for every page render and SignalR traffic is
 same-origin.
 
-The `app.UseAntiforgery()` call at `Program.cs:179` enables antiforgery
-globally. The login endpoint explicitly opts out with `.DisableAntiforgery()`
-(comment: "credentials in the form body already prevent CSRF"). Upload also
-opts out with `.DisableAntiforgery()`. All other mutating routes inherit
-antiforgery enforcement automatically — meaning a same-origin form can POST to
-them (Blazor generates the antiforgery token server-side), but a cross-origin
-SPA cannot without additional configuration.
+The `app.UseAntiforgery()` call at `Program.cs:179` installs the antiforgery
+middleware, but in ASP.NET Core minimal APIs antiforgery validation only runs
+for endpoints that carry antiforgery metadata — it is not applied blanket to
+all routes. The login endpoint explicitly opts out with `.DisableAntiforgery()`;
+the upload endpoint does the same. Plain JSON endpoints (for example
+`POST /api/workspaces/{workspaceId}/tokens`, `/compare`, and the alert PATCH
+routes) are not automatically antiforgery-validated because they bind JSON
+bodies, not form data, and carry no antiforgery metadata. The Blazor Server
+pages themselves do carry antiforgery tokens (Razor generates them server-side),
+so the Blazor UI flow is protected; cross-origin API callers are not covered by
+this mechanism.
 
 ### API-key auth (CLI / programmatic)
 
@@ -179,8 +183,11 @@ cookies and explicit CORS allowlists — which the server does not currently
 configure. The clean path for a cross-origin SPA is:
 
 1. User logs in via a Blazor or server-rendered login page (same-origin) to
-   obtain a cookie and then mints an API token via `POST /tokens`.
-2. The SPA uses `Authorization: Bearer <token>` for all subsequent API calls.
+   obtain a cookie, selects a workspace, and then mints an API token via
+   `POST /api/workspaces/{workspaceId}/tokens` (the token endpoints are
+   workspace-scoped in `Program.cs`).
+2. The SPA uses `Authorization: Bearer <token>` for all subsequent API calls,
+   scoping requests to the chosen workspace.
 3. CORS is added to permit the SPA's origin, but only for token-authenticated
    routes — cookie-bearing requests are kept same-origin.
 
@@ -342,10 +349,11 @@ jobs list scale before calling it production-ready.
 
 ### Increment 2 (small effort, high value): Pagination + error-shape cleanup
 
-Close the two highest-priority gaps (Gaps 2 and 5) to make the API more robust
-for any consumer. Plan 002 covers pagination on `/analysis` and `/baselines`.
-Extend it to cover `/alerts/data` and `/compare/list`. Standardize error
-shapes. No new infrastructure.
+Close Gaps 2 and 5 to make the API more robust for any consumer. Gap 2
+(pagination, HIGH) is the most impactful item here: plan 002 covers
+`/analysis` and `/baselines`; extend it to `/alerts/data` and `/compare/list`.
+Gap 5 (error-shape consistency, LOW) can be addressed incrementally alongside
+pagination. No new infrastructure required for either.
 
 **Effort:** S–M. Plan 002 is already written and awaiting execution.
 
