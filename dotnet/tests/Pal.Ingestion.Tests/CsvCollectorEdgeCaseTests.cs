@@ -1,4 +1,5 @@
 using Pal.Engine.Normalization;
+using Pal.Ingestion;
 using Pal.Ingestion.Csv;
 using Xunit;
 
@@ -121,6 +122,17 @@ public class CsvCollectorEdgeCaseTests
 
         // Should still have exactly 1 series (the one counter column).
         Assert.Equal(1, result.Dataset.SeriesCount);
+
+        // The row must have produced exactly one sample — confirming the quoted
+        // field was kept as a single cell and the timestamp was parsed.
+        var series = result.Dataset.Series[0];
+        Assert.Single(series.Samples);
+
+        // With InvariantCulture + NumberStyles.Any the comma in "1,234" is a
+        // thousands separator, so the parsed value must equal 1234 — not null
+        // (which would result from a split producing an extra empty column) and
+        // not some other value (which would result from mis-splitting the field).
+        Assert.Equal(1234.0, series.Samples[0].Value);
     }
 
     // ── 7. Short row yields null sample for the missing column ─────────────
