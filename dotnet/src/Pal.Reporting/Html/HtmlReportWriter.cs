@@ -48,9 +48,10 @@ public static class HtmlReportWriter
         sb.AppendLine("<h2>Summary</h2>");
         sb.AppendLine("<table class=\"summary-table\">");
         sb.AppendLine("<tr><th>Severity</th><th>Count</th></tr>");
-        int criticals = input.Findings.Count(f => f.Severity == "critical");
-        int warnings = input.Findings.Count(f => f.Severity == "warning");
-        int infos = input.Findings.Count(f => f.Severity == "informational");
+        var counts = FindingSummary.CountSeverities(input.Findings);
+        int criticals = counts.Critical;
+        int warnings = counts.Warning;
+        int infos = counts.Informational;
         sb.AppendLine($"<tr class=\"sev-critical\"><td>Critical</td><td>{criticals}</td></tr>");
         sb.AppendLine($"<tr class=\"sev-warning\"><td>Warning</td><td>{warnings}</td></tr>");
         sb.AppendLine($"<tr><td>Informational</td><td>{infos}</td></tr>");
