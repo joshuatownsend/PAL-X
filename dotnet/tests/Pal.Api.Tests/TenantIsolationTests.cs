@@ -108,10 +108,17 @@ public sealed class TenantIsolationTests(PalApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
 
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>(ct);
-        var ids = body.GetProperty("items").EnumerateArray()
-            .Select(j => j.GetProperty("id").GetString())
+        Assert.True(body.TryGetProperty("items", out var items),
+            "Response body did not contain an 'items' property — response shape may have changed.");
+        var ids = items.EnumerateArray()
+            .Select(j =>
+            {
+                Assert.True(j.TryGetProperty("id", out var idProp),
+                    "A job element in 'items' did not contain an 'id' property — response shape may have changed.");
+                return Guid.Parse(idProp.GetString()!);
+            })
             .ToList();
-        Assert.DoesNotContain(otherJobId.ToString(), ids);
+        Assert.DoesNotContain(otherJobId, ids);
     }
 
     [Fact]
