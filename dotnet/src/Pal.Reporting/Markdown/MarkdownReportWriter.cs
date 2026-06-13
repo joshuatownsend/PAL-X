@@ -33,9 +33,10 @@ public sealed class MarkdownReportWriter
         sb.AppendLine($"| Generated | {input.GeneratedAt:yyyy-MM-ddTHH:mm:ssZ} |");
         sb.AppendLine();
 
-        int criticals = input.Findings.Count(f => f.Severity == "critical");
-        int warnings = input.Findings.Count(f => f.Severity == "warning");
-        int infos = input.Findings.Count(f => f.Severity == "informational");
+        var counts = FindingSummary.CountSeverities(input.Findings);
+        int criticals = counts.Critical;
+        int warnings = counts.Warning;
+        int infos = counts.Informational;
 
         sb.AppendLine("## Summary");
         sb.AppendLine();
