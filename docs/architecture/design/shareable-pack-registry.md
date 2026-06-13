@@ -36,7 +36,7 @@ The `keyid` is the first 8 hex characters of the SHA-256 hash of the SPKI-encode
 
 **1c. Validation — `PackValidator`**
 
-`PackValidator.Validate(pack)` (`PackValidator.cs:24`) performs structural checks: `pack_id` must be kebab-case, `version` must be semver, rules must have valid `severity`/`category`/`aggregation`/`operator` values from closed enum sets, schema version must be `pal.pack/v1` or `pal.pack/v1.1`. Window conditions gate on `v1.1`. Returns `ValidationResult { IsValid, Errors, Warnings }`.
+`PackValidator.Validate(pack)` (`PackValidator.cs:24`) performs structural checks: `pack_id` must be kebab-case, `version` must match `^\d+\.\d+\.\d+$` (three numeric components only — no prerelease suffixes or build metadata as in full SemVer), rules must have valid `severity`/`category`/`aggregation`/`operator` values from closed enum sets, schema version must be `pal.pack/v1` or `pal.pack/v1.1`. Window conditions gate on `v1.1`. Returns `ValidationResult { IsValid, Errors, Warnings }`.
 
 **1d. Registry persistence — `PackEntity` + `PackVersionEntity`**
 
@@ -180,11 +180,11 @@ If community governance is not yet available (see Section 7), start with a read-
 
 Keys are provisioned through three channels:
 
-1. **Embedded official key** — `TrustedKeys.OfficialPublicKeyPem` (`TrustedKeys.cs:9`). Currently empty. For first-party packs, the PAL-X project generates an RSA-3072 (or Ed25519) key pair; the public key is baked into the binary. Authors of first-party packs sign with the corresponding private key (held offline).
+1. **Embedded official key** — `TrustedKeys.OfficialPublicKeyPem` (`TrustedKeys.cs:9`). Currently empty. For first-party packs, the PAL-X project generates an RSA-3072 key pair; the public key is baked into the binary. Authors of first-party packs sign with the corresponding private key (held offline). The signing pipeline is RSA-only (`PackSigner` uses `RSA.Create()` + `RSASignaturePadding.Pss`; `TrustedKeys` loads RSA keys); Ed25519 is not supported and would require a separate algorithm and sidecar format change before it could be used here.
 
 2. **Consumer-configured keys** — `TrustedKeys.DefaultTrusted(extraKeyPemPath?)` (`TrustedKeys.cs:37`). Consumers configure one or more author public keys via `appsettings.json` or a trusted-keys directory. These correspond to third-party pack authors. `PackVerifier.Verify` already accepts a list — no API change is needed.
 
-3. **Index-recorded fingerprints** — in the hybrid model, the community index records the SHA-256 fingerprint of each author's public key. The CLI can warn if a locally-configured key's fingerprint does not match the index entry.
+3. **Index-recorded fingerprints** — in the hybrid model, the community index records the SHA-256 fingerprint of each author's public key (`author_key_fingerprint` field). During a pull, after `PackVerifier.Verify` finds a matching trusted key, the pull path **must** confirm that the matching key's fingerprint equals the index entry's `author_key_fingerprint`. A mismatch is a hard failure, not a warning: it means the pack content (or the index entry) has been tampered with to route verification through a different author's key. An operator with multiple trusted keys configured would otherwise be vulnerable to a substitution attack even when all keys are individually legitimate.
 
 ### Key rotation
 
@@ -217,6 +217,7 @@ The current default of `SignatureRequirement.Optional` is acceptable for **local
 | Compromised artifact host | RSA-PSS signature (signed with author's offline key) is independent of host |
 | Typosquatting (`windows-core` vs `w1ndows-core`) | Pack-id namespace review at index PR time; `PackValidator` enforces kebab-case |
 | Malicious pack content | `PackValidator` enforces structural constraints; rules are declarative and have no execution capability |
+| Index entry swapped (different author key signs substitute pack) | Pull requires matching key fingerprint == index `author_key_fingerprint`; mismatch is a hard failure (`FingerprintMismatch`) |
 | Key compromise | Key rotation protocol; fingerprint mismatch alert from index |
 | Registry index tampering | Index is a Git repository; consumers can pin a specific commit SHA |
 
@@ -241,10 +242,16 @@ pal packs pull <id>@<version>  [--trust-key <pubkey.pem>]
     3. Verifies SHA-256 checksum against the index entry.
     4. Calls PackVerifier.Verify with the supplied --trust-key (or configured
        keys for this source); fails if no trusted key matches.
+       IMPORTANT: after a key matches, compare that key's fingerprint
+       (SHA-256 of SPKI bytes, first 8 hex chars) against the index entry's
+       author_key_fingerprint. If they differ, treat it as a hard failure —
+       do not install. This prevents a pack whose index entry or checksum was
+       swapped from installing when a different trusted key happens to verify
+       the (attacker-substituted) signature.
     5. Calls PackValidator.Validate; fails if invalid.
     6. Writes the pack to the local packs directory (Packs:Directory).
     Error cases: MissingSignature, InvalidSignature, NoTrustedKeys,
-    ChecksumMismatch, ValidationError.
+    ChecksumMismatch, FingerprintMismatch, ValidationError.
 
 pal packs publish <dir>  [--key <privkey.pem>]  [--registry <url>]
     (Phase 2+) Signs the pack if not already signed, then submits a PR or
