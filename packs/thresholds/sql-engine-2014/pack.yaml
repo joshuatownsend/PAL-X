@@ -1,0 +1,726 @@
+schema_version: "pal.pack/v1"
+pack_id: sql-engine-2014
+pack_name: "SQL Server 2014 Engine"
+version: "1.0.0"
+description: "SQL Server 2014 engine thresholds ported from the legacy PAL SQLServer2014.xml: TempDB workfiles/worktables, buffer pool free pages and reads/writes, buffer pool extension, transaction-log activity, lock and latch contention, login churn, SQL errors and attention rate, and SQL Server process CPU. Loads alongside windows-core (the always-on base) and complements sql-host-core (which already covers PLE, buffer cache hit ratio, lazy writes, deadlocks, and memory grants)."
+
+# Workload pack: loads only when SQL Server engine counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+# Gap-fill relationship to sql-host-core: counters already covered by sql-host-core rules
+# (Page life expectancy, Buffer cache hit ratio, Lazy writes/sec, Number of Deadlocks/sec,
+# Memory Grants Pending) are intentionally NOT re-ported here. Counters whose canonical IDs already
+# exist in MetricAliasRegistry.BuildDefault() (Free pages, Page reads/sec, Page writes/sec,
+# Batch Requests/sec, Lock Waits/sec, Process CPU) reuse those IDs without adding duplicate aliases.
+applicability:
+  requires_any:
+    - sql.workfiles_created_per_sec
+    - sql.worktables_created_per_sec
+    - sql.lock_requests_per_sec
+    - sql.lock_wait_time_ms
+    - sql.lock_timeouts_per_sec
+    - sql.latch_waits_per_sec
+    - sql.total_latch_wait_time_ms
+    - sql.logins_per_sec
+    - sql.logouts_per_sec
+    - sql.log_flush_wait_time
+    - sql.log_flush_waits_per_sec
+    - sql.log_growths
+    - sql.log_shrinks
+    - sql.percent_log_used
+    - sql.free_list_stalls_per_sec
+    - sql.sql_attention_rate
+    - sql.sql_errors_per_sec
+    - sql.worktables_from_cache_ratio
+    - sql.buffer_node_foreign_pages
+    - sql.deprecated_features_usage
+    - sql.extension_outstanding_io
+    - sql.extension_free_pages
+
+recommendations:
+  tune-tempdb:
+    priority: high
+    text: "Tune queries that spill to TempDB (add or change indexes, run the Database Tuning Advisor, reduce returned data volume), split TempDB into multiple equally-sized data files, and place TempDB on fast local SSD."
+    rationale: "High workfile, worktable, and free-list-stall rates indicate hash/sort spills and TempDB allocation contention that originate from expensive query plans."
+
+  investigate-lock-contention:
+    priority: high
+    text: "Identify the blocking and blocked queries (sys.dm_tran_locks, sys.dm_os_waiting_tasks, Extended Events), review lock ordering, and consider READ COMMITTED SNAPSHOT isolation to reduce blocking."
+    rationale: "Elevated lock requests, lock waits, lock wait time, and lock timeouts mean concurrent transactions are serializing on the same resources, directly adding query latency."
+
+  investigate-latch-contention:
+    priority: medium
+    text: "Correlate latch waits with TempDB/PFS/GAM contention and hot in-memory pages; spread allocation across more TempDB files and review highly-concurrent access to the same pages."
+    rationale: "Latch waits and high total latch wait time reflect short-term in-memory synchronization stalls, often from allocation bitmap or hot-page contention."
+
+  tune-connection-pooling:
+    priority: medium
+    text: "Verify application connection pooling is enabled and connection strings are consistent so connections are reused rather than opened and closed per request."
+    rationale: "A sustained login/logout rate above a couple per second usually means pooling is misconfigured, adding authentication and setup overhead to every call."
+
+  review-transaction-log:
+    priority: high
+    text: "Pre-size transaction-log files to avoid autogrowth, place the log on low-latency storage, and ensure the recovery model and backup cadence keep the active log from filling."
+    rationale: "Log flush waits, log growths/shrinks, and high percent-log-used point to log I/O latency or autogrowth churn that stalls every committing transaction."
+
+  investigate-sql-errors:
+    priority: high
+    text: "Capture the SQL Server error log and Extended Events to identify the failing statements behind the errors-per-second and attention-rate signal (client cancellations or query timeouts)."
+    rationale: "A non-zero error or attention rate means statements are failing or being cancelled mid-execution, wasting work and signalling application or query problems."
+
+  tune-buffer-pool:
+    priority: high
+    text: "Add physical RAM or raise max server memory, and reduce physical I/O by tuning the heaviest queries identified through sys.dm_exec_query_stats; review buffer pool extension sizing if BPE is in use."
+    rationale: "Low free pages, high page read/write rates, foreign NUMA pages, and buffer-pool-extension stalls all indicate the buffer pool is undersized or poorly balanced for the working set."
+
+  remediate-deprecated-features:
+    priority: low
+    text: "Use the SQLServer:Deprecated Features usage data and Extended Events to locate code paths using deprecated features and migrate them before upgrading SQL Server."
+    rationale: "Continued use of deprecated features blocks future upgrades and risks breakage when the features are removed in a later release."
+
+  investigate-sql-cpu:
+    priority: high
+    text: "Identify the most CPU-intensive queries (sys.dm_exec_query_stats ordered by total_worker_time) and tune them; check for high privileged/kernel CPU indicating driver, antivirus, or I/O stack overhead."
+    rationale: "Sustained high SQL Server process CPU starves all queries; high privileged-mode CPU specifically points to system-level overhead rather than query work."
+
+rules:
+  # ── Access Methods — TempDB workfiles/worktables ──────────────────────────
+  - rule_id: sql2014-workfiles-created-high
+    severity: critical
+    category: sql
+    title: "High SQL Server workfile creation rate"
+    summary: "Workfiles created exceeded 20 per second — hash operations are spilling to TempDB."
+    explanation: |
+      Workfiles Created/sec is the number of TempDB workfiles created in the last second. Workfiles
+      back hash joins and hash aggregates when the data being processed is too large to fit in the
+      available memory, forcing a spill to disk. A sustained rate above 20/sec indicates expensive
+      hashing query plans and TempDB pressure.
+    conditions:
+      - metric: sql.workfiles_created_per_sec
+        aggregation: max
+        operator: gt
+        threshold: 20
+        duration_percent: 1
+    recommendations:
+      - tune-tempdb
+
+  - rule_id: sql2014-worktables-created-high
+    severity: warning
+    category: sql
+    title: "High SQL Server worktable creation rate"
+    summary: "Worktables created exceeded 20 per second — query plans are materializing temporary results."
+    explanation: |
+      Worktables Created/sec is the number of TempDB worktables created in the last second. Worktables
+      store temporary results for query spools, LOB variables, and cursors. A sustained rate above
+      20/sec (this value should be baselined per workload) points to expensive statements, parallel
+      plans, or cursor-heavy code that should be tuned, and to TempDB allocation contention.
+    conditions:
+      - metric: sql.worktables_created_per_sec
+        aggregation: max
+        operator: gt
+        threshold: 20
+        duration_percent: 1
+    recommendations:
+      - tune-tempdb
+
+  - rule_id: sql2014-worktables-from-cache-low
+    severity: warning
+    category: sql
+    title: "Low SQL Server worktables-from-cache ratio"
+    summary: "Worktables From Cache Ratio fell below 90% — worktables are not being reused from cache."
+    explanation: |
+      Worktables From Cache Ratio is the percentage of worktables created where the initial two pages
+      were allocated from the worktable cache rather than from TempDB allocation structures. A ratio
+      below 90% means SQL Server is repeatedly allocating worktable pages from TempDB instead of
+      reusing cached ones, increasing TempDB allocation contention.
+    conditions:
+      - metric: sql.worktables_from_cache_ratio
+        aggregation: avg
+        operator: lt
+        threshold: 90
+        duration_percent: 10
+    recommendations:
+      - tune-tempdb
+
+  # ── Buffer Manager — free pages, page reads/writes, free list stalls ──────
+  - rule_id: sql2014-buffer-free-pages-low
+    severity: critical
+    category: sql
+    title: "Low SQL Server buffer free pages"
+    summary: "Free pages in the buffer pool dropped below 640 — the pool is under memory pressure."
+    explanation: |
+      Free Pages is the total number of pages on all free lists in the SQL Server buffer pool. A value
+      below 640 indicates the buffer pool has almost no headroom: incoming page requests must wait for
+      pages to be freed, which drives lazy writes and free-list stalls. This usually accompanies low
+      page life expectancy and points to an undersized buffer pool.
+    conditions:
+      - metric: sql.buffer_free_pages
+        aggregation: max
+        operator: lt
+        threshold: 640
+        duration_percent: 1
+    recommendations:
+      - tune-buffer-pool
+
+  - rule_id: sql2014-page-reads-high
+    severity: warning
+    category: sql
+    title: "High SQL Server page read rate"
+    summary: "Page reads exceeded 90 per second — significant physical read activity against the buffer pool."
+    explanation: |
+      Page Reads/sec is the number of physical database page reads issued per second. Sustained values
+      above 90/sec indicate the buffer pool cannot satisfy requests from memory and is reading pages
+      from disk, which raises disk latency and lowers throughput. Correlate with page life expectancy
+      and buffer cache hit ratio to confirm buffer pool pressure.
+    conditions:
+      - metric: sql.page_reads_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 90
+        duration_percent: 10
+    recommendations:
+      - tune-buffer-pool
+
+  # Note: legacy SQLServer2014.xml also defined a "critical" threshold on this same
+  # Buffer Manager\Page reads/sec counter at gt 20 — but its name was "Less than 20% of
+  # Page Reads/sec", a mislabeled ratio analysis with no declarative equivalent (ADR 0002).
+  # Porting the literal gt 20 produced a contradictory pair (critical easier to trip than the
+  # gt 90 warning above), so it is intentionally not ported. See PR #80 review.
+
+  - rule_id: sql2014-page-writes-high
+    severity: warning
+    category: sql
+    title: "High SQL Server page write rate"
+    summary: "Page writes exceeded 90 per second — significant physical write activity from the buffer pool."
+    explanation: |
+      Page Writes/sec is the number of physical database page writes issued per second. Sustained
+      values above 90/sec mean the buffer pool is flushing dirty pages to disk at a high rate, driven
+      by checkpoint or lazy-writer activity under memory pressure or a write-heavy workload. High page
+      writes increase disk latency and compete with reads for I/O.
+    conditions:
+      - metric: sql.page_writes_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 90
+        duration_percent: 10
+    recommendations:
+      - tune-buffer-pool
+
+  - rule_id: sql2014-free-list-stalls-high
+    severity: critical
+    category: sql
+    title: "SQL Server free list stalls detected"
+    summary: "Free list stalls exceeded 2 per second — requests are waiting for a free buffer page."
+    explanation: |
+      Free List Stalls/sec is the number of requests per second that had to wait for a free page in
+      the buffer pool. A sustained rate above 2/sec is a direct symptom of buffer pool exhaustion:
+      worker threads are blocked waiting for the lazy writer or checkpoint to free pages, stalling
+      query execution. This strongly indicates the buffer pool needs more memory.
+    conditions:
+      - metric: sql.free_list_stalls_per_sec
+        aggregation: max
+        operator: gt
+        threshold: 2
+        duration_percent: 1
+    recommendations:
+      - tune-buffer-pool
+
+  # ── Buffer Manager — buffer pool extension (BPE) ──────────────────────────
+  - rule_id: sql2014-bpe-outstanding-io-high
+    severity: warning
+    category: sql
+    title: "SQL Server buffer pool extension outstanding I/O"
+    summary: "Buffer pool extension outstanding I/O exceeded zero — BPE reads/writes are queued."
+    explanation: |
+      Extension Outstanding IO counter tracks I/O operations against the buffer pool extension (BPE)
+      file that have not yet completed. A persistently non-zero value means the BPE device cannot keep
+      up with the rate of page movement to and from the extension, so the extension is adding latency
+      rather than relieving memory pressure. The BPE device should be a fast local SSD.
+    conditions:
+      - metric: sql.extension_outstanding_io
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - tune-buffer-pool
+
+  - rule_id: sql2014-bpe-free-pages-low
+    severity: critical
+    category: sql
+    title: "Low SQL Server buffer pool extension free pages"
+    summary: "Buffer pool extension free pages dropped below 5120 — the BPE is nearly full."
+    explanation: |
+      Extension Free Pages is the number of free pages available in the buffer pool extension (BPE)
+      file. A value below 5120 means the extension is almost full and can no longer absorb pages
+      evicted from the main buffer pool, so the extension stops relieving memory pressure. This
+      indicates the BPE file is undersized for the working set or that buffer pool pressure is severe.
+    conditions:
+      - metric: sql.extension_free_pages
+        aggregation: max
+        operator: lt
+        threshold: 5120
+        duration_percent: 1
+    recommendations:
+      - tune-buffer-pool
+
+  # ── Buffer Node — NUMA foreign pages ──────────────────────────────────────
+  - rule_id: sql2014-buffer-node-foreign-pages
+    severity: warning
+    category: sql
+    title: "SQL Server NUMA foreign pages detected"
+    summary: "Buffer Node foreign pages exceeded zero — memory is being accessed across NUMA nodes."
+    explanation: |
+      Buffer Node Foreign Pages is the number of pages in a NUMA node's buffer pool that belong to
+      (were allocated on) a different NUMA node. A non-zero value means SQL Server is performing
+      cross-node (foreign) memory access, which is slower than local access. Persistent foreign pages
+      point to uneven memory distribution across NUMA nodes or a buffer pool that is not partitioned
+      cleanly across nodes.
+    conditions:
+      - metric: sql.buffer_node_foreign_pages
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - tune-buffer-pool
+
+  # ── SQL Statistics — throughput, attention rate ──────────────────────────
+  - rule_id: sql2014-batch-requests-high
+    severity: warning
+    category: sql
+    title: "High SQL Server batch request rate"
+    summary: "Batch requests exceeded 1000 per second — the instance is under heavy query load."
+    explanation: |
+      Batch Requests/sec is the number of Transact-SQL command batches received per second. Sustained
+      values above 1000/sec indicate a high-throughput OLTP workload. This is not a fault on its own,
+      but it should be baselined: it provides the denominator for compilation, recompilation, and
+      lock-contention ratios, and a sudden change in batch rate often explains other counters moving.
+    conditions:
+      - metric: sql.batch_requests_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 1000
+        duration_percent: 10
+    recommendations:
+      - investigate-sql-cpu
+
+  - rule_id: sql2014-attention-rate-high
+    severity: critical
+    category: sql
+    title: "SQL Server attention rate detected"
+    summary: "SQL attention rate exceeded zero — clients are cancelling queries or hitting timeouts."
+    explanation: |
+      SQL Attention rate is the number of attention events (query cancellations) per second. Attentions
+      are raised when a client cancels a running query or a command times out. A non-zero attention
+      rate means statements are routinely being aborted mid-execution, wasting server work and usually
+      indicating client-side query timeouts or applications cancelling long-running queries.
+    conditions:
+      - metric: sql.sql_attention_rate
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-sql-errors
+
+  # ── SQL Errors ────────────────────────────────────────────────────────────
+  - rule_id: sql2014-sql-errors-detected
+    severity: critical
+    category: sql
+    title: "SQL Server errors detected"
+    summary: "SQL errors exceeded zero per second — statements are raising errors."
+    explanation: |
+      Errors/sec (SQL Errors object) is the number of SQL Server errors raised per second. A non-zero
+      rate means statements are failing — for example from constraint violations, conversion errors,
+      or other runtime faults. Sustained errors waste server work and almost always indicate an
+      application or query problem that should be traced through the SQL Server error log.
+    conditions:
+      - metric: sql.sql_errors_per_sec
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-sql-errors
+
+  # ── General Statistics — connection pooling ───────────────────────────────
+  - rule_id: sql2014-logins-high
+    severity: warning
+    category: sql
+    title: "High SQL Server login rate"
+    summary: "Logins exceeded 2 per second — applications may not be using connection pooling."
+    explanation: |
+      Logins/sec is the number of logins started per second. A sustained rate above 2/sec typically
+      means applications are opening a fresh connection per operation instead of reusing pooled
+      connections. Each login adds authentication and session-setup overhead, and a high login rate
+      paired with a high logout rate is the classic signature of broken or disabled connection pooling.
+    conditions:
+      - metric: sql.logins_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 2
+        duration_percent: 10
+    recommendations:
+      - tune-connection-pooling
+
+  - rule_id: sql2014-logouts-high
+    severity: warning
+    category: sql
+    title: "High SQL Server logout rate"
+    summary: "Logouts exceeded 2 per second — applications may not be using connection pooling."
+    explanation: |
+      Logouts/sec is the number of logout operations started per second. A sustained rate above 2/sec
+      means connections are being closed frequently rather than returned to a pool. Together with a
+      high login rate this indicates applications are not correctly using connection pooling, adding
+      avoidable connection setup and teardown overhead to every database call.
+    conditions:
+      - metric: sql.logouts_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 2
+        duration_percent: 10
+    recommendations:
+      - tune-connection-pooling
+
+  # ── Latches — in-memory synchronization ───────────────────────────────────
+  - rule_id: sql2014-latch-waits-low
+    severity: critical
+    category: sql
+    title: "SQL Server latch waits below expected ratio"
+    summary: "Latch Waits/sec fell below 10 relative to total latch wait time — latch waits are long-held."
+    explanation: |
+      This rule ports the legacy SQL Server 2014 check that compares Latch Waits/sec against total
+      latch wait time: when the number of latch waits per second is low while wait time accumulates,
+      each individual latch wait is being held for a long time. The legacy code evaluates Latch
+      Waits/sec with a less-than-10 operator. Long-held latch waits indicate serialized access to
+      in-memory structures (often allocation pages) that stalls concurrent work.
+    conditions:
+      - metric: sql.latch_waits_per_sec
+        aggregation: avg
+        operator: lt
+        threshold: 10
+        duration_percent: 10
+    recommendations:
+      - investigate-latch-contention
+
+  - rule_id: sql2014-total-latch-wait-time-high
+    severity: warning
+    category: sql
+    title: "High SQL Server total latch wait time"
+    summary: "Total latch wait time exceeded 500ms per second on average — latch contention is building."
+    explanation: |
+      Total Latch Wait Time (ms) is the cumulative time spent waiting on latches. An average above
+      500ms of latch wait time per second indicates measurable in-memory synchronization stalls,
+      commonly from TempDB allocation-page (PFS/GAM/SGAM) contention or hot pages accessed by many
+      threads at once.
+    conditions:
+      - metric: sql.total_latch_wait_time_ms
+        aggregation: avg
+        operator: gt
+        threshold: 500
+        duration_percent: 10
+    recommendations:
+      - investigate-latch-contention
+
+  - rule_id: sql2014-total-latch-wait-time-critical
+    severity: critical
+    category: sql
+    title: "Critical SQL Server total latch wait time"
+    summary: "Total latch wait time exceeded 750ms per second on average — severe latch contention."
+    explanation: |
+      Total Latch Wait Time (ms) averaging above 750ms per second indicates severe in-memory
+      synchronization contention. At this level threads are spending a large share of their time
+      blocked on latches rather than doing work, usually from allocation-bitmap contention in TempDB
+      or extreme hot-page concurrency. This requires immediate investigation of the contended pages.
+    conditions:
+      - metric: sql.total_latch_wait_time_ms
+        aggregation: avg
+        operator: gt
+        threshold: 750
+        duration_percent: 10
+    recommendations:
+      - investigate-latch-contention
+
+  # ── Locks — contention ────────────────────────────────────────────────────
+  - rule_id: sql2014-lock-requests-high
+    severity: warning
+    category: sql
+    title: "High SQL Server lock request rate"
+    summary: "Lock requests exceeded 1000 per second — heavy locking activity across the instance."
+    explanation: |
+      Lock Requests/sec (Locks _Total) is the number of new locks and lock conversions requested per
+      second. A sustained rate above 1000/sec indicates heavy locking activity, which raises the
+      probability of blocking and deadlocks and adds lock-manager overhead. This should be correlated
+      with batch requests per second to judge whether the locking is proportionate to the workload.
+    conditions:
+      - metric: sql.lock_requests_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 1000
+        duration_percent: 10
+    recommendations:
+      - investigate-lock-contention
+
+  - rule_id: sql2014-lock-waits-detected
+    severity: warning
+    category: sql
+    title: "SQL Server lock waits detected"
+    summary: "Lock waits exceeded zero per second — requests are blocking on existing locks."
+    explanation: |
+      Lock Waits/sec (Locks _Total) is the number of lock requests per second that could not be
+      granted immediately and had to wait. A non-zero value means transactions are blocking on locks
+      held by other transactions, directly adding latency. Persistent lock waits indicate contention
+      that can often be reduced with better indexing, shorter transactions, or snapshot isolation.
+    conditions:
+      - metric: sql.lock_waits_per_sec
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-lock-contention
+
+  - rule_id: sql2014-lock-wait-time-high
+    severity: warning
+    category: sql
+    title: "High SQL Server lock wait time"
+    summary: "Lock wait time exceeded 500ms per second on average — blocking is adding noticeable latency."
+    explanation: |
+      Lock Wait Time (ms) (Locks _Total) is the total time spent waiting to acquire locks. An average
+      above 500ms of lock wait time per second means transactions are spending significant time blocked
+      on locks held by others. This is a direct latency cost and points to lock contention that should
+      be traced to the specific blocking and blocked statements.
+    conditions:
+      - metric: sql.lock_wait_time_ms
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 500
+        duration_percent: 10
+    recommendations:
+      - investigate-lock-contention
+
+  - rule_id: sql2014-lock-wait-time-critical
+    severity: critical
+    category: sql
+    title: "Critical SQL Server lock wait time"
+    summary: "Lock wait time exceeded 750ms per second on average — severe blocking."
+    explanation: |
+      Lock Wait Time (ms) (Locks _Total) averaging above 750ms per second indicates severe blocking:
+      transactions are spending most of each second waiting on locks rather than doing work. At this
+      level user-visible latency and timeout risk are high, and the lock ordering or isolation level
+      of the contending transactions needs immediate attention.
+    conditions:
+      - metric: sql.lock_wait_time_ms
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 750
+        duration_percent: 10
+    recommendations:
+      - investigate-lock-contention
+
+  - rule_id: sql2014-lock-timeouts-high
+    severity: critical
+    category: sql
+    title: "SQL Server lock timeouts detected"
+    summary: "Lock timeouts exceeded 1 per second — lock requests are giving up after waiting."
+    explanation: |
+      Lock Timeouts/sec (Locks _Total) is the number of lock requests per second that timed out,
+      including internal requests for NOWAIT locks. A sustained rate above 1/sec means lock requests
+      are waiting long enough to be abandoned, which surfaces to applications as errors and indicates
+      serious blocking. The contending statements and lock order should be investigated.
+    conditions:
+      - metric: sql.lock_timeouts_per_sec
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-lock-contention
+
+  # ── Databases — transaction log health ───────────────────────────────────
+  - rule_id: sql2014-log-flush-wait-time-high
+    severity: warning
+    category: sql
+    title: "SQL Server log flush wait time detected"
+    summary: "Log flush wait time exceeded zero — commits are waiting for the log to flush to disk."
+    explanation: |
+      Log Flush Wait Time (Databases _Total) is the total wait time, in milliseconds, for log flushes
+      to complete. A non-zero value means committing transactions are waiting on the transaction log
+      to be written to disk before they can complete. This points to transaction-log I/O latency and
+      should be near zero on healthy, low-latency log storage.
+    conditions:
+      - metric: sql.log_flush_wait_time
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - review-transaction-log
+
+  - rule_id: sql2014-log-flush-waits-high
+    severity: warning
+    category: sql
+    title: "SQL Server log flush waits detected"
+    summary: "Log flush waits exceeded zero per second — commits are stalling on log writes."
+    explanation: |
+      Log Flush Waits/sec (Databases _Total) is the number of commits per second waiting for the log
+      flush to complete. A non-zero value means transactions are stalling on transaction-log writes,
+      which serializes commit throughput. This should be near zero; sustained log flush waits indicate
+      slow log storage or excessive small transactions.
+    conditions:
+      - metric: sql.log_flush_waits_per_sec
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - review-transaction-log
+
+  - rule_id: sql2014-log-growths-detected
+    severity: warning
+    category: sql
+    title: "SQL Server transaction log growth detected"
+    summary: "Log growths exceeded zero — a transaction log autogrew during the capture."
+    explanation: |
+      Log Growths (Databases _Total) is the total number of times the transaction log has been expanded
+      by autogrowth. Any value above zero means the log ran out of space and had to grow, which is a
+      blocking, I/O-intensive operation that stalls transactions while it runs. Logs should be pre-sized
+      so autogrowth does not occur during normal operation.
+    conditions:
+      - metric: sql.log_growths
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - review-transaction-log
+
+  - rule_id: sql2014-log-shrinks-detected
+    severity: warning
+    category: sql
+    title: "SQL Server transaction log shrink detected"
+    summary: "Log shrinks exceeded zero — a transaction log was shrunk during the capture."
+    explanation: |
+      Log Shrinks (Databases _Total) is the total number of transaction-log shrink events. Any value
+      above zero means a log was shrunk, which combined with later autogrowth causes log fragmentation
+      (many virtual log files) and repeated grow/shrink I/O churn. Logs should be sized to their steady-
+      state working size rather than repeatedly shrunk.
+    conditions:
+      - metric: sql.log_shrinks
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - review-transaction-log
+
+  - rule_id: sql2014-percent-log-used-high
+    severity: warning
+    category: sql
+    title: "High SQL Server percent log used"
+    summary: "Percent log used exceeded 80% — the active transaction log is filling up."
+    explanation: |
+      Percent Log Used (Databases _Total) is the percentage of the transaction log space currently in
+      use. Sustained values above 80% mean the active log is close to full; if it fills, transactions
+      stop until the log can be truncated, and autogrowth (or an out-of-space error) follows. Check the
+      recovery model, backup cadence, and any long-running transactions holding the log active.
+    conditions:
+      - metric: sql.percent_log_used
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 80
+        duration_percent: 10
+    recommendations:
+      - review-transaction-log
+
+  # ── Deprecated Features ───────────────────────────────────────────────────
+  - rule_id: sql2014-deprecated-features-used
+    severity: warning
+    category: sql
+    title: "SQL Server deprecated feature usage detected"
+    summary: "Deprecated feature usage exceeded zero — code is using features slated for removal."
+    explanation: |
+      Usage (Deprecated Features object) counts how many times deprecated SQL Server features have been
+      used since the instance started. A non-zero value means application or query code depends on
+      features that are deprecated and may be removed in a future SQL Server release. These code paths
+      should be identified and migrated before upgrading.
+    conditions:
+      - metric: sql.deprecated_features_usage
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - remediate-deprecated-features
+
+  # ── Process (sqlservr) — CPU ──────────────────────────────────────────────
+  - rule_id: sql2014-process-privileged-time-high
+    severity: warning
+    category: sql
+    title: "High SQL Server privileged (kernel) CPU"
+    summary: "sqlservr privileged-mode CPU averaged above 20% — kernel-mode overhead is elevated."
+    explanation: |
+      % Privileged Time for the sqlservr process is the share of CPU spent in kernel mode on behalf of
+      SQL Server. Sustained values above 20% are higher than expected for normal query work and usually
+      point to system-level overhead — I/O stack, antivirus filter drivers, or network drivers — rather
+      than query processing itself.
+    conditions:
+      - metric: process.percent_privileged_time
+        instance: "sqlservr"
+        aggregation: avg
+        operator: gt
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - investigate-sql-cpu
+
+  - rule_id: sql2014-process-privileged-time-critical
+    severity: critical
+    category: sql
+    title: "Critical SQL Server privileged (kernel) CPU"
+    summary: "sqlservr privileged-mode CPU averaged above 30% — excessive kernel-mode overhead."
+    explanation: |
+      % Privileged Time for the sqlservr process averaging above 30% indicates an excessive share of
+      SQL Server CPU is being consumed in kernel mode. This is well above normal and points to a
+      system-level problem — a misbehaving filter driver, antivirus scanning, or an overloaded I/O or
+      network stack — that is stealing CPU from query execution.
+    conditions:
+      - metric: process.percent_privileged_time
+        instance: "sqlservr"
+        aggregation: avg
+        operator: gt
+        threshold: 30
+        duration_percent: 10
+    recommendations:
+      - investigate-sql-cpu
+
+  - rule_id: sql2014-process-processor-time-high
+    severity: critical
+    category: sql
+    title: "High SQL Server process CPU"
+    summary: "sqlservr total CPU averaged above 80% — the SQL Server process is CPU-bound."
+    explanation: |
+      % Processor Time for the sqlservr process is the total CPU consumed by SQL Server. A sustained
+      average above 80% means the instance is CPU-bound: queries are competing for processor time and
+      latency rises across the board. Identify and tune the most CPU-intensive queries, and check
+      whether parallelism settings or missing indexes are inflating CPU.
+    conditions:
+      - metric: process.percent_processor_time
+        instance: "sqlservr"
+        aggregation: avg
+        operator: gt
+        threshold: 80
+        duration_percent: 10
+    recommendations:
+      - investigate-sql-cpu

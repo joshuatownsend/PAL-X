@@ -1,0 +1,206 @@
+schema_version: "pal.pack/v1"
+pack_id: sharepoint-2013
+pack_name: "SharePoint Server 2013 & Search"
+version: "1.0.0"
+description: "SharePoint Server 2013 publishing-cache health and Office Server (MOSS) Search crawler thresholds. Loads alongside windows-core (the always-on base) on captures that contain SharePoint or Office Server Search counters."
+
+# Workload pack: loads only when SharePoint publishing-cache or Office Server Search counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+# Ported faithfully from legacy SP2013.xml (Publishing Cache) and MOSS_Search.xml (Search crawler).
+# The legacy files chart many additional SharePoint Foundation / OSS Search counters (page request
+# rates, executing SQL queries, active threads/heaps, idle/filtering threads) but define NO alert
+# threshold for them — they are observational. Only the StaticThreshold rules below alert in legacy.
+# The legacy "Filtering Threads to Network Threads Ratio Percentage" threshold is dropped: its counter
+# is a TYPE="Generated" computed ratio (PowerShell-derived), not a raw PerfMon counter, and PAL-X has
+# no expression DSL (ADR 0002).
+applicability:
+  requires_any:
+    - sharepoint.publishing_cache_flushes_per_sec
+    - sharepoint.publishing_cache_hit_ratio
+    - sharepoint.publishing_cache_misses_per_sec
+    - sharepoint.search_archival_total_docs_first_queue
+    - sharepoint.search_archival_total_docs_second_queue
+    - sharepoint.search_gatherer_idle_threads
+
+recommendations:
+  investigate-publishing-cache:
+    priority: medium
+    text: "Review the publishing-cache flush/miss pattern against site-change activity; frequent flushes mean content is changing faster than the cache can serve it. Confirm the object cache size is tuned for the web application and that automated jobs are not churning published content."
+    rationale: "The SharePoint publishing (object) cache offloads rendering of published pages. A low hit ratio or high flush/miss rate forces page rendering back to the content database, raising request latency and SQL load."
+    links:
+      - "https://learn.microsoft.com/en-us/sharepoint/administration/cache-settings-operations"
+
+  fix-search-crawl-starvation:
+    priority: high
+    text: "A persistently full archival-plugin queue (500 for Portal Content, 50 for ProfileImport) means the crawler is starved waiting to write to the search database — almost always SQL I/O latency. Improve disk latency on the search/SSP database, and consider splitting it into multiple file groups via the supported method."
+    rationale: "When the archival plugin cannot drain its write queue, the gatherer blocks and crawl throughput collapses, so search results go stale and full/incremental crawls miss their freshness windows."
+    links:
+      - "https://learn.microsoft.com/en-us/sharepoint/search/manage-crawling"
+
+  rebalance-crawl-threads:
+    priority: medium
+    text: "Zero idle crawler threads means every gatherer thread is busy — typically too many content sources crawling at once. Stagger crawl schedules to reduce overlap, or reduce the number of concurrently crawled content sources."
+    rationale: "With no idle threads the gatherer has no headroom to pick up new crawl work, so additional content sources queue behind the running crawls and overall freshness degrades."
+
+rules:
+  # ── SharePoint Publishing Cache (SP2013.xml) ──────────────────────────────
+  - rule_id: sp2013-publishing-cache-flushes-high
+    severity: warning
+    category: sharepoint
+    title: "High SharePoint publishing cache flush rate"
+    summary: "Publishing cache flushes averaged more than 1 per second."
+    explanation: |
+      Publishing cache flushes / second is the rate at which SharePoint updates (flushes) the
+      publishing object cache because of site changes. A sustained rate above 1/sec means published
+      content is changing faster than the cache can serve it, which pushes page rendering back to the
+      content database and raises request latency and SQL load.
+    conditions:
+      - metric: sharepoint.publishing_cache_flushes_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-publishing-cache
+
+  - rule_id: sp2013-publishing-cache-hit-ratio-low
+    severity: warning
+    category: sharepoint
+    title: "Low SharePoint publishing cache hit ratio"
+    summary: "Publishing cache hit ratio averaged below 99 percent."
+    explanation: |
+      Publishing cache hit ratio is the ratio of hits to misses on the SharePoint publishing (object)
+      cache. A hit ratio below 99% means a meaningful share of published-page requests are missing the
+      cache and rendering from the content database instead, increasing request latency and database
+      load. Investigate cache sizing and the rate of content changes invalidating cached entries.
+    conditions:
+      - metric: sharepoint.publishing_cache_hit_ratio
+        instance: "_Total"
+        aggregation: avg
+        operator: lt
+        threshold: 99
+        duration_percent: 10
+    recommendations:
+      - investigate-publishing-cache
+
+  - rule_id: sp2013-publishing-cache-misses-high
+    severity: warning
+    category: sharepoint
+    title: "High SharePoint publishing cache miss rate"
+    summary: "Publishing cache misses averaged more than 1 per second."
+    explanation: |
+      Publishing cache misses / sec is the rate of misses against the SharePoint publishing (object)
+      cache. A sustained rate above 1/sec means requests are repeatedly failing to find content in the
+      cache and falling back to the content database, which raises page latency and SQL load. This
+      often accompanies an undersized cache or rapidly changing published content.
+    conditions:
+      - metric: sharepoint.publishing_cache_misses_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-publishing-cache
+
+  # ── Office Server Search — Archival Plugin queues (MOSS_Search.xml) ────────
+  - rule_id: sp2013-search-archival-first-queue-portal-content
+    severity: critical
+    category: sharepoint
+    title: "Search archival first queue full (Portal_Content)"
+    summary: "Total docs in first queue for Portal_Content reached 500 — the crawler is starved."
+    explanation: |
+      Total docs in first queue is the number of documents the crawler has queued waiting to write to
+      the SSP search database. When this stays at 500 for Portal Content the crawler is being starved
+      by time spent in the archival plugin, which usually indicates SQL I/O latency on the search
+      database. Brief peaks are acceptable; sustained periods at the maximum are a concern.
+    conditions:
+      - metric: sharepoint.search_archival_total_docs_first_queue
+        instance: "Portal_Content"
+        aggregation: max
+        operator: eq
+        threshold: 500
+        duration_percent: 1
+    recommendations:
+      - fix-search-crawl-starvation
+
+  - rule_id: sp2013-search-archival-second-queue-portal-content
+    severity: critical
+    category: sharepoint
+    title: "Search archival second queue full (Portal_Content)"
+    summary: "Total docs in second queue for Portal_Content reached 500 — the crawler is starved."
+    explanation: |
+      Total docs in second queue is the number of documents queued in the second archival-plugin stage
+      waiting to write to the SSP search database. When this stays at 500 for Portal Content the
+      crawler is starved by time spent in the archival plugin, typically caused by SQL I/O latency on
+      the search database. Improving search-database disk latency usually clears the backlog.
+    conditions:
+      - metric: sharepoint.search_archival_total_docs_second_queue
+        instance: "Portal_Content"
+        aggregation: max
+        operator: eq
+        threshold: 500
+        duration_percent: 1
+    recommendations:
+      - fix-search-crawl-starvation
+
+  - rule_id: sp2013-search-archival-first-queue-profile-import
+    severity: critical
+    category: sharepoint
+    title: "Search archival first queue full (ProfileImport)"
+    summary: "Total docs in first queue for ProfileImport reached 50 — the crawler is starved."
+    explanation: |
+      Total docs in first queue is the number of documents the crawler has queued waiting to write to
+      the SSP search database. When this stays at 50 for the ProfileImport content source the crawler
+      is being starved by time spent in the archival plugin, which usually indicates SQL I/O latency on
+      the search database. Brief peaks are acceptable; sustained periods at the maximum are a concern.
+    conditions:
+      - metric: sharepoint.search_archival_total_docs_first_queue
+        instance: "ProfileImport"
+        aggregation: max
+        operator: eq
+        threshold: 50
+        duration_percent: 1
+    recommendations:
+      - fix-search-crawl-starvation
+
+  - rule_id: sp2013-search-archival-second-queue-profile-import
+    severity: critical
+    category: sharepoint
+    title: "Search archival second queue full (ProfileImport)"
+    summary: "Total docs in second queue for ProfileImport reached 50 — the crawler is starved."
+    explanation: |
+      Total docs in second queue is the number of documents queued in the second archival-plugin stage
+      waiting to write to the SSP search database. When this stays at 50 for the ProfileImport content
+      source the crawler is starved by time spent in the archival plugin, typically caused by SQL I/O
+      latency on the search database. Improving search-database disk latency usually clears the backlog.
+    conditions:
+      - metric: sharepoint.search_archival_total_docs_second_queue
+        instance: "ProfileImport"
+        aggregation: max
+        operator: eq
+        threshold: 50
+        duration_percent: 1
+    recommendations:
+      - fix-search-crawl-starvation
+
+  # ── Office Server Search — Gatherer threads (MOSS_Search.xml) ──────────────
+  - rule_id: sp2013-search-gatherer-no-idle-threads
+    severity: critical
+    category: sharepoint
+    title: "No idle Office Server Search crawler threads"
+    summary: "Idle gatherer threads reached 0 — every crawler thread is busy."
+    explanation: |
+      Idle Threads is the number of gatherer crawler threads that are not currently busy. When this
+      reaches 0 every crawler thread is in use, which usually means too many content sources are being
+      crawled at once and the gatherer has no headroom to pick up additional crawl work. Staggering
+      crawl schedules or reducing concurrent content sources restores idle capacity.
+    conditions:
+      - metric: sharepoint.search_gatherer_idle_threads
+        aggregation: max
+        operator: eq
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - rebalance-crawl-threads

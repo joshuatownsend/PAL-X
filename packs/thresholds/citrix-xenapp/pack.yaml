@@ -1,0 +1,183 @@
+schema_version: "pal.pack/v1"
+pack_id: citrix-xenapp
+pack_name: "Citrix XenApp"
+version: "1.0.0"
+description: "Citrix XenApp / MetaFrame Presentation Server health thresholds: IMA work-item queue backlogs, data-store and license-server connection failures, and Citrix XML Service thread saturation. Loads alongside windows-core (the always-on base) on captures that contain Citrix XenApp counters."
+
+# Workload pack: loads only when Citrix XenApp / MetaFrame Presentation Server counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+# Ported faithfully from legacy CitrixXenApp.xml. The legacy <CHART>/<SERIES> StaticChartThreshold
+# entries are charting bands, not alert thresholds, and are not ported. Every ported value (operator
+# + threshold) comes verbatim from a legacy <THRESHOLD> StaticThreshold call.
+applicability:
+  requires_any:
+    - citrix.resolution_workitem_queue_ready_count
+    - citrix.workitem_queue_ready_count
+    - citrix.data_store_connection_failure
+    - citrix.number_of_busy_xml_threads
+    - citrix.license_server_connection_failure
+
+recommendations:
+  investigate-ima-backlog:
+    priority: high
+    text: "Check the IMA service health and the least-loaded-server resolution path: review CPU/memory headroom on the XenApp server, confirm the data store is responsive, and apply the relevant IMA hotfix rollup pack if work-item queues are persistently backing up."
+    rationale: "A non-zero IMA work-item queue means requests (application resolution or recurring load updates) are being queued while IMA processes other work — users experience slow or failed application launches and stale load balancing."
+    links:
+      - "http://support.citrix.com/article/CTX119922"
+
+  check-data-store-connectivity:
+    priority: high
+    text: "Verify network connectivity and authentication between the XenApp server and the data store database (SQL/Oracle/Access). While the data store is unreachable, application delivery continues but farm configuration changes are blocked — restore the connection before making administrative changes."
+    rationale: "The data store holds published-application lists, administrators, and farm settings; minutes of disconnection signal an unhealthy farm-management path even though existing sessions keep running."
+
+  check-license-server-connectivity:
+    priority: high
+    text: "Restore connectivity to the Citrix License Server and confirm the licensing service is running. XenApp falls back to a grace period (4 or 30 days depending on license file age) while disconnected — a multi-hour or multi-day outage risks users being unable to connect once the grace period expires."
+    rationale: "XenApp checks out licenses from the License Server on user connect; sustained disconnection erodes the grace window and ultimately blocks new sessions."
+    links:
+      - "http://support.citrix.com/article/CTX105103"
+
+  investigate-xml-thread-saturation:
+    priority: high
+    text: "Investigate why the Citrix XML Service is saturating its worker threads: review logon/enumeration load from StoreFront/Web Interface, check for slow data-store or broker responses, and scale out XML brokers if request volume genuinely exceeds capacity."
+    rationale: "The Citrix XML Service has 16 worker threads used for logon, application enumeration, and launch; when all are busy, XML requests queue and users see slow or failed logons and application listings."
+
+rules:
+  # ── IMA work-item queues ───────────────────────────────────────────────────
+  - rule_id: citrix-ima-resolution-workitem-queue-backlog
+    severity: critical
+    category: citrix
+    title: "IMA resolution work-item queue backlog"
+    summary: "Citrix IMA resolution work-item queue ready count exceeded zero — application-resolution requests are queuing."
+    explanation: |
+      The IMA service consists of multiple thread pools dedicated to specific tasks. This counter
+      measures the number of pending requests handled by the thread pool responsible for XenApp
+      application resolutions, where the least-loaded server is calculated when a user launches a new
+      application. A value above 0 indicates requests are being queued while IMA handles other
+      requests, which delays application launches and least-loaded-server calculations.
+    conditions:
+      - metric: citrix.resolution_workitem_queue_ready_count
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-ima-backlog
+
+  - rule_id: citrix-ima-workitem-queue-backlog
+    severity: critical
+    category: citrix
+    title: "IMA work-item queue backlog"
+    summary: "Citrix IMA work-item queue ready count exceeded zero — recurring IMA tasks are queuing."
+    explanation: |
+      The IMA service consists of multiple thread pools dedicated to specific tasks. This counter
+      measures the number of pending requests handled by the thread pool that processes re-occurring
+      XenApp tasks such as load updates. A value above 0 indicates requests are being queued while IMA
+      handles other requests, which delays load-balancing updates and farm housekeeping.
+    conditions:
+      - metric: citrix.workitem_queue_ready_count
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-ima-backlog
+
+  # ── Data store connectivity ────────────────────────────────────────────────
+  - rule_id: citrix-data-store-connection-failure
+    severity: warning
+    category: citrix
+    title: "Citrix data store connection failure"
+    summary: "The XenApp server reported minutes of disconnection from the data store database."
+    explanation: |
+      XenApp stores configuration information such as the list of published applications, Citrix
+      administrators, and farm settings in the data store database. This counter reports the number of
+      minutes that the Presentation Server was disconnected from the data store. While XenApp can
+      continue delivering applications to users while the database is down, limited configuration
+      changes can be made until connectivity is restored.
+    conditions:
+      - metric: citrix.data_store_connection_failure
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - check-data-store-connectivity
+
+  # ── Citrix XML Service thread saturation ───────────────────────────────────
+  - rule_id: citrix-busy-xml-threads-high
+    severity: warning
+    category: citrix
+    title: "Citrix XML Service busy threads elevated"
+    summary: "The number of busy Citrix XML Service threads reached or exceeded 10."
+    explanation: |
+      The Citrix XML Service is used to log users in as well as list and launch published applications.
+      This counter measures the number of user requests currently being processed. There are 16 worker
+      threads in the Citrix XML Service; reaching 10 or more busy threads indicates the service is
+      approaching saturation and XML requests may begin to queue.
+    conditions:
+      - metric: citrix.number_of_busy_xml_threads
+        aggregation: max
+        operator: ge
+        threshold: 10
+        duration_percent: 1
+    recommendations:
+      - investigate-xml-thread-saturation
+
+  - rule_id: citrix-busy-xml-threads-saturated
+    severity: critical
+    category: citrix
+    title: "Citrix XML Service threads saturated"
+    summary: "The number of busy Citrix XML Service threads equalled 16 — all worker threads in use."
+    explanation: |
+      The Citrix XML Service has 16 worker threads used for logon, application enumeration, and launch.
+      A count of 16 means every worker thread is busy and XML requests are no longer being processed in
+      a timely manner, so users experience slow or failed logons and application listings.
+    conditions:
+      - metric: citrix.number_of_busy_xml_threads
+        aggregation: max
+        operator: eq
+        threshold: 16
+        duration_percent: 1
+    recommendations:
+      - investigate-xml-thread-saturation
+
+  # ── License Server connectivity ────────────────────────────────────────────
+  - rule_id: citrix-license-server-connection-failure
+    severity: warning
+    category: citrix
+    title: "Citrix License Server connection interrupted"
+    summary: "The connection from XenApp to the Citrix License Server was interrupted."
+    explanation: |
+      License information for XenApp is stored on a server running the Citrix Licensing software;
+      XenApp checks out licenses when users connect. This counter measures the number of minutes that
+      XenApp has been disconnected from the License Server. XenApp provides a grace period (4 or 30 days
+      depending on license-file age) to keep serving users during outages, but any interruption should
+      be investigated.
+    conditions:
+      - metric: citrix.license_server_connection_failure
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - check-license-server-connectivity
+
+  - rule_id: citrix-license-server-connection-failure-prolonged
+    severity: critical
+    category: citrix
+    title: "Citrix License Server disconnected at least 24 hours"
+    summary: "XenApp was disconnected from the Citrix License Server for at least 1440 minutes (24 hours)."
+    explanation: |
+      This counter measures the number of minutes XenApp has been disconnected from the License Server.
+      A value of 1440 minutes or more means the server has been unable to reach the License Server for
+      at least a full day. The licensing grace period is being consumed; once it expires, new user
+      connections will be refused, so connectivity must be restored urgently.
+    conditions:
+      - metric: citrix.license_server_connection_failure
+        aggregation: max
+        operator: ge
+        threshold: 1440
+        duration_percent: 1
+    recommendations:
+      - check-license-server-connectivity

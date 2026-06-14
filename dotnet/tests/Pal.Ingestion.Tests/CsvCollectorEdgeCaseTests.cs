@@ -135,6 +135,32 @@ public class CsvCollectorEdgeCaseTests
         Assert.Equal(1234.0, series.Samples[0].Value);
     }
 
+    // ── 6b. Instance is parsed from the object segment, not counter-name parens ──
+
+    [Theory]
+    // Exchange-style: instance (_Total) followed by a counter NAME that contains its own
+    // parentheses. The instance must be "_Total", not "Attached" (the last parens in the path).
+    [InlineData(
+        "\\\\HOST\\MSExchange Database ==> Instances(_Total)\\I/O Database Reads (Attached) Average Latency",
+        "_Total")]
+    // SQL-style: "Lock Wait Time (ms)" — the (ms) in the counter name must not become the instance.
+    [InlineData(
+        "\\\\HOST\\SQLServer:Locks(_Total)\\Lock Wait Time (ms)",
+        "_Total")]
+    // Singleton object whose counter name has parens: no instance at all (not "ms").
+    [InlineData(
+        "\\\\HOST\\SomeObject\\Counter Name (ms)",
+        null)]
+    public void Instance_IsExtractedFromObjectSegment_NotCounterNameParens(string counterPath, string? expectedInstance)
+    {
+        string csv =
+            $"\"(PDH-CSV 4.0)\",\"{counterPath}\"\n\"2026-01-01 00:00:00\",10";
+        var result = CollectCsv(csv);
+
+        Assert.Equal(1, result.Dataset.SeriesCount);
+        Assert.Equal(expectedInstance, result.Dataset.Series[0].Instance);
+    }
+
     // ── 7. Short row yields null sample for the missing column ─────────────
 
     [Fact]

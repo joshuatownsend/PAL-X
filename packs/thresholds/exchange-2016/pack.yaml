@@ -1,0 +1,502 @@
+schema_version: "pal.pack/v1"
+pack_id: exchange-2016
+pack_name: "Exchange Server 2016"
+version: "1.0.0"
+description: "Microsoft Exchange 2016 health thresholds: AD Access (DSAccess) LDAP read/search latency, ESE database I/O read/write/log latency, and RPC Client Access / Information Store RPC latency and request backlog. Loads alongside windows-core (the always-on base) on Exchange mailbox/CAS captures."
+
+# Workload pack: loads only when MSExchange (Exchange 2016) counters are present.
+# Base CPU/memory/disk/network/system coverage comes from windows-core (always: true) and the
+# .NET CLR / ASP.NET coverage from dotnet-clr — do not redeclare those here. The legacy
+# Exchange2016.xml also charts/alerts on those generic counters plus many observational MSExchange
+# counters (HttpProxy latency, ActiveSync/OWA/Autodiscover request rates, WorkloadManagement tasks,
+# Active Manager database-mounted state) that define NO StaticThreshold — they are not ported.
+applicability:
+  requires_any:
+    - msexchange.adaccess_dc_ldap_read_time
+    - msexchange.adaccess_dc_ldap_search_time
+    - msexchange.adaccess_processes_ldap_read_time
+    - msexchange.adaccess_processes_ldap_search_time
+    - msexchange.db_io_reads_attached_avg_latency
+    - msexchange.db_io_writes_attached_avg_latency
+    - msexchange.db_io_log_writes_avg_latency
+    - msexchange.db_io_reads_recovery_avg_latency
+    - msexchange.rpc_client_access_averaged_latency
+    - msexchange.rpc_client_access_rpc_requests
+    - msexchange.is_client_type_rpc_avg_latency
+    - msexchange.is_store_rpc_avg_latency
+
+recommendations:
+  investigate-adaccess-latency:
+    priority: high
+    text: "Check the latency between the Exchange server and its domain controllers/global catalogs, confirm the DCs have CPU/memory headroom and are not undersized for the directory load, and review DSAccess topology (correct site, no cross-site DC selection) using `Get-ExchangeServer` and the application event log."
+    rationale: "DSAccess LDAP read/search time gates every directory lookup Exchange performs — mail flow, address-book access, and client logon all stall when the AD path is slow."
+    links:
+      - "https://learn.microsoft.com/en-us/exchange/exchange-server"
+
+  investigate-database-io:
+    priority: high
+    text: "Examine the storage subsystem backing the affected database/log volumes (queue depth, controller cache, RAID health, and physical-disk latency), rule out a degraded copy or reseed, and check for a backup or background-maintenance window driving I/O. Compare with PhysicalDisk Avg. Disk sec/Read|Write."
+    rationale: "ESE database and log I/O latency directly determines mailbox responsiveness; sustained high read/write/log latency causes RPC backlog, failovers, and store dismounts."
+
+  investigate-rpc-latency:
+    priority: high
+    text: "Identify the busiest client protocol and database (MSExchangeIS Store / Client Type by instance), look for a single hot mailbox or runaway client, and correlate RPC latency with database I/O latency and server CPU/memory pressure. Review RPC request backlog against active user count."
+    rationale: "RPC Client Access and Information Store RPC latency is what end users perceive as Outlook slowness; rising RPC Requests backlog precedes client timeouts and connection resets."
+
+rules:
+  # ── MSExchange ADAccess Domain Controllers — DSAccess LDAP latency ─────────
+  - rule_id: exch2016-adaccess-dc-ldap-read-time-high
+    severity: warning
+    category: exchange
+    title: "Slow MSExchange ADAccess DC LDAP read time"
+    summary: "DSAccess LDAP read time to a domain controller averaged above 50ms."
+    explanation: |
+      LDAP Read Time is the time, in milliseconds, taken to send an LDAP read request to a domain
+      controller and receive a response. The Exchange guidance is that this should stay below 50ms on
+      average; sustained values above that point to slow or undersized domain controllers, cross-site
+      DC selection, or network latency between Exchange and AD.
+    conditions:
+      - metric: msexchange.adaccess_dc_ldap_read_time
+        aggregation: avg
+        operator: gt
+        threshold: 50
+        duration_percent: 10
+    recommendations:
+      - investigate-adaccess-latency
+
+  - rule_id: exch2016-adaccess-dc-ldap-read-time-critical
+    severity: critical
+    category: exchange
+    title: "Very slow MSExchange ADAccess DC LDAP read time"
+    summary: "DSAccess LDAP read time to a domain controller averaged above 100ms."
+    explanation: |
+      LDAP Read Time averaging above 100ms means directory reads against the domain controller are
+      taking far longer than healthy. At this level Exchange directory lookups — and therefore mail
+      flow, address book access, and client logon — experience pronounced latency. This usually
+      indicates a saturated or unreachable DC/GC or a serious network path problem.
+    conditions:
+      - metric: msexchange.adaccess_dc_ldap_read_time
+        aggregation: avg
+        operator: gt
+        threshold: 100
+        duration_percent: 10
+    recommendations:
+      - investigate-adaccess-latency
+
+  - rule_id: exch2016-adaccess-dc-ldap-search-time-high
+    severity: warning
+    category: exchange
+    title: "Slow MSExchange ADAccess DC LDAP search time"
+    summary: "DSAccess LDAP search time to a domain controller averaged above 50ms."
+    explanation: |
+      LDAP Search Time is the time, in milliseconds, taken to send an LDAP search request to a domain
+      controller and receive a response. It should stay below 50ms on average; sustained higher values
+      indicate slow or overloaded domain controllers, inefficient directory queries, or network
+      latency between Exchange and AD.
+    conditions:
+      - metric: msexchange.adaccess_dc_ldap_search_time
+        aggregation: avg
+        operator: gt
+        threshold: 50
+        duration_percent: 10
+    recommendations:
+      - investigate-adaccess-latency
+
+  - rule_id: exch2016-adaccess-dc-ldap-search-time-critical
+    severity: critical
+    category: exchange
+    title: "Very slow MSExchange ADAccess DC LDAP search time"
+    summary: "DSAccess LDAP search time to a domain controller averaged above 100ms."
+    explanation: |
+      LDAP Search Time averaging above 100ms means directory searches against the domain controller
+      are taking far longer than healthy. Exchange operations that depend on directory searches stall
+      at this level, degrading mail flow and client experience. This typically points to a saturated
+      or unreachable DC/GC, a problematic query load, or a degraded network path.
+    conditions:
+      - metric: msexchange.adaccess_dc_ldap_search_time
+        aggregation: avg
+        operator: gt
+        threshold: 100
+        duration_percent: 10
+    recommendations:
+      - investigate-adaccess-latency
+
+  # ── MSExchange ADAccess Processes — per-process DSAccess LDAP latency ──────
+  - rule_id: exch2016-adaccess-process-ldap-read-time-high
+    severity: warning
+    category: exchange
+    title: "Slow MSExchange ADAccess process LDAP read time"
+    summary: "Per-process DSAccess LDAP read time averaged above 50ms."
+    explanation: |
+      LDAP Read Time for an Exchange process is the time, in milliseconds, taken to send an LDAP read
+      request and receive a response, measured per Exchange process (instance). It should stay below
+      50ms on average; sustained higher values indicate the process is waiting on slow domain
+      controllers, inefficient queries, or AD network latency.
+    conditions:
+      - metric: msexchange.adaccess_processes_ldap_read_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 50
+        duration_percent: 10
+    recommendations:
+      - investigate-adaccess-latency
+
+  - rule_id: exch2016-adaccess-process-ldap-read-time-critical
+    severity: critical
+    category: exchange
+    title: "Very slow MSExchange ADAccess process LDAP read time"
+    summary: "Per-process DSAccess LDAP read time averaged above 100ms."
+    explanation: |
+      Per-process LDAP Read Time averaging above 100ms means an Exchange process is spending far longer
+      than healthy on directory reads. This degrades whatever that process is responsible for (transport,
+      store, or client access) and usually reflects a saturated or unreachable DC/GC or a network path
+      problem between Exchange and AD.
+    conditions:
+      - metric: msexchange.adaccess_processes_ldap_read_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 100
+        duration_percent: 10
+    recommendations:
+      - investigate-adaccess-latency
+
+  - rule_id: exch2016-adaccess-process-ldap-search-time-high
+    severity: warning
+    category: exchange
+    title: "Slow MSExchange ADAccess process LDAP search time"
+    summary: "Per-process DSAccess LDAP search time averaged above 50ms."
+    explanation: |
+      LDAP Search Time for an Exchange process is the time, in milliseconds, taken to send an LDAP
+      search request and receive a response, measured per Exchange process (instance). It should stay
+      below 50ms on average; higher sustained values indicate the process is waiting on slow domain
+      controllers, inefficient directory searches, or AD network latency.
+    conditions:
+      - metric: msexchange.adaccess_processes_ldap_search_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 50
+        duration_percent: 10
+    recommendations:
+      - investigate-adaccess-latency
+
+  - rule_id: exch2016-adaccess-process-ldap-search-time-critical
+    severity: critical
+    category: exchange
+    title: "Very slow MSExchange ADAccess process LDAP search time"
+    summary: "Per-process DSAccess LDAP search time averaged above 100ms."
+    explanation: |
+      Per-process LDAP Search Time averaging above 100ms means an Exchange process is spending far
+      longer than healthy on directory searches, degrading the function that process serves. This
+      typically reflects a saturated or unreachable DC/GC, a problematic query load, or a degraded
+      network path between Exchange and AD.
+    conditions:
+      - metric: msexchange.adaccess_processes_ldap_search_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 100
+        duration_percent: 10
+    recommendations:
+      - investigate-adaccess-latency
+
+  # ── MSExchange Database ==> Instances — ESE database/log I/O latency ───────
+  - rule_id: exch2016-db-io-reads-attached-latency-high
+    severity: warning
+    category: exchange
+    title: "High Exchange database read latency (attached)"
+    summary: "I/O Database Reads (Attached) Average Latency averaged above 20ms."
+    explanation: |
+      I/O Database Reads (Attached) Average Latency is the average length of time, in milliseconds, per
+      database read operation against an attached (mounted) database. The Exchange guidance is that this
+      should be below 20ms on average; higher sustained values point to a storage subsystem that cannot
+      keep up with the mailbox read workload.
+    conditions:
+      - metric: msexchange.db_io_reads_attached_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - investigate-database-io
+
+  - rule_id: exch2016-db-io-reads-attached-latency-critical
+    severity: critical
+    category: exchange
+    title: "Extreme Exchange database read latency (attached)"
+    summary: "I/O Database Reads (Attached) Average Latency averaged above 75ms."
+    explanation: |
+      Attached-database read latency averaging above 75ms indicates the storage backing the mounted
+      databases is severely overloaded or degraded. At this level mailbox access slows dramatically,
+      RPC latency rises, and the databases are at risk of failover or dismount. Investigate the disk
+      subsystem, queue depth, and any competing background I/O immediately.
+    conditions:
+      - metric: msexchange.db_io_reads_attached_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 75
+        duration_percent: 10
+    recommendations:
+      - investigate-database-io
+
+  - rule_id: exch2016-db-io-writes-attached-latency-high
+    severity: warning
+    category: exchange
+    title: "High Exchange database write latency (attached)"
+    summary: "I/O Database Writes (Attached) Average Latency averaged above 50ms."
+    explanation: |
+      I/O Database Writes (Attached) Average Latency is the average length of time, in milliseconds, per
+      database write operation against an attached database. It should stay below 50ms on average;
+      higher sustained values indicate the storage subsystem cannot absorb the mailbox write workload,
+      which backs up the database and raises client latency.
+    conditions:
+      - metric: msexchange.db_io_writes_attached_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 50
+        duration_percent: 10
+    recommendations:
+      - investigate-database-io
+
+  - rule_id: exch2016-db-io-writes-attached-latency-critical
+    severity: critical
+    category: exchange
+    title: "Extreme Exchange database write latency (attached)"
+    summary: "I/O Database Writes (Attached) Average Latency averaged above 100ms."
+    explanation: |
+      Attached-database write latency averaging above 100ms means the storage backing the mounted
+      databases cannot keep up with writes. Sustained write latency this high causes database write
+      backlog, rising RPC latency, and a real risk of failover or store dismount. Investigate the disk
+      subsystem and any competing I/O without delay.
+    conditions:
+      - metric: msexchange.db_io_writes_attached_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 100
+        duration_percent: 10
+    recommendations:
+      - investigate-database-io
+
+  - rule_id: exch2016-db-io-log-writes-latency-high
+    severity: warning
+    category: exchange
+    title: "High Exchange log write latency"
+    summary: "I/O Log Writes Average Latency averaged above 10ms."
+    explanation: |
+      I/O Log Writes Average Latency is the average length of time, in milliseconds, per transaction
+      log-file write operation. The Exchange guidance is that this should be below 10ms on average;
+      higher sustained values indicate slow log-volume storage, which throttles every committed
+      transaction and degrades overall database throughput.
+    conditions:
+      - metric: msexchange.db_io_log_writes_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 10
+        duration_percent: 10
+    recommendations:
+      - investigate-database-io
+
+  - rule_id: exch2016-db-io-log-writes-latency-critical
+    severity: critical
+    category: exchange
+    title: "Extreme Exchange log write latency"
+    summary: "I/O Log Writes Average Latency averaged above 30ms."
+    explanation: |
+      Log write latency averaging above 30ms means the transaction-log storage is severely slow. Because
+      every committed transaction waits on a log write, latency this high stalls the entire database
+      engine, drives up RPC latency, and risks failover. The log volume's storage path needs urgent
+      investigation.
+    conditions:
+      - metric: msexchange.db_io_log_writes_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 30
+        duration_percent: 10
+    recommendations:
+      - investigate-database-io
+
+  - rule_id: exch2016-db-io-reads-recovery-latency-high
+    severity: warning
+    category: exchange
+    title: "High Exchange database read latency (recovery)"
+    summary: "I/O Database Reads (Recovery) Average Latency averaged above 200ms."
+    explanation: |
+      I/O Database Reads (Recovery) Average Latency is the average length of time, in milliseconds, per
+      database read operation during recovery/log-replay on a passive copy. It should be below 200ms on
+      average; higher sustained values indicate slow storage on the recovery path, which lengthens
+      replay and lag-copy catch-up.
+    conditions:
+      - metric: msexchange.db_io_reads_recovery_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 200
+        duration_percent: 10
+    recommendations:
+      - investigate-database-io
+
+  - rule_id: exch2016-db-io-reads-recovery-latency-critical
+    severity: critical
+    category: exchange
+    title: "Extreme Exchange database read latency (recovery)"
+    summary: "I/O Database Reads (Recovery) Average Latency averaged above 400ms."
+    explanation: |
+      Recovery-path read latency averaging above 400ms means log replay on a passive database copy is
+      being starved by very slow storage. Replay falls behind, lengthening the activation/failover time
+      and putting copy redundancy at risk. The storage backing the recovery/replay path needs
+      investigation.
+    conditions:
+      - metric: msexchange.db_io_reads_recovery_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 400
+        duration_percent: 10
+    recommendations:
+      - investigate-database-io
+
+  # ── MSExchange RpcClientAccess — client RPC latency and backlog ────────────
+  - rule_id: exch2016-rpc-client-access-averaged-latency-high
+    severity: warning
+    category: exchange
+    title: "High MSExchange RPC Client Access averaged latency"
+    summary: "RPC Averaged Latency averaged above 250ms."
+    explanation: |
+      RPC Averaged Latency is the client RPC latency, in milliseconds, averaged over the past 1024
+      packets handled by the RPC Client Access service. The Exchange guidance is that this should stay
+      below 250ms; higher sustained values are felt directly by Outlook users as connection slowness and
+      usually correlate with database I/O latency or server resource pressure.
+    conditions:
+      - metric: msexchange.rpc_client_access_averaged_latency
+        aggregation: avg
+        operator: gt
+        threshold: 250
+        duration_percent: 10
+    recommendations:
+      - investigate-rpc-latency
+
+  - rule_id: exch2016-rpc-client-access-averaged-latency-critical
+    severity: critical
+    category: exchange
+    title: "Very high MSExchange RPC Client Access averaged latency"
+    summary: "RPC Averaged Latency averaged above 500ms."
+    explanation: |
+      RPC Averaged Latency above 500ms means the RPC Client Access service is responding to clients far
+      slower than acceptable. Outlook users experience severe slowness and timeouts at this level.
+      Correlate with database read/write latency, server CPU/memory pressure, and the RPC request
+      backlog to find the bottleneck.
+    conditions:
+      - metric: msexchange.rpc_client_access_averaged_latency
+        aggregation: avg
+        operator: gt
+        threshold: 500
+        duration_percent: 10
+    recommendations:
+      - investigate-rpc-latency
+
+  - rule_id: exch2016-rpc-client-access-requests-high
+    severity: warning
+    category: exchange
+    title: "High MSExchange RPC Client Access request backlog"
+    summary: "RPC Requests currently being processed exceeded 40."
+    explanation: |
+      RPC Requests is the number of client RPC requests currently being processed by the RPC Client
+      Access service. The Exchange guidance is that this should not exceed 40; a sustained backlog above
+      that indicates the service cannot drain requests as fast as clients submit them, typically because
+      of downstream database latency or resource pressure.
+    conditions:
+      - metric: msexchange.rpc_client_access_rpc_requests
+        aggregation: max
+        operator: gt
+        threshold: 40
+        duration_percent: 1
+    recommendations:
+      - investigate-rpc-latency
+
+  - rule_id: exch2016-rpc-client-access-requests-critical
+    severity: critical
+    category: exchange
+    title: "Very high MSExchange RPC Client Access request backlog"
+    summary: "RPC Requests currently being processed exceeded 80."
+    explanation: |
+      An RPC Requests backlog above 80 means client requests are queuing up in the RPC Client Access
+      service far beyond the healthy ceiling. At this level clients begin to time out and the server is
+      close to refusing new RPC work. Investigate the downstream database I/O latency and server
+      resource pressure that is preventing the backlog from draining.
+    conditions:
+      - metric: msexchange.rpc_client_access_rpc_requests
+        aggregation: max
+        operator: gt
+        threshold: 80
+        duration_percent: 1
+    recommendations:
+      - investigate-rpc-latency
+
+  # ── MSExchangeIS — Information Store RPC latency ───────────────────────────
+  - rule_id: exch2016-is-client-type-rpc-latency-high
+    severity: warning
+    category: exchange
+    title: "High MSExchangeIS Client Type RPC latency"
+    summary: "Information Store per-client-protocol RPC average latency averaged above 50ms."
+    explanation: |
+      RPC Average Latency on MSExchangeIS Client Type is the server RPC latency, in milliseconds,
+      averaged over the past 1024 packets for a particular client protocol (Outlook, OWA, ActiveSync,
+      and so on). It should be below 50ms on average for each client; higher sustained values mean the
+      Information Store is responding slowly to that protocol's RPC traffic.
+    conditions:
+      - metric: msexchange.is_client_type_rpc_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 50
+        duration_percent: 10
+    recommendations:
+      - investigate-rpc-latency
+
+  - rule_id: exch2016-is-store-rpc-latency-high
+    severity: warning
+    category: exchange
+    title: "High MSExchangeIS Store RPC latency"
+    summary: "Information Store per-database RPC average latency averaged above 50ms."
+    explanation: |
+      RPC Average Latency on MSExchangeIS Store is the average RPC latency, in milliseconds, of RPC
+      requests per database. The Exchange guidance is that this should be below 50ms at all times; higher
+      sustained values indicate the store is slow to service RPCs for that database, usually because of
+      database I/O latency or server resource pressure.
+    conditions:
+      - metric: msexchange.is_store_rpc_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 50
+        duration_percent: 10
+    recommendations:
+      - investigate-rpc-latency
+
+  - rule_id: exch2016-is-store-rpc-latency-critical
+    severity: critical
+    category: exchange
+    title: "Extreme MSExchangeIS Store RPC latency"
+    summary: "Information Store per-database RPC average latency averaged above 100ms."
+    explanation: |
+      MSExchangeIS Store RPC latency averaging above 100ms means the Information Store is servicing
+      database RPC requests far slower than the healthy ceiling. Outlook and other MAPI clients targeting
+      that database experience pronounced slowness. Correlate with the database's read/write/log I/O
+      latency and server resource pressure to locate the bottleneck.
+    conditions:
+      - metric: msexchange.is_store_rpc_avg_latency
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 100
+        duration_percent: 10
+    recommendations:
+      - investigate-rpc-latency

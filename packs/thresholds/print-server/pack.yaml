@@ -1,0 +1,216 @@
+schema_version: "pal.pack/v1"
+pack_id: print-server
+pack_name: "Print Server"
+version: "1.0.0"
+description: "Windows print server health thresholds: print-queue out-of-paper / job / not-ready errors, print throughput, and Spooler (spoolsv) CPU. Loads alongside windows-core (the always-on base) on captures that contain Print Queue counters."
+
+# Workload pack: loads only when Print Queue counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+# Spooler CPU (\Process(spoolsv)\% Processor Time) reuses the existing process.percent_processor_time
+# canonical ID with instance: "spoolsv" — no new alias is introduced for it.
+# Note: legacy PrintServer.xml also charts Print Queue Jobs, Max Jobs Spooling, Jobs Spooling, and
+# Process(spoolsv) Private Bytes but defines NO alert threshold for them — they are observational only.
+applicability:
+  requires_any:
+    - printqueue.out_of_paper_errors
+    - printqueue.bytes_printed_per_sec
+    - printqueue.job_errors
+    - printqueue.not_ready_errors
+
+recommendations:
+  investigate-print-queue-errors:
+    priority: high
+    text: "Inspect the affected printers in the Print Management console and the System/PrintService event logs to find queues stuck on out-of-paper, job, or not-ready errors; clear or restart the offending queue and confirm the device is online and stocked."
+    rationale: "Print-queue error counters increment when jobs cannot complete — a sustained climb means users' documents are failing to print and jobs are accumulating behind a stalled device."
+    links:
+      - "https://learn.microsoft.com/en-us/troubleshoot/windows-server/printing/print-spooler-troubleshooting"
+
+  review-print-throughput:
+    priority: medium
+    text: "Correlate the print throughput spike with the spooler process load and network/disk headroom; if a single large job or batch is saturating the server, schedule or throttle bulk printing and confirm the spool directory has adequate IO capacity."
+    rationale: "Very high bytes-printed-per-second indicates a heavy print workload that can pressure spooler CPU, disk, and network and delay other users' jobs."
+
+  investigate-spooler-cpu:
+    priority: high
+    text: "Profile the spoolsv.exe process (Process Explorer / a user-mode dump) to identify which print driver or processor is consuming CPU; isolate or update faulty third-party print drivers, which are the most common cause of runaway spooler CPU."
+    rationale: "The print spooler is a shared service — sustained high spoolsv CPU stalls every queue on the server and is frequently caused by a misbehaving print driver."
+
+rules:
+  # ── Print Queue — out-of-paper errors ─────────────────────────────────────
+  - rule_id: print-out-of-paper-errors-warning
+    severity: warning
+    category: print
+    title: "Print queue out-of-paper errors"
+    summary: "Out-of-paper errors exceeded 1 across the print queues (_Total)."
+    explanation: |
+      Total number of out-of-paper errors in a print queue since the last spooler restart (_Total
+      across all queues). Any sustained increase means jobs are stalling on a device that is out of
+      paper, blocking the queue behind them. Restock the printer and clear the queue.
+    conditions:
+      - metric: printqueue.out_of_paper_errors
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-print-queue-errors
+
+  - rule_id: print-out-of-paper-errors-critical
+    severity: critical
+    category: print
+    title: "Critical print queue out-of-paper errors"
+    summary: "Out-of-paper errors exceeded 100 across the print queues (_Total)."
+    explanation: |
+      An out-of-paper error count above 100 (_Total across all queues) indicates a print device has
+      been jammed out-of-paper for an extended period while jobs continued to be submitted. The queue
+      is effectively stalled and users' documents are failing in volume — restock and clear the queue
+      immediately.
+    conditions:
+      - metric: printqueue.out_of_paper_errors
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 100
+        duration_percent: 1
+    recommendations:
+      - investigate-print-queue-errors
+
+  # ── Print Queue — throughput ──────────────────────────────────────────────
+  - rule_id: print-bytes-printed-per-sec-warning
+    severity: warning
+    category: print
+    title: "High print throughput"
+    summary: "Bytes printed per second averaged above 100 MB/s across the print queues (_Total)."
+    explanation: |
+      Number of bytes per second printed across all print queues (_Total). A sustained rate above
+      100,000,000 bytes/sec represents a very heavy print workload that can pressure spooler CPU,
+      disk, and network and delay other users' jobs. Identify the large job or batch driving it.
+    conditions:
+      - metric: printqueue.bytes_printed_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 100000000
+        duration_percent: 10
+    recommendations:
+      - review-print-throughput
+
+  # ── Print Queue — job errors ──────────────────────────────────────────────
+  - rule_id: print-job-errors-warning
+    severity: warning
+    category: print
+    title: "Print queue job errors"
+    summary: "Job errors exceeded 1 across the print queues (_Total)."
+    explanation: |
+      Total number of job errors in a print queue since the last spooler restart (_Total across all
+      queues). Job errors mean print jobs are failing outright — corrupt jobs, driver faults, or
+      device problems. A sustained climb means users' documents are not printing successfully.
+    conditions:
+      - metric: printqueue.job_errors
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-print-queue-errors
+
+  - rule_id: print-job-errors-critical
+    severity: critical
+    category: print
+    title: "Critical print queue job errors"
+    summary: "Job errors exceeded 100 across the print queues (_Total)."
+    explanation: |
+      A job-error count above 100 (_Total across all queues) indicates print jobs are failing in
+      volume across the server's queues. This usually points to a faulty print driver, a corrupt
+      spool, or a chronically unavailable device. Investigate the offending queue and driver urgently.
+    conditions:
+      - metric: printqueue.job_errors
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 100
+        duration_percent: 1
+    recommendations:
+      - investigate-print-queue-errors
+
+  # ── Print Queue — not-ready errors ────────────────────────────────────────
+  - rule_id: print-not-ready-errors-warning
+    severity: warning
+    category: print
+    title: "Print queue not-ready errors"
+    summary: "Not-ready errors exceeded 1 across the print queues (_Total)."
+    explanation: |
+      Total number of printer not-ready errors in a print queue since the last spooler restart
+      (_Total across all queues). Not-ready errors mean the spooler tried to send a job to a device
+      that was offline, paused, or in an error state. A sustained climb means jobs are stalling
+      behind an unavailable printer.
+    conditions:
+      - metric: printqueue.not_ready_errors
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-print-queue-errors
+
+  - rule_id: print-not-ready-errors-critical
+    severity: critical
+    category: print
+    title: "Critical print queue not-ready errors"
+    summary: "Not-ready errors exceeded 100 across the print queues (_Total)."
+    explanation: |
+      A not-ready error count above 100 (_Total across all queues) indicates a print device has been
+      offline or in an error state for an extended period while jobs continued to queue behind it. The
+      queue is stalled — bring the device back online or redirect the jobs and clear the backlog.
+    conditions:
+      - metric: printqueue.not_ready_errors
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 100
+        duration_percent: 1
+    recommendations:
+      - investigate-print-queue-errors
+
+  # ── Spooler process (spoolsv) CPU — reuses process.percent_processor_time ──
+  - rule_id: print-spooler-cpu-warning
+    severity: warning
+    category: print
+    title: "Elevated print spooler CPU"
+    summary: "spoolsv.exe % Processor Time averaged above 50%."
+    explanation: |
+      % Processor Time for the spoolsv.exe (print spooler) process. The spooler is a shared service
+      that drives every print queue on the server. Sustained CPU above 50% — typically caused by a
+      misbehaving third-party print driver or print processor — slows job handling across all queues.
+    conditions:
+      - metric: process.percent_processor_time
+        instance: "spoolsv"
+        aggregation: avg
+        operator: gt
+        threshold: 50
+        duration_percent: 10
+    recommendations:
+      - investigate-spooler-cpu
+
+  - rule_id: print-spooler-cpu-critical
+    severity: critical
+    category: print
+    title: "Critical print spooler CPU"
+    summary: "spoolsv.exe % Processor Time averaged above 75%."
+    explanation: |
+      spoolsv.exe % Processor Time averaging above 75% means the print spooler is consuming most of a
+      core continuously. At this level print processing is degraded server-wide and the spooler is at
+      risk of becoming unresponsive — almost always a faulty or runaway print driver. Isolate and
+      update the offending driver.
+    conditions:
+      - metric: process.percent_processor_time
+        instance: "spoolsv"
+        aggregation: avg
+        operator: gt
+        threshold: 75
+        duration_percent: 10
+    recommendations:
+      - investigate-spooler-cpu

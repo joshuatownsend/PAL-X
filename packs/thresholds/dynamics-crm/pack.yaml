@@ -1,0 +1,1161 @@
+schema_version: "pal.pack/v1"
+pack_id: dynamics-crm
+pack_name: "Microsoft Dynamics CRM 2013"
+version: "1.0.0"
+description: "Microsoft Dynamics CRM 2013 back-end and front-end role thresholds ported from PAL v2 (DynamicsCRM2013_BackEnd_Basic / _FrontEnd_Basic). Covers CRM Async Service operation failures (including maintenance jobs and server-side sync), CRM Sandbox Host/Client health, CRM Server failed requests, CRM Authentication failures, Discovery and Locator service failures. Loads alongside windows-core (the always-on base) on Dynamics CRM captures."
+
+# Workload pack: loads only when Dynamics CRM 2013 counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) -- do not redeclare it here.
+# Faithful port: every legacy <THRESHOLD> that calls StaticThreshold with a literal -Operator/-Threshold
+# and is NOT -IsTrendOnly. The legacy 'is raising' (-IsTrendOnly) criticals and two computed/variable
+# thresholds (Workflow Operations Outstanding -> $MaxOutstandingWorkflows; Script Error Reports ->
+# $ScriptErrorsWarning) are dropped -- PAL-X has no expression DSL (ADR 0002).
+applicability:
+  requires_any:
+    - dynamicscrm.async_service.workflow_operations_failed
+    - dynamicscrm.async_service.activity_propagation_operations_failed
+    - dynamicscrm.async_service.activityqueue_total_operations_failed
+    - dynamicscrm.async_service.bulk_email_operations_failed
+    - dynamicscrm.async_service.bulkdelete_operations_failed
+    - dynamicscrm.async_service.event_operations_failed
+    - dynamicscrm.async_service.exchange_sync_tasks_failed
+    - dynamicscrm.async_service.exchange_sync_acts_failed
+    - dynamicscrm.async_service.exchange_sync_appointments_failed
+    - dynamicscrm.async_service.exchange_sync_contacts_failed
+    - dynamicscrm.async_service.exchange_sync_transient_errors_for_acts
+    - dynamicscrm.async_service.exchange_sync_transient_errors_for_appointments
+    - dynamicscrm.async_service.exchange_sync_transient_errors_for_contacts
+    - dynamicscrm.async_service.exchange_sync_transient_errors_for_tasks
+    - dynamicscrm.async_service.executesdkmessage_operations_failed
+    - dynamicscrm.async_service.import_operations_failed
+    - dynamicscrm.async_service.incomingemailprocessing_operations_failed
+    - dynamicscrm.async_service.mailboxqueue_total_operations_failed
+    - dynamicscrm.async_service.outgoingactivity_operations_failed
+    - dynamicscrm.async_service.parse_operations_failed
+    - dynamicscrm.async_service.posttoyammer_operations_failed
+    - dynamicscrm.async_service.publish_duplicate_rule_operations_failed
+    - dynamicscrm.async_service.quick_campaign_operations_failed
+    - dynamicscrm.async_service.server_side_synchronization_incoming_items_failed
+    - dynamicscrm.async_service.server_side_synchronization_incoming_transient_errors
+    - dynamicscrm.async_service.server_side_synchronization_outgoing_items_failed
+    - dynamicscrm.async_service.server_side_synchronization_outgoing_transient_errors
+    - dynamicscrm.async_service.auditpartitioncreation_operations_failed
+    - dynamicscrm.async_service.bulk_detect_duplicates_operations_failed
+    - dynamicscrm.async_service.calculateorgmaxstoragesize_operations_failed
+    - dynamicscrm.async_service.checkforlanguagepackupdates_operations_failed
+    - dynamicscrm.async_service.bulkdeletechild_operations_failed
+    - dynamicscrm.async_service.cleanupinactiveworkflowassemblies_operations_failed
+    - dynamicscrm.async_service.collect_sqm_data_operations_failed
+    - dynamicscrm.async_service.collectorgdbstats_operations_failed
+    - dynamicscrm.async_service.collectorgsizestats_operations_failed
+    - dynamicscrm.async_service.databaselogbackup_operations_failed
+    - dynamicscrm.async_service.databasetuning_operations_failed
+    - dynamicscrm.async_service.deletionservice_operations_failed
+    - dynamicscrm.async_service.encryptionhealthcheck_operations_failed
+    - dynamicscrm.async_service.fulltextcatalogindex_operations_failed
+    - dynamicscrm.async_service.goalrollup_operations_failed
+    - dynamicscrm.async_service.indexmanagement_operations_failed
+    - dynamicscrm.async_service.orgdbupdate_operations_failed
+    - dynamicscrm.async_service.persist_match_code_operations_failed
+    - dynamicscrm.async_service.recurringseriesexpansion_operations_failed
+    - dynamicscrm.async_service.refreshreadsharingsnapshots_operations_failed
+    - dynamicscrm.async_service.refreshrowcountsnapshots_operations_failed
+    - dynamicscrm.async_service.reindexall_operations_failed
+    - dynamicscrm.async_service.shrinkdatabase_operations_failed
+    - dynamicscrm.async_service.shrinklogfile_operations_failed
+    - dynamicscrm.async_service.snapshotisolationupdate_operations_failed
+    - dynamicscrm.async_service.solutionupdate_operations_failed
+    - dynamicscrm.async_service.storagelimitnotification_operations_failed
+    - dynamicscrm.async_service.total_operations_failed
+    - dynamicscrm.async_service.updatestatisticintervals_operations_failed
+    - dynamicscrm.sandbox_host.percent_cpu_usage
+    - dynamicscrm.sandbox_host.percent_worker_processes_crashed
+    - dynamicscrm.sandbox_host.percent_worker_processes_terminated
+    - dynamicscrm.server.failed_internal_organization_service_requests
+    - dynamicscrm.server.failed_organization_service_metadata_requests
+    - dynamicscrm.server.failed_organization_service_requests
+    - dynamicscrm.server.failed_report_render_requests
+    - dynamicscrm.authentication.claimsauthenticationfailuresinthelastminute
+    - dynamicscrm.authentication.configdbwindowsauthenticationfailuresinthelastminute
+    - dynamicscrm.authentication.crmpostauthenticationfailuresinthelastminute
+    - dynamicscrm.authentication.windowsauthenticationfailuresinthelastminute
+    - dynamicscrm.discovery.failed_discovery_service_requests
+    - dynamicscrm.locatorservice.locatorservicefailedcacheflushrequests
+    - dynamicscrm.sandbox_client.percent_execute_failures
+    - dynamicscrm.sandbox_client.percent_sdk_failures
+
+recommendations:
+  investigate-async-failures:
+    priority: high
+    text: "Review the Microsoft Dynamics CRM AsyncOperationBase table and the CRM trace logs for the failing operation type, and check the CRM Asynchronous Processing Service health, SQL Server availability, and any plug-in/workflow errors driving the failures."
+    rationale: "A non-zero failed-operation count on the CRM Async Service means asynchronous jobs (workflows, bulk operations, server-side sync, maintenance) are not completing -- background processing falls behind and data/email/sync state drifts."
+  investigate-sandbox-host:
+    priority: high
+    text: "Inspect the CRM Sandbox Host (sandbox worker) process for crashes/terminations and high CPU; review custom plug-in/custom-workflow-activity code running in isolation mode for unhandled exceptions, resource exhaustion, or long-running calls."
+    rationale: "Sandbox worker crashes, terminations, or sustained high CPU degrade isolated plug-in execution, causing failed or delayed custom business logic."
+  investigate-auth-failures:
+    priority: high
+    text: "Correlate the authentication-failure spike with AD/Claims/ADFS health, the CRM web.config authentication settings, and the Windows Security event log; rule out credential issues, clock skew, or a token-service outage before assuming an attack."
+    rationale: "A sustained rate of authentication failures (>30/min) across the deployment blocks users from signing in and can indicate an identity-provider outage, misconfiguration, or brute-force activity."
+  investigate-crm-server:
+    priority: high
+    text: "Examine the CRM Server trace logs and Windows Application event log for the failing web-service requests (organization, metadata, discovery, locator, sandbox client), and check SQL Server, IIS, and downstream dependency health."
+    rationale: "Failed CRM web-service requests (organization, metadata, discovery, locator, sandbox-client) translate directly into user-facing errors and SDK/integration failures."
+
+rules:
+  - rule_id: crm2013-be-async-service-workflow-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Workflow Operations Failed"
+    summary: "CRM Async Service \"Workflow Operations Failed\" exceeded 0."
+    explanation: "The total number of Workflow operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.workflow_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-activity-propagation-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Activity Propagation Operations Failed"
+    summary: "CRM Async Service \"Activity Propagation Operations Failed\" exceeded 0."
+    explanation: "The total number of Activity Propagation operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.activity_propagation_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-activityqueue-total-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — ActivityQueue: Total Operations Failed"
+    summary: "CRM Async Service \"ActivityQueue: Total Operations Failed\" exceeded 0."
+    explanation: "The total number of ActivityQueue: Total operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.activityqueue_total_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-bulk-email-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Bulk Email Operations Failed"
+    summary: "CRM Async Service \"Bulk Email Operations Failed\" exceeded 0."
+    explanation: "The total number of Bulk Email operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.bulk_email_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-bulkdelete-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — BulkDelete Operations Failed"
+    summary: "CRM Async Service \"BulkDelete Operations Failed\" exceeded 0."
+    explanation: "The total number of BulkDelete operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.bulkdelete_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-event-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Event Operations Failed"
+    summary: "CRM Async Service \"Event Operations Failed\" exceeded 0."
+    explanation: "The total number of Event operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.event_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-exchange-sync-tasks-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Exchange Sync: Tasks Failed"
+    summary: "CRM Async Service \"Exchange Sync: Tasks Failed\" exceeded 0."
+    explanation: "Total number of Tasks Failed Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.exchange_sync_tasks_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-exchange-sync-acts-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Exchange Sync: ACTs Failed"
+    summary: "CRM Async Service \"Exchange Sync: ACTs Failed\" exceeded 0."
+    explanation: "Total number of ACTs Failed Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.exchange_sync_acts_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-exchange-sync-appointments-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Exchange Sync: Appointments Failed"
+    summary: "CRM Async Service \"Exchange Sync: Appointments Failed\" exceeded 0."
+    explanation: "Total number of Appointments Failed Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.exchange_sync_appointments_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-exchange-sync-contacts-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Exchange Sync: Contacts Failed"
+    summary: "CRM Async Service \"Exchange Sync: Contacts Failed\" exceeded 0."
+    explanation: "Total number of Contacts Failed Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.exchange_sync_contacts_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-exchange-sync-transient-errors-for-acts
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Exchange Sync: Transient Errors for ACTs"
+    summary: "CRM Async Service \"Exchange Sync: Transient Errors for ACTs\" exceeded 0."
+    explanation: "Total number of Transient Errors for ACTs Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.exchange_sync_transient_errors_for_acts
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-exchange-sync-transient-errors-for-appointments
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Exchange Sync: Transient Errors for Appointments"
+    summary: "CRM Async Service \"Exchange Sync: Transient Errors for Appointments\" exceeded 0."
+    explanation: "Total number of Transient Errors for Appointments Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.exchange_sync_transient_errors_for_appointments
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-exchange-sync-transient-errors-for-contacts
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Exchange Sync: Transient Errors for Contacts"
+    summary: "CRM Async Service \"Exchange Sync: Transient Errors for Contacts\" exceeded 0."
+    explanation: "Total number of Transient Errors for Contacts Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.exchange_sync_transient_errors_for_contacts
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-exchange-sync-transient-errors-for-tasks
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Exchange Sync: Transient Errors for Tasks"
+    summary: "CRM Async Service \"Exchange Sync: Transient Errors for Tasks\" exceeded 0."
+    explanation: "Total number of Transient Errors for Tasks Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.exchange_sync_transient_errors_for_tasks
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-executesdkmessage-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — ExecuteSdkMessage Operations Failed"
+    summary: "CRM Async Service \"ExecuteSdkMessage Operations Failed\" exceeded 0."
+    explanation: "The total number of ExecuteSdkMessage operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.executesdkmessage_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-import-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Import Operations Failed"
+    summary: "CRM Async Service \"Import Operations Failed\" exceeded 0."
+    explanation: "The total number of Import operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.import_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-incomingemailprocessing-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — IncomingEmailProcessing Operations Failed"
+    summary: "CRM Async Service \"IncomingEmailProcessing Operations Failed\" exceeded 0."
+    explanation: "The total number of IncomingEmailProcessing operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.incomingemailprocessing_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-mailboxqueue-total-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — MailboxQueue: Total Operations Failed"
+    summary: "CRM Async Service \"MailboxQueue: Total Operations Failed\" exceeded 0."
+    explanation: "The total number of MailboxQueue: Total operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.mailboxqueue_total_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-outgoingactivity-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — OutgoingActivity Operations Failed"
+    summary: "CRM Async Service \"OutgoingActivity Operations Failed\" exceeded 0."
+    explanation: "The total number of OutgoingActivity operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.outgoingactivity_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-parse-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Parse Operations Failed"
+    summary: "CRM Async Service \"Parse Operations Failed\" exceeded 0."
+    explanation: "The total number of Parse operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.parse_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-posttoyammer-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — PostToYammer Operations Failed"
+    summary: "CRM Async Service \"PostToYammer Operations Failed\" exceeded 0."
+    explanation: "The total number of PostToYammer operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.posttoyammer_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-publish-duplicate-rule-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Publish Duplicate Rule Operations Failed"
+    summary: "CRM Async Service \"Publish Duplicate Rule Operations Failed\" exceeded 0."
+    explanation: "The total number of Publish Duplicate Rule operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.publish_duplicate_rule_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-quick-campaign-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Quick Campaign Operations Failed"
+    summary: "CRM Async Service \"Quick Campaign Operations Failed\" exceeded 0."
+    explanation: "The total number of Quick Campaign operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.quick_campaign_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-server-side-synchronization-incoming-items-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Server-Side Synchronization (Incoming): Items Failed"
+    summary: "CRM Async Service \"Server-Side Synchronization (Incoming): Items Failed\" exceeded 0."
+    explanation: "Total number of incoming mail items failed Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.server_side_synchronization_incoming_items_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-server-side-synchronization-incoming-transient-errors
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Server-Side Synchronization (Incoming): Transient Errors"
+    summary: "CRM Async Service \"Server-Side Synchronization (Incoming): Transient Errors\" exceeded 0."
+    explanation: "Total number of transient errors in incoming mail items Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.server_side_synchronization_incoming_transient_errors
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-server-side-synchronization-outgoing-items-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Server-Side Synchronization (Outgoing): Items Failed"
+    summary: "CRM Async Service \"Server-Side Synchronization (Outgoing): Items Failed\" exceeded 0."
+    explanation: "Total number of outgoing mail items failed Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.server_side_synchronization_outgoing_items_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-server-side-synchronization-outgoing-transient-errors
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Server-Side Synchronization (Outgoing): Transient Errors"
+    summary: "CRM Async Service \"Server-Side Synchronization (Outgoing): Transient Errors\" exceeded 0."
+    explanation: "Total number of transient errors in outgoing mail items Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.server_side_synchronization_outgoing_transient_errors
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-auditpartitioncreation-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — AuditPartitionCreation Operations Failed"
+    summary: "CRM Async Service \"AuditPartitionCreation Operations Failed\" exceeded 0."
+    explanation: "The total number of AuditPartitionCreation operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.auditpartitioncreation_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-bulk-detect-duplicates-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Bulk Detect Duplicates Operations Failed"
+    summary: "CRM Async Service \"Bulk Detect Duplicates Operations Failed\" exceeded 0."
+    explanation: "The total number of Bulk Detect Duplicates operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.bulk_detect_duplicates_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-calculateorgmaxstoragesize-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — CalculateOrgMaxStorageSize Operations Failed"
+    summary: "CRM Async Service \"CalculateOrgMaxStorageSize Operations Failed\" exceeded 0."
+    explanation: "The total number of CalculateOrgMaxStorageSize operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.calculateorgmaxstoragesize_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-checkforlanguagepackupdates-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — CheckForLanguagePackUpdates Operations Failed"
+    summary: "CRM Async Service \"CheckForLanguagePackUpdates Operations Failed\" exceeded 0."
+    explanation: "The total number of CheckForLanguagePackUpdates operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.checkforlanguagepackupdates_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-bulkdeletechild-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — BulkDeleteChild Operations Failed"
+    summary: "CRM Async Service \"BulkDeleteChild Operations Failed\" exceeded 0."
+    explanation: "The total number of BulkDeleteChild operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.bulkdeletechild_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-cleanupinactiveworkflowassemblies-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — CleanupInactiveWorkflowAssemblies Operations Failed"
+    summary: "CRM Async Service \"CleanupInactiveWorkflowAssemblies Operations Failed\" exceeded 0."
+    explanation: "The total number of CleanupInactiveWorkflowAssemblies operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.cleanupinactiveworkflowassemblies_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-collect-sqm-data-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Collect Sqm Data Operations Failed"
+    summary: "CRM Async Service \"Collect Sqm Data Operations Failed\" exceeded 0."
+    explanation: "The total number of Collect Sqm Data operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.collect_sqm_data_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-collectorgdbstats-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — CollectOrgDBStats Operations Failed"
+    summary: "CRM Async Service \"CollectOrgDBStats Operations Failed\" exceeded 0."
+    explanation: "The total number of CollectOrgDBStats operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.collectorgdbstats_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-collectorgsizestats-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — CollectOrgSizeStats Operations Failed"
+    summary: "CRM Async Service \"CollectOrgSizeStats Operations Failed\" exceeded 0."
+    explanation: "The total number of CollectOrgSizeStats operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.collectorgsizestats_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-databaselogbackup-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — DatabaseLogBackup Operations Failed"
+    summary: "CRM Async Service \"DatabaseLogBackup Operations Failed\" exceeded 0."
+    explanation: "The total number of DatabaseLogBackup operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.databaselogbackup_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-databasetuning-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — DatabaseTuning Operations Failed"
+    summary: "CRM Async Service \"DatabaseTuning Operations Failed\" exceeded 0."
+    explanation: "The total number of DatabaseTuning operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.databasetuning_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-deletionservice-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — DeletionService Operations Failed"
+    summary: "CRM Async Service \"DeletionService Operations Failed\" exceeded 0."
+    explanation: "The total number of DeletionService operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.deletionservice_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-encryptionhealthcheck-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — EncryptionHealthCheck Operations Failed"
+    summary: "CRM Async Service \"EncryptionHealthCheck Operations Failed\" exceeded 0."
+    explanation: "The total number of EncryptionHealthCheck operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.encryptionhealthcheck_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-fulltextcatalogindex-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — FullTextCatalogIndex Operations Failed"
+    summary: "CRM Async Service \"FullTextCatalogIndex Operations Failed\" exceeded 0."
+    explanation: "The total number of FullTextCatalogIndex operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.fulltextcatalogindex_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-goalrollup-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — GoalRollup Operations Failed"
+    summary: "CRM Async Service \"GoalRollup Operations Failed\" exceeded 0."
+    explanation: "The total number of GoalRollup operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.goalrollup_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-indexmanagement-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — IndexManagement Operations Failed"
+    summary: "CRM Async Service \"IndexManagement Operations Failed\" exceeded 0."
+    explanation: "The total number of IndexManagement operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.indexmanagement_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-orgdbupdate-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — OrgDBUpdate Operations Failed"
+    summary: "CRM Async Service \"OrgDBUpdate Operations Failed\" exceeded 0."
+    explanation: "The total number of OrgDBUpdate operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.orgdbupdate_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-persist-match-code-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Persist Match Code Operations Failed"
+    summary: "CRM Async Service \"Persist Match Code Operations Failed\" exceeded 0."
+    explanation: "The total number of Persist Match Code operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.persist_match_code_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-recurringseriesexpansion-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — RecurringSeriesExpansion Operations Failed"
+    summary: "CRM Async Service \"RecurringSeriesExpansion Operations Failed\" exceeded 0."
+    explanation: "The total number of RecurringSeriesExpansion operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.recurringseriesexpansion_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-refreshreadsharingsnapshots-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — RefreshReadSharingSnapshots Operations Failed"
+    summary: "CRM Async Service \"RefreshReadSharingSnapshots Operations Failed\" exceeded 0."
+    explanation: "The total number of RefreshReadSharingSnapshots operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.refreshreadsharingsnapshots_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-refreshrowcountsnapshots-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — RefreshRowCountSnapshots Operations Failed"
+    summary: "CRM Async Service \"RefreshRowCountSnapshots Operations Failed\" exceeded 0."
+    explanation: "The total number of RefreshRowCountSnapshots operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.refreshrowcountsnapshots_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-reindexall-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — ReindexAll Operations Failed"
+    summary: "CRM Async Service \"ReindexAll Operations Failed\" exceeded 0."
+    explanation: "The total number of ReindexAll operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.reindexall_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-shrinkdatabase-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — ShrinkDatabase Operations Failed"
+    summary: "CRM Async Service \"ShrinkDatabase Operations Failed\" exceeded 0."
+    explanation: "The total number of ShrinkDatabase operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.shrinkdatabase_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-shrinklogfile-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — ShrinkLogFile Operations Failed"
+    summary: "CRM Async Service \"ShrinkLogFile Operations Failed\" exceeded 0."
+    explanation: "The total number of ShrinkLogFile operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.shrinklogfile_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-snapshotisolationupdate-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — SnapshotIsolationUpdate Operations Failed"
+    summary: "CRM Async Service \"SnapshotIsolationUpdate Operations Failed\" exceeded 0."
+    explanation: "The total number of SnapshotIsolationUpdate operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.snapshotisolationupdate_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-solutionupdate-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — SolutionUpdate Operations Failed"
+    summary: "CRM Async Service \"SolutionUpdate Operations Failed\" exceeded 0."
+    explanation: "The total number of SolutionUpdate operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.solutionupdate_operations_failed
+        instance: "mscrmasyncservice"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-storagelimitnotification-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — StorageLimitNotification Operations Failed"
+    summary: "CRM Async Service \"StorageLimitNotification Operations Failed\" exceeded 0."
+    explanation: "The total number of StorageLimitNotification operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.storagelimitnotification_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-total-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — Total Operations Failed"
+    summary: "CRM Async Service \"Total Operations Failed\" exceeded 0."
+    explanation: "The total number of Total operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.total_operations_failed
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-async-service-updatestatisticintervals-operations-failed
+    severity: warning
+    category: dynamics
+    title: "CRM Async Service — UpdateStatisticIntervals Operations Failed"
+    summary: "CRM Async Service \"UpdateStatisticIntervals Operations Failed\" exceeded 0."
+    explanation: "The total number of UpdateStatisticIntervals operations failed. Legacy PAL flags this counter when it rises above 0 on the CRM Async Service role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.async_service.updatestatisticintervals_operations_failed
+        instance: "mscrmasyncservice$maintenance"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-async-failures
+  - rule_id: crm2013-be-sandbox-host-percent-cpu-usage
+    severity: warning
+    category: dynamics
+    title: "CRM Sandbox Host — % CPU Usage"
+    summary: "CRM Sandbox Host \"% CPU Usage\" exceeded 70."
+    explanation: "The total CPU percentage used by all Sandbox Worker processes. Legacy PAL flags this counter when it rises above 70 on the CRM Sandbox Host role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.sandbox_host.percent_cpu_usage
+        aggregation: avg
+        operator: gt
+        threshold: 70
+        duration_percent: 10
+    recommendations:
+      - investigate-sandbox-host
+  - rule_id: crm2013-be-sandbox-host-percent-worker-processes-crashed
+    severity: warning
+    category: dynamics
+    title: "CRM Sandbox Host — % Worker Processes Crashed"
+    summary: "CRM Sandbox Host \"% Worker Processes Crashed\" exceeded 0."
+    explanation: "The percentage of Sandbox Worker processes that have crashed. Legacy PAL flags this counter when it rises above 0 on the CRM Sandbox Host role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.sandbox_host.percent_worker_processes_crashed
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-sandbox-host
+  - rule_id: crm2013-be-sandbox-host-percent-worker-processes-terminated
+    severity: warning
+    category: dynamics
+    title: "CRM Sandbox Host — % Worker Processes Terminated"
+    summary: "CRM Sandbox Host \"% Worker Processes Terminated\" exceeded 0."
+    explanation: "The percentage of Sandbox Worker processes that have been terminated, due to excessive resource usage or no response. Legacy PAL flags this counter when it rises above 0 on the CRM Sandbox Host role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.sandbox_host.percent_worker_processes_terminated
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-sandbox-host
+  - rule_id: crm2013-fe-server-failed-internal-organization-service-requests
+    severity: warning
+    category: dynamics
+    title: "CRM Server — Failed Internal Organization Service Requests"
+    summary: "CRM Server \"Failed Internal Organization Service Requests\" exceeded 0."
+    explanation: "Total number of failed Web service requests to Microsoft Dynamics CRM InProc calls that are made by applications that use the methods described in the Microsoft Dynamics CRM SDK. Legacy PAL flags this counter when it rises above 0 on the CRM Server role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.server.failed_internal_organization_service_requests
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-crm-server
+  - rule_id: crm2013-fe-server-failed-organization-service-metadata-requests
+    severity: warning
+    category: dynamics
+    title: "CRM Server — Failed Organization Service Metadata Requests"
+    summary: "CRM Server \"Failed Organization Service Metadata Requests\" exceeded 0."
+    explanation: "Total number of metadata requests received by the Microsoft Dynamics CRM Organization Web service that failed because of a time-out or other SOAP failure. Legacy PAL flags this counter when it rises above 0 on the CRM Server role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.server.failed_organization_service_metadata_requests
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-crm-server
+  - rule_id: crm2013-fe-server-failed-organization-service-requests
+    severity: warning
+    category: dynamics
+    title: "CRM Server — Failed Organization Service Requests"
+    summary: "CRM Server \"Failed Organization Service Requests\" exceeded 0."
+    explanation: "Total number of requests to the Microsoft Dynamics CRM Web services that failed because of a time-out or other SOAP failure. Legacy PAL flags this counter when it rises above 0 on the CRM Server role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.server.failed_organization_service_requests
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-crm-server
+  - rule_id: crm2013-fe-server-failed-report-render-requests
+    severity: warning
+    category: dynamics
+    title: "CRM Server — Failed Report Render Requests"
+    summary: "CRM Server \"Failed Report Render Requests\" exceeded 0."
+    explanation: "Number of report rendering failures Legacy PAL flags this counter when it rises above 0 on the CRM Server role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.server.failed_report_render_requests
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-crm-server
+  - rule_id: crm2013-fe-authentication-claimsauthenticationfailuresinthelastminute
+    severity: critical
+    category: dynamics
+    title: "CRM Authentication — ClaimsAuthenticationFailuresInTheLastMinute"
+    summary: "CRM Authentication \"ClaimsAuthenticationFailuresInTheLastMinute\" exceeded 30."
+    explanation: "Total number of failed authorization requests processed per minute using claims. This counter measures the whole deployment including all organizations. Legacy PAL flags this counter when it rises above 30 on the CRM Authentication role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.authentication.claimsauthenticationfailuresinthelastminute
+        aggregation: max
+        operator: gt
+        threshold: 30
+        duration_percent: 1
+    recommendations:
+      - investigate-auth-failures
+  - rule_id: crm2013-fe-authentication-configdbwindowsauthenticationfailuresinthelastminute
+    severity: critical
+    category: dynamics
+    title: "CRM Authentication — ConfigDBWindowsAuthenticationFailuresInTheLastMinute"
+    summary: "CRM Authentication \"ConfigDBWindowsAuthenticationFailuresInTheLastMinute\" exceeded 30."
+    explanation: "Total number of failed authorization requests processed per minute using Active Directory authentication credentials. This counter measures the entire deployment including all organizations. Legacy PAL flags this counter when it rises above 30 on the CRM Authentication role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.authentication.configdbwindowsauthenticationfailuresinthelastminute
+        aggregation: max
+        operator: gt
+        threshold: 30
+        duration_percent: 1
+    recommendations:
+      - investigate-auth-failures
+  - rule_id: crm2013-fe-authentication-crmpostauthenticationfailuresinthelastminute
+    severity: critical
+    category: dynamics
+    title: "CRM Authentication — CrmPostAuthenticationFailuresInTheLastMinute"
+    summary: "CRM Authentication \"CrmPostAuthenticationFailuresInTheLastMinute\" exceeded 30."
+    explanation: "Total number of failed authorization requests processed per minute using Microsoft Dynamics CRM cookie authentication credentials. This counter measures the entire deployment including all organizations. Legacy PAL flags this counter when it rises above 30 on the CRM Authentication role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.authentication.crmpostauthenticationfailuresinthelastminute
+        aggregation: max
+        operator: gt
+        threshold: 30
+        duration_percent: 1
+    recommendations:
+      - investigate-auth-failures
+  - rule_id: crm2013-fe-authentication-windowsauthenticationfailuresinthelastminute
+    severity: critical
+    category: dynamics
+    title: "CRM Authentication — WindowsAuthenticationFailuresInTheLastMinute"
+    summary: "CRM Authentication \"WindowsAuthenticationFailuresInTheLastMinute\" exceeded 30."
+    explanation: "Total number of failed authorization requests processed per minute using Active Directory authentication credentials. This counter measures the entire deployment including all organizations. Legacy PAL flags this counter when it rises above 30 on the CRM Authentication role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.authentication.windowsauthenticationfailuresinthelastminute
+        aggregation: max
+        operator: gt
+        threshold: 30
+        duration_percent: 1
+    recommendations:
+      - investigate-auth-failures
+  - rule_id: crm2013-fe-discovery-failed-discovery-service-requests
+    severity: warning
+    category: dynamics
+    title: "CRM Discovery — Failed Discovery Service Requests"
+    summary: "CRM Discovery \"Failed Discovery Service Requests\" exceeded 0."
+    explanation: "Total number of requests to the Microsoft Dynamics CRM Discovery Service that failed. Legacy PAL flags this counter when it rises above 0 on the CRM Discovery role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.discovery.failed_discovery_service_requests
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-crm-server
+  - rule_id: crm2013-fe-locatorservice-locatorservicefailedcacheflushrequests
+    severity: warning
+    category: dynamics
+    title: "CRM LocatorService — LocatorServiceFailedCacheFlushRequests"
+    summary: "CRM LocatorService \"LocatorServiceFailedCacheFlushRequests\" exceeded 0."
+    explanation: "Total number of flush requests made to the Locator Service that failed. Legacy PAL flags this counter when it rises above 0 on the CRM LocatorService role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.locatorservice.locatorservicefailedcacheflushrequests
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-crm-server
+  - rule_id: crm2013-fe-sandbox-client-percent-execute-failures
+    severity: warning
+    category: dynamics
+    title: "CRM Sandbox Client — % Execute Failures"
+    summary: "CRM Sandbox Client \"% Execute Failures\" exceeded 0."
+    explanation: "The outgoing Execute failure rate percentage. Legacy PAL flags this counter when it rises above 0 on the CRM Sandbox Client role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.sandbox_client.percent_execute_failures
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-crm-server
+  - rule_id: crm2013-fe-sandbox-client-percent-sdk-failures
+    severity: warning
+    category: dynamics
+    title: "CRM Sandbox Client — % SDK Failures"
+    summary: "CRM Sandbox Client \"% SDK Failures\" exceeded 0."
+    explanation: "The incoming SDK Request failure rate percentage. Legacy PAL flags this counter when it rises above 0 on the CRM Sandbox Client role. Sustained breaches indicate failed Dynamics CRM operations that should be investigated."
+    conditions:
+      - metric: dynamicscrm.sandbox_client.percent_sdk_failures
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-crm-server

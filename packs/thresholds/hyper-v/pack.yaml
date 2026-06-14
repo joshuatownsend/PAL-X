@@ -1,0 +1,435 @@
+schema_version: "pal.pack/v1"
+pack_id: hyper-v
+pack_name: "Hyper-V"
+version: "1.0.0"
+description: "Microsoft Windows Server Hyper-V host thresholds: hypervisor logical/virtual processor utilization and context switching, VM health, NUMA/dynamic-memory pressure and Smart Paging, root-partition SLAT, virtual switch VMQ, virtual storage errors, VM Bus throttling, and legacy network adapter drops. Loads alongside windows-core (the always-on base) on Hyper-V host captures."
+
+# Workload pack: loads only when Hyper-V hypervisor counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+# Scope note: the legacy HyperV30.xml also carries failover-cluster (Cluster CSV / NetFt /
+# Resource Control Manager), RDMA, and RemoteFX thresholds. Those belong to separate workload
+# domains (clustering / RemoteFX), not the Hyper-V hypervisor, and are intentionally NOT ported
+# into this hypervisor-scoped pack. See notes in the task spec.
+applicability:
+  requires_any:
+    - hyperv.hypervisor_logical_processor_percent_total_run_time
+    - hyperv.hypervisor_virtual_processor_percent_guest_run_time
+    - hyperv.virtual_machine_health_summary_health_critical
+    - hyperv.dynamic_memory_balancer_average_pressure
+
+recommendations:
+  investigate-host-cpu-saturation:
+    priority: high
+    text: "Identify which VMs are driving host processor demand (per-VM `\\Hyper-V Hypervisor Virtual Processor(*)\\% Guest Run Time`), rebalance or live-migrate guests to other hosts, and confirm the virtual-to-logical processor ratio is appropriate for the workload."
+    rationale: "Logical/virtual processor run time above 90% means the hypervisor is CPU-saturated; every guest on the host experiences scheduling latency and degraded responsiveness."
+    links:
+      - "https://learn.microsoft.com/en-us/windows-server/administration/performance-tuning/role/hyper-v-server/architecture"
+
+  investigate-vm-memory-pressure:
+    priority: high
+    text: "Review Dynamic Memory configuration (startup/minimum/maximum RAM and memory buffer) for the pressured VMs, add physical RAM to the host or migrate VMs off it, and check whether Smart Paging is engaging on restart."
+    rationale: "Sustained average memory pressure above 83% (or any Smart Paging) means guests cannot get the RAM they need from the balancer, forcing paging that severely degrades guest performance."
+
+  investigate-vm-health-and-errors:
+    priority: high
+    text: "Open Hyper-V Manager / Failover Cluster Manager to inspect the VMs reporting critical health or virtual-storage errors, review the System and Hyper-V-VMMS event logs, and verify underlying storage and integration-services health."
+    rationale: "A critical VM-health count or virtual-storage device errors indicate VMs are failing or their virtual disks are experiencing I/O faults, which can lead to guest downtime or data loss."
+
+rules:
+  # ── Hypervisor processor utilization ──────────────────────────────────────
+  - rule_id: hyperv-virtual-processor-high-run-time
+    severity: warning
+    category: hyperv
+    title: "High Hyper-V virtual processor run time"
+    summary: "% Guest Run Time on a virtual processor averaged above 75%."
+    explanation: |
+      \Hyper-V Hypervisor Virtual Processor(*)\% Guest Run Time measures processor utilization of
+      guest virtual processors and is more accurate than the in-guest "% Processor Time" counter due
+      to clock drift. Sustained values above 75% indicate a virtual processor is running hot and the
+      guest may be approaching its CPU ceiling.
+    conditions:
+      - metric: hyperv.hypervisor_virtual_processor_percent_guest_run_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 75
+        duration_percent: 10
+    recommendations:
+      - investigate-host-cpu-saturation
+
+  - rule_id: hyperv-virtual-processor-critical-run-time
+    severity: critical
+    category: hyperv
+    title: "Critical Hyper-V virtual processor run time"
+    summary: "% Guest Run Time on a virtual processor averaged above 90%."
+    explanation: |
+      \Hyper-V Hypervisor Virtual Processor(*)\% Guest Run Time above 90% means a guest virtual
+      processor is effectively saturated. The guest is CPU-bound and its workload responsiveness is
+      degraded; consider adding virtual processors, reducing load, or migrating the VM.
+    conditions:
+      - metric: hyperv.hypervisor_virtual_processor_percent_guest_run_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 90
+        duration_percent: 10
+    recommendations:
+      - investigate-host-cpu-saturation
+
+  - rule_id: hyperv-logical-processor-high-run-time
+    severity: warning
+    category: hyperv
+    title: "High Hyper-V logical (physical) processor run time"
+    summary: "% Total Run Time on a physical processor averaged above 75%."
+    explanation: |
+      \Hyper-V Hypervisor Logical Processor(*)\% Total Run Time is the best counter for overall host
+      processor utilization on a Hyper-V server — more accurate than the root-partition "% Processor
+      Time" because it accounts for time spent running all partitions. Sustained values above 75%
+      indicate the host's physical processors are heavily loaded.
+    conditions:
+      - metric: hyperv.hypervisor_logical_processor_percent_total_run_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 75
+        duration_percent: 10
+    recommendations:
+      - investigate-host-cpu-saturation
+
+  - rule_id: hyperv-logical-processor-critical-run-time
+    severity: critical
+    category: hyperv
+    title: "Critical Hyper-V logical (physical) processor run time"
+    summary: "% Total Run Time on a physical processor averaged above 90%."
+    explanation: |
+      \Hyper-V Hypervisor Logical Processor(*)\% Total Run Time above 90% means the host's physical
+      processors are saturated. There is no CPU headroom for the running VMs; scheduling latency rises
+      across every guest. Rebalance or migrate VMs and review the virtual-to-logical processor ratio.
+    conditions:
+      - metric: hyperv.hypervisor_logical_processor_percent_total_run_time
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 90
+        duration_percent: 10
+    recommendations:
+      - investigate-host-cpu-saturation
+
+  - rule_id: hyperv-logical-processor-high-context-switches
+    severity: warning
+    category: hyperv
+    title: "High Hyper-V logical processor context switches"
+    summary: "Context Switches/sec on a logical processor averaged above 20000."
+    explanation: |
+      \Hyper-V Hypervisor Logical Processor(*)\Context Switches/sec is the rate at which a new virtual
+      processor is scheduled onto a particular logical processor. The collected value should stay below
+      20,000 per logical processor; sustained higher rates indicate excessive VP scheduling churn that
+      wastes host CPU.
+    conditions:
+      - metric: hyperv.hypervisor_logical_processor_context_switches_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 20000
+        duration_percent: 10
+    recommendations:
+      - investigate-host-cpu-saturation
+
+  # ── Root partition / SLAT ─────────────────────────────────────────────────
+  - rule_id: hyperv-root-partition-address-spaces
+    severity: critical
+    category: hyperv
+    title: "Hyper-V root partition using virtual TLB address spaces (not SLAT)"
+    summary: "Root partition Address Spaces exceeded 0 — the CPU is not using SLAT."
+    explanation: |
+      \Hyper-V Hypervisor Root Partition(*)\Address Spaces is the number of address spaces in the
+      virtual TLB of the partition. When this counter is 0 the CPU is SLAT (Second Level Address
+      Translation) compatible and hardware-assisted memory virtualization is in use. A non-zero value
+      means the hypervisor is doing software TLB management, which carries a measurable performance
+      cost.
+    conditions:
+      - metric: hyperv.hypervisor_root_partition_address_spaces
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-host-cpu-saturation
+
+  # ── VM health & virtual storage ───────────────────────────────────────────
+  - rule_id: hyperv-vm-health-critical
+    severity: critical
+    category: hyperv
+    title: "Hyper-V virtual machine in critical health"
+    summary: "Health Critical reported one or more VMs in a critical state."
+    explanation: |
+      \Hyper-V Virtual Machine Health Summary\Health Critical is the number of virtual machines whose
+      health is critical. A value of 1 or more means at least one VM is failing — for example due to
+      storage faults, missing integration services, or a stopped/paused-critical state — and needs
+      immediate investigation to avoid guest downtime.
+    conditions:
+      - metric: hyperv.virtual_machine_health_summary_health_critical
+        aggregation: max
+        operator: ge
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-health-and-errors
+
+  - rule_id: hyperv-virtual-storage-device-errors
+    severity: warning
+    category: hyperv
+    title: "Hyper-V virtual storage device errors"
+    summary: "Error Count on a virtual storage device exceeded 1."
+    explanation: |
+      \Hyper-V Virtual Storage Device(*)\Error Count is the total number of errors that have occurred
+      on a virtual device (virtual disk). Any errors here indicate the guest's virtual storage is
+      experiencing I/O faults, which risks guest instability or data corruption; check the underlying
+      physical storage path.
+    conditions:
+      - metric: hyperv.virtual_storage_device_error_count
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-health-and-errors
+
+  # ── NUMA / dynamic memory ─────────────────────────────────────────────────
+  - rule_id: hyperv-vm-vid-partition-remote-physical-pages
+    severity: critical
+    category: hyperv
+    title: "Hyper-V VM using memory from a remote NUMA node"
+    summary: "VM Vid Partition Remote Physical Pages exceeded 0 — remote-NUMA memory in use."
+    explanation: |
+      \Hyper-V VM Vid Partition(*)\Remote Physical Pages is the number of physical pages not allocated
+      from the partition's preferred NUMA node. A non-zero value means a VM is spanning NUMA nodes and
+      accessing remote memory, which increases memory-access latency for that guest. Right-size the VM
+      or pin it to a single NUMA node.
+    conditions:
+      - metric: hyperv.vm_vid_partition_remote_physical_pages
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-memory-pressure
+
+  - rule_id: hyperv-dynamic-memory-vm-high-pressure
+    severity: critical
+    category: hyperv
+    title: "Hyper-V VM dynamic memory pressure too high"
+    summary: "Dynamic Memory VM Average Pressure averaged above 83 — maximum assigned memory is not enough."
+    explanation: |
+      \Hyper-V Dynamic Memory VM(*)\Average Pressure is the average memory pressure inside a VM. A
+      sustained value above 83 means the guest's maximum assigned (Dynamic Memory) RAM is not enough
+      for its workload, so the guest is under memory pressure. Raise the VM's maximum RAM or add host
+      memory.
+    conditions:
+      - metric: hyperv.dynamic_memory_vm_average_pressure
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 83
+        duration_percent: 10
+    recommendations:
+      - investigate-vm-memory-pressure
+
+  - rule_id: hyperv-dynamic-memory-balancer-high-pressure
+    severity: critical
+    category: hyperv
+    title: "Hyper-V dynamic memory balancer pressure too high"
+    summary: "Dynamic Memory Balancer Average Pressure averaged above 83 — VMs are paging."
+    explanation: |
+      \Hyper-V Dynamic Memory Balancer(*)\Average Pressure is the average memory pressure on the
+      balancer node across the VMs it manages. A sustained value above 83 indicates the host cannot
+      satisfy guest memory demand and virtual machines are paging — a strong signal the host is
+      over-committed on RAM.
+    conditions:
+      - metric: hyperv.dynamic_memory_balancer_average_pressure
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 83
+        duration_percent: 10
+    recommendations:
+      - investigate-vm-memory-pressure
+
+  - rule_id: hyperv-dynamic-memory-smart-paging
+    severity: warning
+    category: hyperv
+    title: "Hyper-V is using Smart Paging"
+    summary: "Smart Paging Working Set Size exceeded 0 — Hyper-V is backing VM memory with disk."
+    explanation: |
+      \Hyper-V Dynamic Memory VM(*)\Smart Paging Working Set Size is the size (in MB) of memory backed
+      by Smart Paging. Hyper-V only uses Smart Paging when a VM is restarting, there is no available
+      physical memory, and no memory can be reclaimed from other VMs. Any non-zero value means the host
+      is out of physical memory and is using disk to back guest RAM, which severely degrades the
+      affected guest.
+    conditions:
+      - metric: hyperv.dynamic_memory_vm_smart_paging_working_set_size
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-memory-pressure
+
+  - rule_id: hyperv-numa-node-low-available-memory
+    severity: critical
+    category: hyperv
+    title: "Hyper-V NUMA node low on available memory"
+    summary: "NUMA Node Memory Available MBytes dropped below 1024 MB on a node."
+    explanation: |
+      \NUMA Node Memory(*)\Available MBytes is the approximate physical memory available for
+      allocation on a NUMA node. When a node has less than 1 GB available, new VM memory allocations on
+      that node will spill to remote nodes (raising latency) or fail. On a Hyper-V host this is a
+      capacity-planning red flag for that NUMA node.
+    conditions:
+      - metric: numanodememory.available_mbytes
+        instance: "_Total"
+        aggregation: min
+        operator: lt
+        threshold: 1024
+        duration_percent: 10
+    recommendations:
+      - investigate-vm-memory-pressure
+
+  # ── Virtual switch / VMQ ──────────────────────────────────────────────────
+  - rule_id: hyperv-virtual-switch-vmq-not-enabled
+    severity: warning
+    category: hyperv
+    title: "Hyper-V VMQ not enabled on the virtual switch processor"
+    summary: "Virtual Switch Processor Number of VMQs was 0 or fewer — VMQ is not in use."
+    explanation: |
+      \Hyper-V Virtual Switch Processor(*)\Number of VMQs is the number of VMQs targeting the virtual
+      switch processor. A value of 0 means Virtual Machine Queue is not enabled or the network adapters
+      do not support VMQ, so all virtual-switch traffic is processed on a single CPU — a throughput
+      bottleneck on busy hosts.
+    conditions:
+      - metric: hyperv.virtual_switch_processor_number_of_vmqs
+        instance: "_Total"
+        aggregation: max
+        operator: le
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-host-cpu-saturation
+
+  # ── VM Bus throttling ─────────────────────────────────────────────────────
+  - rule_id: hyperv-vm-bus-throttle-events-warning
+    severity: warning
+    category: hyperv
+    title: "Hyper-V VM Bus throttle events"
+    summary: "VM Bus Throttle Events exceeded 1 — partitions are being throttled."
+    explanation: |
+      \Hyper-V Virtual Machine Bus\Throttle Events is the total number of times any partition has been
+      throttled (its interrupts disabled). A small number of events warrants attention; throttling
+      indicates a partition is generating excessive VM Bus traffic and the bus is protecting the host.
+    conditions:
+      - metric: hyperv.virtual_machine_bus_throttle_events
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-health-and-errors
+
+  - rule_id: hyperv-vm-bus-throttle-events-critical
+    severity: critical
+    category: hyperv
+    title: "Critical Hyper-V VM Bus throttle events"
+    summary: "VM Bus Throttle Events exceeded 10 — sustained partition throttling."
+    explanation: |
+      \Hyper-V Virtual Machine Bus\Throttle Events above 10 indicates a partition is being throttled
+      repeatedly because its interrupts are being disabled to protect the host. This points to a guest
+      generating abnormal VM Bus / interrupt load that needs investigation.
+    conditions:
+      - metric: hyperv.virtual_machine_bus_throttle_events
+        aggregation: max
+        operator: gt
+        threshold: 10
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-health-and-errors
+
+  # ── Legacy network adapter drops ──────────────────────────────────────────
+  - rule_id: hyperv-legacy-nic-frames-dropped-warning
+    severity: warning
+    category: hyperv
+    title: "Hyper-V legacy network adapter dropping frames"
+    summary: "Legacy Network Adapter Frames Dropped exceeded 100."
+    explanation: |
+      \Hyper-V Legacy Network Adapter(*)\Frames Dropped is the number of frames dropped on the legacy
+      (emulated) network adapter. Legacy adapters are slow and lossy under load; sustained drops above
+      100 frames indicate the guest should be moved to a synthetic (VMBus) network adapter.
+    conditions:
+      - metric: hyperv.legacy_network_adapter_frames_dropped
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 100
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-health-and-errors
+
+  - rule_id: hyperv-legacy-nic-frames-dropped-critical
+    severity: critical
+    category: hyperv
+    title: "Critical Hyper-V legacy network adapter frame drops"
+    summary: "Legacy Network Adapter Frames Dropped exceeded 1000."
+    explanation: |
+      \Hyper-V Legacy Network Adapter(*)\Frames Dropped above 1000 means the emulated network adapter
+      is dropping a large number of frames, causing significant packet loss and retransmission for the
+      guest. Replace the legacy adapter with a synthetic adapter.
+    conditions:
+      - metric: hyperv.legacy_network_adapter_frames_dropped
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 1000
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-health-and-errors
+
+  - rule_id: hyperv-legacy-nic-bytes-dropped-warning
+    severity: warning
+    category: hyperv
+    title: "Hyper-V legacy network adapter dropping bytes"
+    summary: "Legacy Network Adapter Bytes Dropped exceeded 1,000,000."
+    explanation: |
+      \Hyper-V Legacy Network Adapter(*)\Bytes Dropped is the number of bytes dropped on the legacy
+      (emulated) network adapter. More than 1 MB of dropped traffic indicates meaningful packet loss;
+      the guest should be moved to a synthetic (VMBus) network adapter.
+    conditions:
+      - metric: hyperv.legacy_network_adapter_bytes_dropped
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 1000000
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-health-and-errors
+
+  - rule_id: hyperv-legacy-nic-bytes-dropped-critical
+    severity: critical
+    category: hyperv
+    title: "Critical Hyper-V legacy network adapter byte drops"
+    summary: "Legacy Network Adapter Bytes Dropped exceeded 100,000,000."
+    explanation: |
+      \Hyper-V Legacy Network Adapter(*)\Bytes Dropped above 100 MB indicates severe packet loss on the
+      emulated network adapter, which will cripple the guest's network throughput. Replace the legacy
+      adapter with a synthetic adapter immediately.
+    conditions:
+      - metric: hyperv.legacy_network_adapter_bytes_dropped
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 100000000
+        duration_percent: 1
+    recommendations:
+      - investigate-vm-health-and-errors
