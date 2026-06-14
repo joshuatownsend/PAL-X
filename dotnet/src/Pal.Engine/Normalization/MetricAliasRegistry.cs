@@ -104,6 +104,10 @@ public sealed class MetricAliasRegistry
         reg.Add(@"\\[^\\]+\\\.NET CLR Exceptions\([^)]*\)\\# of Exceps Thrown / sec", "dotnetclr.exceptions_thrown_per_sec");
         reg.Add(@"\\[^\\]+\\\.NET CLR Memory\([^)]*\)\\% Time in GC", "dotnetclr.percent_time_in_gc");
 
+        // NTDS — Active Directory domain controller (singleton object, no instance)
+        reg.Add(@"\\[^\\]+\\NTDS\\LDAP Bind Time", "ntds.ldap_bind_time");
+        reg.Add(@"\\[^\\]+\\NTDS\\DRA Pending Replication Operations", "ntds.dra_pending_replication_operations");
+
         return reg;
     }
 

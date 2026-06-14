@@ -1,0 +1,89 @@
+schema_version: "pal.pack/v1"
+pack_id: active-directory
+pack_name: "Active Directory"
+version: "1.0.0"
+description: "Active Directory domain controller health thresholds: NTDS LDAP bind latency and DRA replication backlog. Loads alongside windows-core (the always-on base) on domain-controller captures."
+
+# Workload pack: loads only when NTDS (domain controller) counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+# Note: legacy ActiveDirectory.xml charts many additional NTDS/LSASS counters (LDAP sessions,
+# Kerberos auth rate, replication sync queue, LSASS CPU/working set) but defines NO alert threshold
+# for them — they are observational. Only the three thresholds below are alerting rules in legacy.
+applicability:
+  requires_any:
+    - ntds.ldap_bind_time
+    - ntds.dra_pending_replication_operations
+
+recommendations:
+  investigate-ldap-latency:
+    priority: high
+    text: "Check the DC's CPU and memory headroom, look for inefficient or un-indexed LDAP searches (NTDS Diagnostics 1644 event logging), and verify network latency between clients and the DC."
+    rationale: "LDAP bind time gates every authentication and directory lookup in the domain — slow binds slow down logon, Group Policy, and any LDAP-backed application."
+    links:
+      - "https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/active-directory-performance-issues"
+
+  check-replication-health:
+    priority: high
+    text: "Run `repadmin /showrepl` and `repadmin /queue` to identify the replication partners and the cause of the backlog (link connectivity, bridgehead overload, or lingering objects), then resolve the blocking partner."
+    rationale: "A non-empty DRA pending-operations queue means inbound directory changes are not being applied — the DC is serving stale data and authentication/authorization inconsistencies follow."
+
+rules:
+  # ── NTDS — LDAP bind latency ──────────────────────────────────────────────
+  - rule_id: ad-ldap-bind-time-high
+    severity: warning
+    category: ad
+    title: "Elevated NTDS LDAP bind time"
+    summary: "LDAP bind time averaged above 15ms, indicating directory-service latency."
+    explanation: |
+      LDAP Bind Time is the time in milliseconds taken for the last successful LDAP bind on this
+      domain controller. Sustained values above 15ms mean clients are waiting longer than expected
+      to authenticate and bind to the directory. Common causes are CPU/memory pressure on the DC,
+      inefficient LDAP queries, or network latency between clients and the DC.
+    conditions:
+      - metric: ntds.ldap_bind_time
+        aggregation: avg
+        operator: gt
+        threshold: 15
+        duration_percent: 10
+    recommendations:
+      - investigate-ldap-latency
+
+  - rule_id: ad-ldap-bind-time-critical
+    severity: critical
+    category: ad
+    title: "Critical NTDS LDAP bind time"
+    summary: "LDAP bind time averaged above 20ms — domain authentication is degraded."
+    explanation: |
+      LDAP Bind Time averaging above 20ms indicates the domain controller is taking far longer than
+      healthy to complete directory binds. At this level logon, Group Policy application, and every
+      LDAP-backed application experience noticeable latency across the domain. This usually points to
+      DC resource saturation or a problematic query/replication load that needs immediate attention.
+    conditions:
+      - metric: ntds.ldap_bind_time
+        aggregation: avg
+        operator: gt
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - investigate-ldap-latency
+
+  # ── NTDS — replication health ─────────────────────────────────────────────
+  - rule_id: ad-dra-replication-backlog
+    severity: warning
+    category: ad
+    title: "Active Directory replication backlog"
+    summary: "DRA pending replication operations exceeded zero — inbound replication is queuing."
+    explanation: |
+      DRA Pending Replication Operations is the number of directory replication operations queued
+      for this server but not yet performed. A persistently non-zero queue means inbound changes from
+      replication partners are not being applied promptly, so this DC serves increasingly stale
+      directory data. Causes include partner connectivity problems, bridgehead overload, or lingering
+      objects blocking replication.
+    conditions:
+      - metric: ntds.dra_pending_replication_operations
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - check-replication-health
