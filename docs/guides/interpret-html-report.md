@@ -48,7 +48,7 @@ Each row:
 | Column | Meaning |
 |---|---|
 | Severity pill | `critical` (red), `warning` (amber), `informational` (grey). |
-| Category | `cpu`, `memory`, `disk`, `network`, `process`, `iis`, `sql`, `system`, `collection`, `pack-validation`. |
+| Category | `cpu`, `memory`, `disk`, `network`, `process`, `iis`, `sql`, `dotnet`, `ad`, `system`, `collection`, `pack-validation`. |
 | Title | One-line title from the rule. |
 | Summary | Why this fired — short. |
 

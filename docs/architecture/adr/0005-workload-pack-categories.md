@@ -43,9 +43,12 @@ family as packs land, in **both** gates:
 - the `category` enum in `dotnet/schemas/pal.pack.v1.json`, and
 - `PackValidator.ValidCategories` in `dotnet/src/Pal.Packs/PackValidator.cs`.
 
-This ADR adds **`dotnet`** (managed runtime: .NET CLR and ASP.NET application execution).
-Future waves add their own value in the same additive way (e.g. `ad`, `exchange`, `hyperv`,
-`sharepoint`) — each in the pack's own implementation change, not speculatively here.
+This ADR adds the **first two** workload-family values together, because the first wave of the
+strategy doc ships two packs: **`dotnet`** (managed runtime: .NET CLR and ASP.NET application
+execution) for the `dotnet-clr` pack, and **`ad`** (Active Directory domain-controller health:
+NTDS) for the `active-directory` pack. Future waves add their own value in the same additive way
+(e.g. `exchange`, `hyperv`, `sharepoint`) — each in the pack's own implementation change, not
+speculatively here.
 
 **Rejected alternative — free-form `category` string:** would remove the typo-catching
 validation and let report grouping fragment into near-duplicate categories
@@ -75,6 +78,12 @@ own ADR. Until a concrete case exists, it is over-engineering.
   (requests rejected, request wait time, requests queued, application restarts) remains in
   `iis-core` under category `iis`; `dotnet-clr` covers managed-runtime concerns (CLR exceptions,
   GC) and ASP.NET *application execution time* — the split avoids duplicate findings.
+- The `ad` category ships with the `active-directory` pack (NTDS LDAP bind latency and DRA
+  replication backlog), which domain-controller captures load alongside `windows-core`.
+- The finding `category` enum lives in **two** schemas — `pal.pack.v1.json` (input) and
+  `pal.report.v1.json` (output). Both must grow together, or reports emitted by a newly valid
+  pack would fail validation against `pal.report/v1`. Adding a workload category is therefore a
+  change in both schema enums plus the validator set.
 - Workload packs stay small and focused because the base comes from `windows-core`. A reviewer
   of a new pack should confirm it does not redeclare base rules and that any genuinely missing
   base rule is added to `windows-core` instead.
@@ -83,9 +92,14 @@ own ADR. Until a concrete case exists, it is over-engineering.
 
 ## Changes made under this ADR
 
-- `dotnet/schemas/pal.pack.v1.json`: added `"dotnet"` to the `category` enum.
-- `dotnet/src/Pal.Packs/PackValidator.cs`: added `"dotnet"` to `ValidCategories`.
+- `dotnet/schemas/pal.pack.v1.json`: added `"dotnet"` and `"ad"` to the `category` enum.
+- `dotnet/schemas/pal.report.v1.json`: added `"dotnet"` and `"ad"` to the finding `category` enum,
+  keeping the output schema in sync with the pack schema so emitted reports validate against
+  `pal.report/v1`.
+- `dotnet/src/Pal.Packs/PackValidator.cs`: added `"dotnet"` and `"ad"` to `ValidCategories`.
+- `dotnet/src/Pal.Engine/Model/Finding.cs`: updated the `Category` doc comment to list the new values.
 - `dotnet/src/Pal.Engine/Normalization/MetricAliasRegistry.cs`: added `dotnetclr.*` aliases
   (CLR exceptions/sec, % Time in GC) and a versioned-path alias for ASP.NET Request Execution
-  Time.
-- `packs/thresholds/dotnet-clr/pack.yaml`: new workload pack (first port under the strategy doc).
+  Time, plus `ntds.*` aliases (LDAP bind time, DRA pending replication operations).
+- `packs/thresholds/dotnet-clr/pack.yaml`: new managed-runtime workload pack (first port under the strategy doc).
+- `packs/thresholds/active-directory/pack.yaml`: new Active Directory (NTDS) workload pack.

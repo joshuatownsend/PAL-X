@@ -130,7 +130,7 @@ A rule encodes a single finding the analyzer can emit.
 |---|---|---|---|
 | `rule_id` | yes | string | Kebab-case, regex `^[a-z][a-z0-9-]*$`. Unique within the pack. |
 | `severity` | yes | string | One of `critical`, `warning`, `informational`. Drives sort order and the overall report status. |
-| `category` | yes | string | One of `cpu`, `memory`, `disk`, `network`, `process`, `iis`, `sql`, `system`, `collection`, `pack-validation`. |
+| `category` | yes | string | One of `cpu`, `memory`, `disk`, `network`, `process`, `iis`, `sql`, `dotnet`, `ad`, `system`, `collection`, `pack-validation`. |
 | `title` | yes | string | One-line title shown in the findings table. |
 | `summary` | yes | string | One-sentence finding summary shown in the report. |
 | `explanation` | no | string | Longer body explaining why this finding matters and what to investigate. Markdown-friendly; rendered in the HTML report. |
