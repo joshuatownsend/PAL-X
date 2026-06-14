@@ -54,6 +54,28 @@ public class GoldenFixtureTests
     }
 
     [Fact]
+    public void ActiveDirectory_FindsLdapBindAndReplicationFindings()
+    {
+        if (RepoRoot is null) return;
+
+        // Load active-directory explicitly (RunAnalysis disables auto-resolution); windows-core
+        // also loads (always: true) but the capture has only NTDS counters, so it fires nothing.
+        var (findings, _) = RunAnalysis("active-directory", ["active-directory"], null, null);
+
+        var bindCritical = findings.FirstOrDefault(f => f.RuleId == "ad-ldap-bind-time-critical");
+        Assert.NotNull(bindCritical);
+        Assert.Equal("critical", bindCritical.Severity);
+        Assert.Equal("ad", bindCritical.Category);
+
+        Assert.Contains(findings, f => f.RuleId == "ad-ldap-bind-time-high" && f.Severity == "warning");
+        Assert.Contains(findings, f => f.RuleId == "ad-dra-replication-backlog" && f.Severity == "warning");
+
+        // Exactly the three active-directory findings — no overlap with windows-core on a DC capture.
+        Assert.Equal(3, findings.Count(f => f.Category == "ad"));
+        Assert.Equal(3, findings.Count);
+    }
+
+    [Fact]
     public void CpuPressure_FindingsAreSortedBySeverityThenCategory()
     {
         if (RepoRoot is null) return;
