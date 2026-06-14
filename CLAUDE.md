@@ -18,7 +18,7 @@ See `docs/architecture/adr/0001-deviations-from-seed-docs.md` for all 12 ratifie
 
 - **No numeric health score**: Use tri-state status (critical/warning/healthy), not a 0-100 additive score.
 - **Declarative comparators**: No expression DSL or parser. Every rule condition uses `metric` + `aggregation` + `operator` + `threshold` + `duration_percent`.
-- **snake_case metric IDs**: All canonical metric IDs use snake_case (e.g., `processor.percent_processor_time`). Legacy counter paths live in `metric_aliases` in each pack.
+- **snake_case metric IDs**: All canonical metric IDs use snake_case (e.g., `processor.percent_processor_time`). The canonical-ID ↔ legacy-counter-path table lives in `MetricAliasRegistry.BuildDefault()` (`Pal.Engine/Normalization/`), as regex entries. Shipped packs carry **no** `metric_aliases` block; a pack *may* contribute aliases via the optional `metric_aliases` key (loaded by `MetricAliasRegistry.AddFromPack`), but none currently do — so adding counters for a new workload generally means editing `BuildDefault()`.
 - **`host_context` in schema v1**: RAM-relative and CPU-count-relative thresholds use `host_context.total_physical_memory_mb` / `host_context.logical_processor_count` — not deferred.
 - **Spectre.Console.Cli** (not System.CommandLine which is still beta).
 - **ScottPlot** for chart SVGs (not hand-rolled renderer).
@@ -38,7 +38,7 @@ If a rule references `host_context.total_physical_memory_mb` or `host_context.lo
 
 ## CLI output naming
 
-`<input-stem>.pal-report.json` and `<input-stem>.pal-report.html`. Charts go in `<output>/charts/<report-name>-<chart-id>.svg`.
+`<input-stem>.pal-report.json` and `<input-stem>.pal-report.html`. **Charts are not yet wired**: `ScottPlotRenderer` (`Pal.Reporting/Charts/`) exists and is byte-deterministic, but nothing calls its file-writing path (`RenderToFile` has zero callers) and the `--include-charts` / `--chart-limit` flags are currently inert — no chart files are produced today. Planned location once wired: `<output>/charts/<report-name>-<chart-id>.svg`. See `docs/architecture/design/html-report-charts.md`.
 
 ## BLG ingestion
 
