@@ -30,6 +30,30 @@ public class GoldenFixtureTests
     }
 
     [Fact]
+    public void DotNetClr_FindsClrAndAspNetExecutionFindings()
+    {
+        if (RepoRoot is null) return;
+
+        // Load dotnet-clr explicitly (RunAnalysis disables auto-resolution). windows-core still loads
+        // (always: true) but the capture has only .NET counters, so it fires nothing — every finding is dotnet.
+        var (findings, _) = RunAnalysis("dotnet-clr", ["dotnet-clr"], null, null);
+
+        var clrCritical = findings.FirstOrDefault(f => f.RuleId == "clr-critical-exception-rate");
+        Assert.NotNull(clrCritical);
+        Assert.Equal("critical", clrCritical.Severity);
+        Assert.Equal("dotnet", clrCritical.Category);
+
+        Assert.Contains(findings, f => f.RuleId == "clr-high-exception-rate" && f.Severity == "warning");
+        Assert.Contains(findings, f => f.RuleId == "clr-high-gc-time" && f.Severity == "warning");
+        Assert.Contains(findings, f => f.RuleId == "aspnet-high-request-execution-time" && f.Severity == "warning");
+        Assert.Contains(findings, f => f.RuleId == "aspnet-critical-request-execution-time" && f.Severity == "critical");
+
+        // Exactly the five dotnet-clr findings — proves no overlap with windows-core on a .NET-only capture.
+        Assert.Equal(5, findings.Count);
+        Assert.All(findings, f => Assert.Equal("dotnet", f.Category));
+    }
+
+    [Fact]
     public void CpuPressure_FindingsAreSortedBySeverityThenCategory()
     {
         if (RepoRoot is null) return;

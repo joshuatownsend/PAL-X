@@ -1,0 +1,136 @@
+schema_version: "pal.pack/v1"
+pack_id: dotnet-clr
+pack_name: ".NET CLR & ASP.NET"
+version: "1.0.0"
+description: "Managed-runtime performance thresholds: .NET CLR exceptions and garbage collection, plus ASP.NET request execution time. Loads alongside windows-core (the always-on base) on captures that contain .NET counters."
+
+# Workload pack: loads only when .NET CLR or ASP.NET application counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+applicability:
+  requires_any:
+    - dotnetclr.exceptions_thrown_per_sec
+    - dotnetclr.percent_time_in_gc
+    - aspnet.request_execution_time
+
+recommendations:
+  investigate-clr-exceptions:
+    priority: high
+    text: "Review the Application event log and capture a dump (WinDbg + SOS, or dotnet-dump) to identify which managed exceptions are being thrown and from where."
+    rationale: "Exceptions should not occur in normal processing; a sustained high throw rate degrades throughput even when each exception is handled."
+    links:
+      - "https://learn.microsoft.com/en-us/dotnet/framework/debug-trace-profile/performance-counters"
+
+  reduce-gc-pressure:
+    priority: high
+    text: "Profile managed allocations (dotnet-counters, dotnet-trace, or PerfView) to reduce Gen-2 collections; review large-object-heap usage, caching, and per-request allocations."
+    rationale: "Time in GC above ~10% means the garbage collector is taking CPU away from request processing — usually an allocation-rate or object-lifetime problem."
+
+  profile-slow-requests:
+    priority: high
+    text: "Profile the slowest ASP.NET handlers (Application Insights, dotnet-trace, or a request profiler) to reduce per-request execution time; check downstream dependency latency (DB, external calls)."
+    rationale: "High request execution time directly raises client latency and causes request-queue buildup under load."
+
+rules:
+  # ── .NET CLR ────────────────────────────────────────────────────────────
+  - rule_id: clr-high-exception-rate
+    severity: warning
+    category: dotnet
+    title: "High .NET CLR exception rate"
+    summary: "Managed exceptions averaged more than 10 per second across the capture window."
+    explanation: |
+      The total number of managed exceptions thrown per second (_Global_ across all CLR instances).
+      Exceptions are expensive to construct and unwind; they should not occur as part of normal
+      processing. A sustained rate above 10/sec degrades throughput even when every exception is
+      caught and handled. Note that Response.Redirect, Server.Transfer, and Response.End throw
+      ThreadAbortException, so request patterns that rely heavily on them inflate this counter.
+    conditions:
+      - metric: dotnetclr.exceptions_thrown_per_sec
+        instance: "_Global_"
+        aggregation: avg
+        operator: gt
+        threshold: 10
+        duration_percent: 10
+    recommendations:
+      - investigate-clr-exceptions
+
+  - rule_id: clr-critical-exception-rate
+    severity: critical
+    category: dotnet
+    title: "Critical .NET CLR exception rate"
+    summary: "Managed exceptions averaged more than 50 per second across the capture window."
+    explanation: |
+      A managed exception rate above 50/sec (_Global_) indicates a hot exception path — for example a
+      tight loop throwing and catching, a misconfigured dependency failing on every call, or
+      first-chance exceptions from a failing subsystem. At this level exception handling itself
+      becomes a measurable share of CPU and request latency.
+    conditions:
+      - metric: dotnetclr.exceptions_thrown_per_sec
+        instance: "_Global_"
+        aggregation: avg
+        operator: gt
+        threshold: 50
+        duration_percent: 10
+    recommendations:
+      - investigate-clr-exceptions
+
+  - rule_id: clr-high-gc-time
+    severity: warning
+    category: dotnet
+    title: "High time spent in .NET garbage collection"
+    summary: "% Time in GC averaged above 10%, indicating garbage-collection pressure."
+    explanation: |
+      % Time in GC is the percentage of elapsed time spent performing garbage collection since the
+      last GC cycle (_Global_). Sustained values above 10% mean the collector is doing significant
+      work on behalf of the application — typically a sign of a high allocation rate, large or
+      long-lived object graphs, or excessive Gen-2 collections. This steals CPU from request
+      processing and adds latency jitter.
+    conditions:
+      - metric: dotnetclr.percent_time_in_gc
+        instance: "_Global_"
+        aggregation: avg
+        operator: gt
+        threshold: 10
+        duration_percent: 20
+    recommendations:
+      - reduce-gc-pressure
+
+  # ── ASP.NET (application execution; IIS hosting/queue health is in iis-core) ──
+  - rule_id: aspnet-high-request-execution-time
+    severity: warning
+    category: dotnet
+    title: "High ASP.NET request execution time"
+    summary: "ASP.NET request execution time averaged above 5 seconds."
+    explanation: |
+      Request Execution Time is the time in milliseconds taken to execute requests, aggregated across
+      ASP.NET applications (__Total__). An average above 5000ms means requests are spending seconds in
+      managed code — usually slow handlers, blocking I/O, lock contention, or slow downstream
+      dependencies. Sustained high execution time drives queue buildup and client timeouts.
+    conditions:
+      - metric: aspnet.request_execution_time
+        instance: "__Total__"
+        aggregation: avg
+        operator: gt
+        threshold: 5000
+        duration_percent: 10
+    recommendations:
+      - profile-slow-requests
+
+  - rule_id: aspnet-critical-request-execution-time
+    severity: critical
+    category: dotnet
+    title: "Critical ASP.NET request execution time"
+    summary: "ASP.NET request execution time averaged above 8 seconds."
+    explanation: |
+      An average request execution time above 8000ms (__Total__) indicates requests are routinely
+      taking eight or more seconds to execute in managed code. At this level the application is
+      effectively unable to keep up with normal load: the request queue grows, clients time out, and
+      the worker process is at high risk of recycling under pressure.
+    conditions:
+      - metric: aspnet.request_execution_time
+        instance: "__Total__"
+        aggregation: avg
+        operator: gt
+        threshold: 8000
+        duration_percent: 10
+    recommendations:
+      - profile-slow-requests

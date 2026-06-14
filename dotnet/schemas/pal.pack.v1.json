@@ -223,7 +223,7 @@
         },
         "category": {
           "type": "string",
-          "enum": ["cpu", "memory", "disk", "network", "process", "iis", "sql", "system", "collection", "pack-validation"]
+          "enum": ["cpu", "memory", "disk", "network", "process", "iis", "sql", "dotnet", "system", "collection", "pack-validation"]
         },
         "title": {
           "type": "string",

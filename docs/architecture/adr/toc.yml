@@ -8,3 +8,5 @@
   href: 0003-pack-signing-format.md
 - name: "0004 — Schema v1.1 rolling windows"
   href: 0004-schema-v1.1-rolling-windows.md
+- name: "0005 — Workload pack categories"
+  href: 0005-workload-pack-categories.md
