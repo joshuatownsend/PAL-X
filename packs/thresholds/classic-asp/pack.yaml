@@ -1,0 +1,112 @@
+schema_version: "pal.pack/v1"
+pack_id: classic-asp
+pack_name: "Classic ASP (Active Server Pages)"
+version: "1.0.0"
+description: "Classic ASP (Active Server Pages object) IIS-hosting health thresholds: ASP request execution time and ASP requests queued. Loads alongside windows-core (the always-on base) on captures that contain the IIS Active Server Pages object. Distinct from ASP.NET (covered by iis-core / dotnet-clr)."
+
+# Workload pack: loads only when the classic-ASP (Active Server Pages) object is present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+# The Active Server Pages object is a singleton (no instance), so conditions omit `instance:`.
+# Legacy Asp.xml also charts Errors/Sec, Request Wait Time, and Requests/Sec but defines NO alert
+# threshold for them (observational only) — only the two counters below carry alerting thresholds.
+applicability:
+  requires_any:
+    - asp.request_execution_time
+    - asp.requests_queued
+
+recommendations:
+  profile-slow-asp-requests:
+    priority: high
+    text: "Profile the slowest classic ASP pages (enable ASP failed-request tracing / ETW, or a request profiler) to reduce per-request execution time, and check downstream dependency latency (database, COM components, external calls)."
+    rationale: "High ASP request execution time directly raises client latency and drives request-queue buildup under load."
+    links:
+      - "https://learn.microsoft.com/en-us/iis/configuration/system.webserver/asp/"
+
+  relieve-asp-queue:
+    priority: high
+    text: "Identify why ASP requests are backing up: confirm the worker process is not CPU- or thread-starved, review the ASP processor-thread-max / requests-queue-max settings, and resolve the slow pages causing the backlog."
+    rationale: "A growing ASP request queue means incoming requests are waiting for a free worker thread — clients see latency and, once the queue limit is reached, HTTP 503 rejections."
+    links:
+      - "https://learn.microsoft.com/en-us/iis/configuration/system.webserver/asp/limits"
+
+rules:
+  # ── Active Server Pages — request execution time ──────────────────────────
+  - rule_id: asp-request-execution-time-high
+    severity: warning
+    category: iis
+    title: "Elevated classic ASP request execution time"
+    summary: "ASP request execution time averaged above 3000ms (3 seconds)."
+    explanation: |
+      Request Execution Time is the number of milliseconds it took to execute the most recent classic
+      ASP request. A sustained average above 3000ms means ASP pages are spending three or more seconds
+      in server-side script execution — typically slow pages, blocking I/O, COM component latency, or
+      slow downstream dependencies. Prolonged high execution time leads to request-queue buildup and
+      client timeouts.
+    conditions:
+      - metric: asp.request_execution_time
+        aggregation: avg
+        operator: gt
+        threshold: 3000
+        duration_percent: 10
+    recommendations:
+      - profile-slow-asp-requests
+
+  - rule_id: asp-request-execution-time-critical
+    severity: critical
+    category: iis
+    title: "Critical classic ASP request execution time"
+    summary: "ASP request execution time averaged above 6000ms (6 seconds)."
+    explanation: |
+      A classic ASP Request Execution Time averaging above 6000ms means requests are routinely taking
+      six or more seconds to execute server-side script. At this level the application struggles to keep
+      up with normal load: the ASP request queue grows, clients time out, and worker-process recycling
+      becomes likely under pressure. This usually points to a slow page path, contended COM components,
+      or a saturated downstream dependency that needs immediate attention.
+    conditions:
+      - metric: asp.request_execution_time
+        aggregation: avg
+        operator: gt
+        threshold: 6000
+        duration_percent: 10
+    recommendations:
+      - profile-slow-asp-requests
+
+  # ── Active Server Pages — requests queued ─────────────────────────────────
+  - rule_id: asp-requests-queued-high
+    severity: warning
+    category: iis
+    title: "Classic ASP requests queuing"
+    summary: "More than 10 ASP requests were queued, indicating worker-thread backlog."
+    explanation: |
+      Requests Queued is the number of classic ASP requests waiting for service from the queue. A queue
+      depth above 10 means incoming requests are waiting for a free ASP worker thread rather than being
+      executed immediately. This is an early sign of thread starvation or slow pages holding threads,
+      and clients begin to experience added latency.
+    conditions:
+      - metric: asp.requests_queued
+        aggregation: max
+        operator: gt
+        threshold: 10
+        duration_percent: 1
+    recommendations:
+      - relieve-asp-queue
+
+  - rule_id: asp-requests-queued-critical
+    severity: critical
+    category: iis
+    title: "Critical classic ASP request queue depth"
+    summary: "More than 20 ASP requests were queued — the ASP queue is backing up severely."
+    explanation: |
+      A classic ASP Requests Queued depth above 20 means a large backlog of requests is waiting for a
+      free worker thread. At this level clients see significant latency, and once the configured ASP
+      request-queue limit is reached new requests are rejected with HTTP 503. This usually indicates
+      thread starvation from slow pages, an undersized thread pool, or a saturated server that needs
+      immediate attention.
+    conditions:
+      - metric: asp.requests_queued
+        aggregation: max
+        operator: gt
+        threshold: 20
+        duration_percent: 1
+    recommendations:
+      - relieve-asp-queue

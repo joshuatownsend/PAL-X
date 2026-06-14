@@ -13,10 +13,16 @@ internal static class CounterPathHelper
 
     internal static string? ExtractInstance(string counterPath)
     {
-        int open = counterPath.LastIndexOf('(');
-        int close = counterPath.LastIndexOf(')');
+        // The instance lives in the object segment: \\MACHINE\Object(Instance)\Counter.
+        // The counter name (after the final '\') may itself contain parentheses — e.g.
+        // "I/O Database Reads (Attached) Average Latency" or "Lock Wait Time (ms)" — which
+        // must NOT be mistaken for the instance. So search only the object segment.
+        int lastSlash = counterPath.LastIndexOf('\\');
+        string objectSegment = lastSlash >= 0 ? counterPath[..lastSlash] : counterPath;
+        int open = objectSegment.LastIndexOf('(');
+        int close = objectSegment.LastIndexOf(')');
         if (open < 0 || close <= open) return null;
-        string inst = counterPath[(open + 1)..close];
+        string inst = objectSegment[(open + 1)..close];
         return string.IsNullOrEmpty(inst) ? null : inst;
     }
 

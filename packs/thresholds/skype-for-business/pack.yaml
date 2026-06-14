@@ -1,0 +1,1070 @@
+schema_version: "pal.pack/v1"
+pack_id: skype-for-business
+pack_name: "Skype for Business / Lync 2013"
+version: "1.0.0"
+description: "Microsoft Lync Server 2013 / Skype for Business workload thresholds across the Front End, Edge, and Mediation server roles. Ported from the legacy PAL Lync2013-FrontEnd/Edge/Mediation threshold files. Loads alongside windows-core (the always-on base) when any Lync/SfB role counters are present."
+
+# Workload pack: loads only when Lync 2013 / Skype for Business role counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) - do not redeclare it here.
+# Three server roles are combined into one pack; rule_ids are prefixed fe-/edge-/med- per role.
+# Every rule is a faithful StaticThreshold port from legacy: operator + threshold come verbatim
+# from the legacy <CODE>. The legacy files contain no warning-level or trend-only thresholds -
+# all ported thresholds are Critical. The SQL Server counters bundled into the Front End template
+# reuse the existing sql.* canonical IDs (collapsing the three named instances per ADR dedupe).
+applicability:
+  requires_any:
+    - sfb.usrv_dbstore.queue_latency_msec
+    - sfb.usrv_dbstore.sproc_latency_msec
+    - sfb.usrv_regdbstore.sproc_latency_msec
+    - sfb.usrv_dbstore.throttled_requests_per_sec
+    - sfb.sip_peers.sends_timed_out_per_sec
+    - sfb.sip_responses.local_503_responses_per_sec
+    - sfb.sip_peers.average_outgoing_queue_delay
+    - sfb.sip_peers.flow_controlled_connections
+    - sfb.sip_protocol.incoming_requests_dropped_per_sec
+    - sfb.sip_protocol.incoming_responses_dropped_per_sec
+    - sfb.sip_protocol.average_incoming_message_processing_time
+    - sfb.sip_authentication.authentication_system_errors_per_sec
+    - sfb.sip_load_management.average_holding_time_for_incoming_messages
+    - sfb.sip_load_management.incoming_messages_timed_out
+    - sfb.routingapps_inter_cluster_routing.number_of_primary_registrar_timeouts
+    - sfb.routingapps_inter_cluster_routing.number_of_backup_registrar_timeouts
+    - sfb.lyss_storage_service_api.current_number_of_storage_service_stale_queue_items
+    - sfb.usrv_cluster_manager.number_of_data_loss_events_with_state_change
+    - sfb.usrv_cluster_manager.number_of_data_loss_events_without_state_change
+    - sfb.usrv_cluster_manager.number_of_failures_of_replication_operations_sent_to_other_replicas_per_second
+    - sfb.usrv_cluster_manager.whether_server_is_connected_to_fabric_pool_manager
+    - sfb.xmppfederation_sip_instant_messaging.failure_imdns_sent_per_sec
+    - sfb.routingapps_emergency_call_routing.number_of_incoming_failure_responses
+    - sfb.lyss_storage_service_api.current_percentage_of_space_used_by_storage_service_db
+    - sfb.datamcu_mcu_health_and_performance.mcu_health_state
+    - sfb.avmcu_mcu_health_and_performance.mcu_health_state
+    - sfb.asmcu_mcu_health_and_performance.mcu_health_state
+    - sfb.immcu_mcu_health_and_performance.mcu_health_state
+    - sfb.immcu_immcu_conferences.throttled_sip_connections
+    - sfb.web_distribution_list_expansion.timed_out_active_directory_requests_per_sec
+    - sfb.web_address_book_file_download.failed_file_requests_per_second
+    - sfb.joinlauncher_join_launcher_service_failures.join_failures
+    - sfb.web_ucwa.http_5xx_responses_per_second
+    - sfb.web_auth_provider_related_calls.failed_validate_cert_calls_to_the_cert_auth_provider
+    - sfb.web_address_book_web_query.failed_search_requests_per_sec
+    - sfb.web_location_information_service.failed_get_locations_requests_per_second
+    - sfb.caa_operations.incomplete_calls_per_sec
+    - sfb.usrv_conference_control_notification.notifications_in_processing
+    - sfb.usrv_conference_mcu_allocator.create_conference_latency_msec
+    - sfb.usrv_conference_mcu_allocator.factory_call_latency_msec
+    - sfb.usrv_conference_mcu_allocator.allocation_latency_msec
+    - sfb.web_mobile_communication_service.push_notification_requests_failed_per_second
+    - sfb.web_mobile_communication_service.push_notification_requests_throttled_per_second
+    - sfb.web_mobile_communication_service.requests_failed_per_second
+    - sfb.web_mobile_communication_service.requests_rejected_per_second
+    - sfb.a_v_auth_requests.bad_requests_received_per_sec
+    - sfb.a_v_edge_udp_counters.a_v_edge_authentication_failures_per_sec
+    - sfb.a_v_edge_udp_counters.a_v_edge_allocate_requests_exceeding_port_limit_per_sec
+    - sfb.a_v_edge_udp_counters.a_v_edge_packets_dropped_per_sec
+    - sfb.a_v_edge_tcp_counters.a_v_edge_authentication_failures_per_sec
+    - sfb.a_v_edge_tcp_counters.a_v_edge_allocate_requests_exceeding_port_limit_per_sec
+    - sfb.a_v_edge_tcp_counters.a_v_edge_packets_dropped_per_sec
+    - sfb.sip_peers.above_limit_connections_dropped_access_proxies_only
+    - sfb.dataproxy_server_connections.current_count_of_server_connections_that_are_throttled
+    - sfb.dataproxy_server_connections.system_is_throttling
+    - sfb.xmppfederationproxy_streams.failed_inbound_stream_establishes_per_sec
+    - sfb.xmppfederationproxy_streams.failed_outbound_stream_establishes_per_sec
+    - sfb.mediationserver_media_relay.candidates_missing
+    - sfb.mediationserver_media_relay.media_connectivity_check_failure
+    - sfb.mediationserver_health_indices.load_call_failure_index
+    - sfb.mediationserver_global_counters.total_failed_calls_caused_by_unexpected_interaction_from_the_proxy
+    - sfb.mediationserver_global_per_gateway_counters.total_failed_calls_caused_by_unexpected_interaction_from_a_gateway
+
+recommendations:
+  investigate-front-end-health:
+    priority: high
+    text: "Correlate the affected Front End counter with the pool's SQL back end (RTC/RTCLOCAL/LYNCLOCAL), CPU/memory headroom, and the Lync event logs; use the Lync Server Management Shell health cmdlets and Centralized Logging Service to localise the failing component."
+    rationale: "Front End counters gate registration, conferencing (MCU), routing, and web (UCWA/mobility) services - a sustained breach degrades sign-in, IM/presence, and meetings for users homed on the pool."
+    links:
+      - "https://learn.microsoft.com/en-us/skypeforbusiness/manage/health-and-monitoring/health-and-monitoring"
+  investigate-edge-health:
+    priority: high
+    text: "Check the Edge A/V (TURN/MRAS), SIP access, and federation/XMPP proxy paths: verify firewall/NAT port ranges, certificate validity, and that authentication to the relay is succeeding; review dropped-packet and throttling counters together."
+    rationale: "Edge counters cover external/remote-user media and federation; sustained authentication failures, dropped packets, or throttling break external call/media setup and federated connectivity."
+    links:
+      - "https://learn.microsoft.com/en-us/skypeforbusiness/plan-your-deployment/edge-server-deployments/edge-server-deployments"
+  investigate-mediation-health:
+    priority: high
+    text: "Investigate the Mediation Server media path to the PSTN gateway/SBC: confirm media relay (MRAS) candidate allocation, gateway reachability and capacity, and review the per-gateway failed-call counters to isolate the affected trunk."
+    rationale: "Mediation counters track PSTN/enterprise-voice call setup and media; missing media-relay candidates, connectivity-check failures, or rising failed-call indices indicate degraded or failing voice routing."
+    links:
+      - "https://learn.microsoft.com/en-us/skypeforbusiness/plan-your-deployment/enterprise-voice-solution/mediation-server"
+
+rules:
+  # === Front End role ===
+  - rule_id: fe-usrv-dbstore-queue-latency-msec
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Queue Latency (msec)"
+    summary: "USrv - Queue Latency (msec) was at or above 100 (Front End role)."
+    explanation: "Queue latency is the amount of time (in milliseconds) that it takes for a request to leave the Front End Server's queue toward the back-end database. If this value by itself is high, you may have be encountering a network problem between FE->SQL. If this value is high and Sproc Latency is high, it is most commonly a bottom-neck with the SQL backend. Legacy PAL alerts Critical when this counter is at or above 100."
+    conditions:
+      - metric: sfb.usrv_dbstore.queue_latency_msec
+        aggregation: avg
+        operator: ge
+        threshold: 100
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-dbstore-sproc-latency-msec
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Sproc Latency (msec)"
+    summary: "USrv - Sproc Latency (msec) was at or above 100 (Front End role)."
+    explanation: "Sproc latency is the amount of time (in milliseconds) that it takes for the Microsoft(R) SQL Server(R) data management software database to process the request. This performance value is collected from the time the request leaves the Front End Server queue until that the request returns. If this value by itself is high, it is likely a bottleneck with the SQL backend. Legacy PAL alerts Critical when this counter is at or above 100."
+    conditions:
+      - metric: sfb.usrv_dbstore.sproc_latency_msec
+        aggregation: avg
+        operator: ge
+        threshold: 100
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-regdbstore-sproc-latency-msec
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Sproc Latency (msec)"
+    summary: "USrv - Sproc Latency (msec) was at or above 100 (Front End role)."
+    explanation: "The average time (in milliseconds) it takes to execute a sproc call. Legacy PAL alerts Critical when this counter is at or above 100."
+    conditions:
+      - metric: sfb.usrv_regdbstore.sproc_latency_msec
+        aggregation: avg
+        operator: ge
+        threshold: 100
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-dbstore-throttled-requests-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Throttled requests/sec"
+    summary: "USrv - Throttled requests/sec was above 0 (Front End role)."
+    explanation: "The number of requests that were rejected/sec with a retry-after since the database queue latency was high. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.usrv_dbstore.throttled_requests_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-peers-sends-timed-out-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Sends Timed-Out/sec"
+    summary: "SIP - Sends Timed-Out/sec was above 0 (Front End role)."
+    explanation: "The per-second rate of sends dropped because they stayed in outgoing (send) queue for too long. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.sip_peers.sends_timed_out_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-responses-local-503-responses-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Local 503 Responses/sec"
+    summary: "SIP - Local 503 Responses/sec was above 0 (Front End role)."
+    explanation: "The per-second rate of 503 responses generated by the server. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.sip_responses.local_503_responses_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-peers-average-outgoing-queue-delay
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Average Outgoing Queue Delay"
+    summary: "SIP - Average Outgoing Queue Delay was above 2 (Front End role)."
+    explanation: "The average time (in seconds) the messages delayed in outgoing (send) queues. Legacy PAL alerts Critical when this counter is above 2."
+    conditions:
+      - metric: sfb.sip_peers.average_outgoing_queue_delay
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 2
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-peers-flow-controlled-connections
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Flow-controlled Connections"
+    summary: "SIP - Flow-controlled Connections was at or above 2 (Front End role)."
+    explanation: "The number of connections that are currently being flow-controlled (no socket receives are posted). Legacy PAL alerts Critical when this counter is at or above 2."
+    conditions:
+      - metric: sfb.sip_peers.flow_controlled_connections
+        instance: "_Total"
+        aggregation: max
+        operator: ge
+        threshold: 2
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-protocol-incoming-requests-dropped-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Incoming Requests Dropped/sec"
+    summary: "SIP - Incoming Requests Dropped/sec was at or above 1 (Front End role)."
+    explanation: "The per-second rate of incoming requests dropped because they could not be processed (due to bad headers, insufficient routing information, server resource allocation failure). Legacy PAL alerts Critical when this counter is at or above 1."
+    conditions:
+      - metric: sfb.sip_protocol.incoming_requests_dropped_per_sec
+        aggregation: avg
+        operator: ge
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-protocol-incoming-responses-dropped-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Incoming Responses Dropped/sec"
+    summary: "SIP - Incoming Responses Dropped/sec was at or above 1 (Front End role)."
+    explanation: "The per-second rate of incoming responses dropped because they could not be processed (due to bad headers, insufficient routing information, server resource allocation failure). Legacy PAL alerts Critical when this counter is at or above 1."
+    conditions:
+      - metric: sfb.sip_protocol.incoming_responses_dropped_per_sec
+        aggregation: avg
+        operator: ge
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-protocol-average-incoming-message-processing-time
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Average Incoming Message Processing Time"
+    summary: "SIP - Average Incoming Message Processing Time was at or above 1 (Front End role)."
+    explanation: "The average time (in seconds) it takes to process an incoming message. Legacy PAL alerts Critical when this counter is at or above 1."
+    conditions:
+      - metric: sfb.sip_protocol.average_incoming_message_processing_time
+        aggregation: avg
+        operator: ge
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-authentication-authentication-system-errors-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Authentication System Errors/sec"
+    summary: "SIP - Authentication System Errors/sec was at or above 1 (Front End role)."
+    explanation: "The per-second rate of authentication failures caused by system errors (due to low memory conditions or otherwise). Legacy PAL alerts Critical when this counter is at or above 1."
+    conditions:
+      - metric: sfb.sip_authentication.authentication_system_errors_per_sec
+        aggregation: avg
+        operator: ge
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-load-management-average-holding-time-for-incoming-messages
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Average Holding Time For Incoming Messages"
+    summary: "SIP - Average Holding Time For Incoming Messages was at or above 1 (Front End role)."
+    explanation: "The average time that the server held the incoming messages currently being processed. Legacy PAL alerts Critical when this counter is at or above 1."
+    conditions:
+      - metric: sfb.sip_load_management.average_holding_time_for_incoming_messages
+        aggregation: avg
+        operator: ge
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-sip-load-management-incoming-messages-timed-out
+    severity: critical
+    category: sfb
+    title: "Front End: SIP - Incoming Messages Timed out"
+    summary: "SIP - Incoming Messages Timed out was at or above 2 (Front End role)."
+    explanation: "The number of incoming messages currently being held by the server for processing for more than the maximum tracking interval. Legacy PAL alerts Critical when this counter is at or above 2."
+    conditions:
+      - metric: sfb.sip_load_management.incoming_messages_timed_out
+        aggregation: max
+        operator: ge
+        threshold: 2
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-routingapps-inter-cluster-routing-number-of-primary-registrar-timeouts
+    severity: critical
+    category: sfb
+    title: "Front End: RoutingApps - Number of primary registrar timeouts"
+    summary: "RoutingApps - Number of primary registrar timeouts was above 0 (Front End role)."
+    explanation: "Number of requests for which primary registrar timed out Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.routingapps_inter_cluster_routing.number_of_primary_registrar_timeouts
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-routingapps-inter-cluster-routing-number-of-backup-registrar-timeouts
+    severity: critical
+    category: sfb
+    title: "Front End: RoutingApps - Number of backup registrar timeouts"
+    summary: "RoutingApps - Number of backup registrar timeouts was above 0 (Front End role)."
+    explanation: "Number of requests for which backup registrar timed out Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.routingapps_inter_cluster_routing.number_of_backup_registrar_timeouts
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-lyss-storage-service-api-current-number-of-storage-service-stale-queue-items
+    severity: critical
+    category: sfb
+    title: "Front End: LYSS - Current number of Storage Service stale queue items"
+    summary: "LYSS - Current number of Storage Service stale queue items was above 0 (Front End role)."
+    explanation: "Current number of Storage Service queue items which are not owned and last attempted a long time ago. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.lyss_storage_service_api.current_number_of_storage_service_stale_queue_items
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-cluster-manager-number-of-data-loss-events-with-state-change
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Number of data loss events with state change"
+    summary: "USrv - Number of data loss events with state change was above 0 (Front End role)."
+    explanation: "Total number of data loss events with state change Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.usrv_cluster_manager.number_of_data_loss_events_with_state_change
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-cluster-manager-number-of-data-loss-events-without-state-change
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Number of data loss events without state change"
+    summary: "USrv - Number of data loss events without state change was above 0 (Front End role)."
+    explanation: "Total number of data loss events without state change Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.usrv_cluster_manager.number_of_data_loss_events_without_state_change
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-cluster-manager-number-of-failures-of-replication-operations-sent-to-other-replicas-per-second
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Number of failures of replication operations sent to other Replicas per second"
+    summary: "USrv - Number of failures of replication operations sent to other Replicas per second was above 0 (Front End role)."
+    explanation: "The per-second rate of replication operation failures Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.usrv_cluster_manager.number_of_failures_of_replication_operations_sent_to_other_replicas_per_second
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-cluster-manager-whether-server-is-connected-to-fabric-pool-manager
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Whether server is connected to fabric pool manager"
+    summary: "USrv - Whether server is connected to fabric pool manager was above 0 (Front End role)."
+    explanation: "Indicates whether server is connected to fabric pool manager. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.usrv_cluster_manager.whether_server_is_connected_to_fabric_pool_manager
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-xmppfederation-sip-instant-messaging-failure-imdns-sent-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: XmppFederation - Failure IMDNs sent/sec"
+    summary: "XmppFederation - Failure IMDNs sent/sec was above 0 (Front End role)."
+    explanation: "Failure IMDNs sent/sec Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.xmppfederation_sip_instant_messaging.failure_imdns_sent_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-routingapps-emergency-call-routing-number-of-incoming-failure-responses
+    severity: critical
+    category: sfb
+    title: "Front End: RoutingApps - Number of incoming failure responses"
+    summary: "RoutingApps - Number of incoming failure responses was above 0 (Front End role)."
+    explanation: "Number of times an Emergency Call failure response was received from Gateway. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.routingapps_emergency_call_routing.number_of_incoming_failure_responses
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-lyss-storage-service-api-current-percentage-of-space-used-by-storage-service-db
+    severity: critical
+    category: sfb
+    title: "Front End: LYSS - Current percentage of space used by Storage Service DB."
+    summary: "LYSS - Current percentage of space used by Storage Service DB. was at or above 80 (Front End role)."
+    explanation: "Current percentage of space used by Storage Service DB. Legacy PAL alerts Critical when this counter is at or above 80."
+    conditions:
+      - metric: sfb.lyss_storage_service_api.current_percentage_of_space_used_by_storage_service_db
+        aggregation: avg
+        operator: ge
+        threshold: 80
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-page-life-expectancy
+    severity: critical
+    category: sfb
+    title: "Front End: Page life expectancy"
+    summary: "Page life expectancy was at or below 300 (Front End role)."
+    explanation: "Tells, on average, how many seconds SQL Server expects a data page to stay in cache. The target on an OLTP system should be at least 300 (5 min). When under 300, this may indicate poor index design (leading to increased disk I/O and less effective use of memory) or, simply, a potential shortage of memory. A low value, below 3600 seconds (together with high lazy writes/sec and checkpoint pages/sec) indicates memory pressure. Legacy PAL alerts Critical when this counter is at or below 300."
+    conditions:
+      - metric: sql.page_life_expectancy
+        aggregation: avg
+        operator: le
+        threshold: 300
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-memory-grants-pending
+    severity: critical
+    category: sfb
+    title: "Front End: Memory Grants Pending"
+    summary: "Memory Grants Pending was above 0 (Front End role)."
+    explanation: "Total number of processes per second waiting for a workspace memory grant. Numbers higher than 0 indicate a lack of memory. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sql.memory_grants_pending
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-batch-requests-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: Batch Requests/sec"
+    summary: "Batch Requests/sec was at or below 2500 (Front End role)."
+    explanation: "Number of batch requests received per second, and is a good general indicator for the activity level of the SQL Server. This counter is highly dependent on the hardware and quality of code running on the server. The more powerful the hardware, the higher this number can be, even on poorly coded applications. A value of 1000 batch requests/sec is easily attainable though a typical 100Mbs NIC can only handle about 3000 batch requests/sec.Many other counter thresholds depend upon batch requests/sec while, in some cases, a low (or high) number does not point to poor processing power. You should frequently use this counter in combination with other counters, such as processor utilization or user connections.In version 2000, Transactions/ sec was the counter most often used to measure overall activity, while versions 2005 and later use Batch Requests/sec. Versions 2005 prior to SP2, measure this counter differently and may lead to some misunderstandings. Legacy PAL alerts Critical when this counter is at or below 2500."
+    conditions:
+      - metric: sql.batch_requests_per_sec
+        aggregation: avg
+        operator: le
+        threshold: 2500
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-datamcu-mcu-health-and-performance-mcu-health-state
+    severity: critical
+    category: sfb
+    title: "Front End: DATAMCU - MCU Health State"
+    summary: "DATAMCU - MCU Health State was above 1 (Front End role)."
+    explanation: "The current health of the MCU. 0 = Normal. 1 = Loaded. 2 = Full. 3 = Unavailable. Legacy PAL alerts Critical when this counter is above 1."
+    conditions:
+      - metric: sfb.datamcu_mcu_health_and_performance.mcu_health_state
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-avmcu-mcu-health-and-performance-mcu-health-state
+    severity: critical
+    category: sfb
+    title: "Front End: AVMCU - MCU Health State"
+    summary: "AVMCU - MCU Health State was above 1 (Front End role)."
+    explanation: "The current health of the MCU. 0 = Normal. 1 = Loaded. 2 = Full. 3 = Unavailable. Legacy PAL alerts Critical when this counter is above 1."
+    conditions:
+      - metric: sfb.avmcu_mcu_health_and_performance.mcu_health_state
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-asmcu-mcu-health-and-performance-mcu-health-state
+    severity: critical
+    category: sfb
+    title: "Front End: ASMCU - MCU Health State"
+    summary: "ASMCU - MCU Health State was above 1 (Front End role)."
+    explanation: "The current health of the MCU. 0 = Normal. 1 = Loaded. 2 = Full. 3 = Unavailable. Legacy PAL alerts Critical when this counter is above 1."
+    conditions:
+      - metric: sfb.asmcu_mcu_health_and_performance.mcu_health_state
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-immcu-mcu-health-and-performance-mcu-health-state
+    severity: critical
+    category: sfb
+    title: "Front End: IMMCU - MCU Health State"
+    summary: "IMMCU - MCU Health State was above 1 (Front End role)."
+    explanation: "The current health of the MCU. 0 = Normal. 1 = Loaded. 2 = Full. 3 = Unavailable. Legacy PAL alerts Critical when this counter is above 1."
+    conditions:
+      - metric: sfb.immcu_mcu_health_and_performance.mcu_health_state
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-immcu-immcu-conferences-throttled-sip-connections
+    severity: critical
+    category: sfb
+    title: "Front End: IMMCU - Throttled Sip Connections"
+    summary: "IMMCU - Throttled Sip Connections was above 0 (Front End role)."
+    explanation: "The number of throttled SIP connections. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.immcu_immcu_conferences.throttled_sip_connections
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-distribution-list-expansion-timed-out-active-directory-requests-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: WEB - Timed out Active Directory Requests/sec"
+    summary: "WEB - Timed out Active Directory Requests/sec was at or above 5 (Front End role)."
+    explanation: "The per-second rate of timed out Active Directory requests Legacy PAL alerts Critical when this counter is at or above 5."
+    conditions:
+      - metric: sfb.web_distribution_list_expansion.timed_out_active_directory_requests_per_sec
+        aggregation: avg
+        operator: ge
+        threshold: 5
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-address-book-file-download-failed-file-requests-per-second
+    severity: critical
+    category: sfb
+    title: "Front End: WEB - Failed File Requests/Second"
+    summary: "WEB - Failed File Requests/Second was at or above 5 (Front End role)."
+    explanation: "The per-second rate of failed Address Book file requests Legacy PAL alerts Critical when this counter is at or above 5."
+    conditions:
+      - metric: sfb.web_address_book_file_download.failed_file_requests_per_second
+        aggregation: avg
+        operator: ge
+        threshold: 5
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-joinlauncher-join-launcher-service-failures-join-failures
+    severity: critical
+    category: sfb
+    title: "Front End: JOINLAUNCHER - Join failures"
+    summary: "JOINLAUNCHER - Join failures was above 0 (Front End role)."
+    explanation: "The number of join failures Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.joinlauncher_join_launcher_service_failures.join_failures
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-ucwa-http-5xx-responses-per-second
+    severity: critical
+    category: sfb
+    title: "Front End: UCWA - HTTP 5xx Responses/Second"
+    summary: "UCWA - HTTP 5xx Responses/Second was above 0 (Front End role)."
+    explanation: "The per second rate of responses with HTTP 5xx code Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.web_ucwa.http_5xx_responses_per_second
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-auth-provider-related-calls-failed-validate-cert-calls-to-the-cert-auth-provider
+    severity: critical
+    category: sfb
+    title: "Front End: WEB - Failed validate cert calls to the cert auth provider"
+    summary: "WEB - Failed validate cert calls to the cert auth provider was above 0 (Front End role)."
+    explanation: "Number of failed validate cert calls to the cert auth provider Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.web_auth_provider_related_calls.failed_validate_cert_calls_to_the_cert_auth_provider
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-address-book-web-query-failed-search-requests-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: WEB - Failed search requests/sec"
+    summary: "WEB - Failed search requests/sec was above 0 (Front End role)."
+    explanation: "The per-second rate of failed address book search requests Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.web_address_book_web_query.failed_search_requests_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-location-information-service-failed-get-locations-requests-per-second
+    severity: critical
+    category: sfb
+    title: "Front End: WEB - Failed Get Locations Requests/Second"
+    summary: "WEB - Failed Get Locations Requests/Second was above 0 (Front End role)."
+    explanation: "The per-second rate of failed Get Locations requests Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.web_location_information_service.failed_get_locations_requests_per_second
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-caa-operations-incomplete-calls-per-sec
+    severity: critical
+    category: sfb
+    title: "Front End: CAA - Incomplete calls per sec"
+    summary: "CAA - Incomplete calls per sec was at or above 20 (Front End role)."
+    explanation: "The per second rate of incomplete calls to Conferencing Attendant. This includes calls disconnected by the user and by the system due to invalid conference id, passcode, etc. Legacy PAL alerts Critical when this counter is at or above 20."
+    conditions:
+      - metric: sfb.caa_operations.incomplete_calls_per_sec
+        aggregation: avg
+        operator: ge
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-conference-control-notification-notifications-in-processing
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Notifications in processing"
+    summary: "USrv - Notifications in processing was at or above 5000 (Front End role)."
+    explanation: "Number of Conference Notifications in processing Legacy PAL alerts Critical when this counter is at or above 5000."
+    conditions:
+      - metric: sfb.usrv_conference_control_notification.notifications_in_processing
+        aggregation: max
+        operator: ge
+        threshold: 5000
+        duration_percent: 1
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-conference-mcu-allocator-create-conference-latency-msec
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Create Conference Latency (msec)"
+    summary: "USrv - Create Conference Latency (msec) was at or above 1000 (Front End role)."
+    explanation: "The average time (in milliseconds) taken to complete a create conference call. Legacy PAL alerts Critical when this counter is at or above 1000."
+    conditions:
+      - metric: sfb.usrv_conference_mcu_allocator.create_conference_latency_msec
+        aggregation: avg
+        operator: ge
+        threshold: 1000
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-conference-mcu-allocator-factory-call-latency-msec
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Factory Call Latency (msec)"
+    summary: "USrv - Factory Call Latency (msec) was at or above 1000 (Front End role)."
+    explanation: "The average time (in milliseconds) taken to complete a MCU factory call. Legacy PAL alerts Critical when this counter is at or above 1000."
+    conditions:
+      - metric: sfb.usrv_conference_mcu_allocator.factory_call_latency_msec
+        aggregation: avg
+        operator: ge
+        threshold: 1000
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-usrv-conference-mcu-allocator-allocation-latency-msec
+    severity: critical
+    category: sfb
+    title: "Front End: USrv - Allocation Latency (msec)"
+    summary: "USrv - Allocation Latency (msec) was at or above 1000 (Front End role)."
+    explanation: "The average time (in milliseconds) taken to complete a full Mcu allocation request. Legacy PAL alerts Critical when this counter is at or above 1000."
+    conditions:
+      - metric: sfb.usrv_conference_mcu_allocator.allocation_latency_msec
+        aggregation: avg
+        operator: ge
+        threshold: 1000
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-mobile-communication-service-push-notification-requests-failed-per-second
+    severity: critical
+    category: sfb
+    title: "Front End: WEB - Push Notification Requests Failed/Second"
+    summary: "WEB - Push Notification Requests Failed/Second was above 0 (Front End role)."
+    explanation: "The per-second rate of push notifications failure Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.web_mobile_communication_service.push_notification_requests_failed_per_second
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-mobile-communication-service-push-notification-requests-throttled-per-second
+    severity: critical
+    category: sfb
+    title: "Front End: WEB - Push Notification Requests Throttled/Second"
+    summary: "WEB - Push Notification Requests Throttled/Second was above 0 (Front End role)."
+    explanation: "The per-second rate of push notifications throttling Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.web_mobile_communication_service.push_notification_requests_throttled_per_second
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-mobile-communication-service-requests-failed-per-second
+    severity: critical
+    category: sfb
+    title: "Front End: WEB - Requests Failed/Second"
+    summary: "WEB - Requests Failed/Second was above 0 (Front End role)."
+    explanation: "The per-second rate of requests failed Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.web_mobile_communication_service.requests_failed_per_second
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  - rule_id: fe-web-mobile-communication-service-requests-rejected-per-second
+    severity: critical
+    category: sfb
+    title: "Front End: WEB - Requests Rejected/Second"
+    summary: "WEB - Requests Rejected/Second was above 0 (Front End role)."
+    explanation: "The per-second rate of requests rejected Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.web_mobile_communication_service.requests_rejected_per_second
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-front-end-health
+  # === Edge role ===
+  - rule_id: edge-a-v-auth-requests-bad-requests-received-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: Bad Requests Received/sec"
+    summary: "Bad Requests Received/sec was at or above 20 (Edge role)."
+    explanation: "The number of bad requests received/sec Legacy PAL alerts Critical when this counter is at or above 20."
+    conditions:
+      - metric: sfb.a_v_auth_requests.bad_requests_received_per_sec
+        aggregation: avg
+        operator: ge
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-a-v-edge-udp-counters-a-v-edge-authentication-failures-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: A/V Edge - Authentication Failures/sec"
+    summary: "A/V Edge - Authentication Failures/sec was at or above 20 (Edge role)."
+    explanation: "The per-second rate of failed attempts to authenticate with the relay over UDP. Legacy PAL alerts Critical when this counter is at or above 20."
+    conditions:
+      - metric: sfb.a_v_edge_udp_counters.a_v_edge_authentication_failures_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: ge
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-a-v-edge-udp-counters-a-v-edge-allocate-requests-exceeding-port-limit-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: A/V Edge - Allocate Requests Exceeding Port Limit/sec"
+    summary: "A/V Edge - Allocate Requests Exceeding Port Limit/sec was at or above 20 (Edge role)."
+    explanation: "The per-second rate of allocate requests over UDP that exceeded the port limit. Legacy PAL alerts Critical when this counter is at or above 20."
+    conditions:
+      - metric: sfb.a_v_edge_udp_counters.a_v_edge_allocate_requests_exceeding_port_limit_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: ge
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-a-v-edge-udp-counters-a-v-edge-packets-dropped-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: A/V Edge - Packets Dropped/sec"
+    summary: "A/V Edge - Packets Dropped/sec was at or above 300 (Edge role)."
+    explanation: "The per-second rate of packets over UDP dropped by the relay. Legacy PAL alerts Critical when this counter is at or above 300."
+    conditions:
+      - metric: sfb.a_v_edge_udp_counters.a_v_edge_packets_dropped_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: ge
+        threshold: 300
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-a-v-edge-tcp-counters-a-v-edge-authentication-failures-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: A/V Edge - Authentication Failures/sec"
+    summary: "A/V Edge - Authentication Failures/sec was at or above 20 (Edge role)."
+    explanation: "The per-second rate of failed attempts to authenticate with the relay over TCP. Legacy PAL alerts Critical when this counter is at or above 20."
+    conditions:
+      - metric: sfb.a_v_edge_tcp_counters.a_v_edge_authentication_failures_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: ge
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-a-v-edge-tcp-counters-a-v-edge-allocate-requests-exceeding-port-limit-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: A/V Edge - Allocate Requests Exceeding Port Limit/sec"
+    summary: "A/V Edge - Allocate Requests Exceeding Port Limit/sec was at or above 20 (Edge role)."
+    explanation: "The per-second rate of allocate requests over TCP that exceeded the port limit. Legacy PAL alerts Critical when this counter is at or above 20."
+    conditions:
+      - metric: sfb.a_v_edge_tcp_counters.a_v_edge_allocate_requests_exceeding_port_limit_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: ge
+        threshold: 20
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-a-v-edge-tcp-counters-a-v-edge-packets-dropped-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: A/V Edge - Packets Dropped/sec"
+    summary: "A/V Edge - Packets Dropped/sec was at or above 300 (Edge role)."
+    explanation: "The per-second rate of packets over TCP dropped by the relay. Legacy PAL alerts Critical when this counter is at or above 300."
+    conditions:
+      - metric: sfb.a_v_edge_tcp_counters.a_v_edge_packets_dropped_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: ge
+        threshold: 300
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-sip-peers-above-limit-connections-dropped-access-proxies-only
+    severity: critical
+    category: sfb
+    title: "Edge: SIP - Above Limit Connections Dropped (Access Proxies only)"
+    summary: "SIP - Above Limit Connections Dropped (Access Proxies only) was at or above 1 (Edge role)."
+    explanation: "The total number of connections that were dropped because the limit on number of incoming connections from a federated partner or clearinghouse was exceeded. Legacy PAL alerts Critical when this counter is at or above 1."
+    conditions:
+      - metric: sfb.sip_peers.above_limit_connections_dropped_access_proxies_only
+        instance: "_Total"
+        aggregation: max
+        operator: ge
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-sip-peers-sends-timed-out-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: SIP - Sends Timed-Out/sec"
+    summary: "SIP - Sends Timed-Out/sec was at or above 10 (Edge role)."
+    explanation: "The per-second rate of sends dropped because they stayed in outgoing (send) queue for too long. Legacy PAL alerts Critical when this counter is at or above 10."
+    conditions:
+      - metric: sfb.sip_peers.sends_timed_out_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: ge
+        threshold: 10
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-sip-peers-flow-controlled-connections
+    severity: critical
+    category: sfb
+    title: "Edge: SIP - Flow-controlled Connections"
+    summary: "SIP - Flow-controlled Connections was at or above 100 (Edge role)."
+    explanation: "The number of connections that are currently being flow-controlled (no socket receives are posted). Legacy PAL alerts Critical when this counter is at or above 100."
+    conditions:
+      - metric: sfb.sip_peers.flow_controlled_connections
+        instance: "_Total"
+        aggregation: max
+        operator: ge
+        threshold: 100
+        duration_percent: 1
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-sip-protocol-average-incoming-message-processing-time
+    severity: critical
+    category: sfb
+    title: "Edge: SIP - Average Incoming Message Processing Time"
+    summary: "SIP - Average Incoming Message Processing Time was at or above 3 (Edge role)."
+    explanation: "The average time (in seconds) it takes to process an incoming message. Legacy PAL alerts Critical when this counter is at or above 3."
+    conditions:
+      - metric: sfb.sip_protocol.average_incoming_message_processing_time
+        aggregation: avg
+        operator: ge
+        threshold: 3
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-dataproxy-server-connections-current-count-of-server-connections-that-are-throttled
+    severity: critical
+    category: sfb
+    title: "Edge: DATAPROXY - Current count of server connections that are throttled"
+    summary: "DATAPROXY - Current count of server connections that are throttled was at or above 3 (Edge role)."
+    explanation: "The number of server connections currently that are throttled Legacy PAL alerts Critical when this counter is at or above 3."
+    conditions:
+      - metric: sfb.dataproxy_server_connections.current_count_of_server_connections_that_are_throttled
+        instance: "_Total"
+        aggregation: max
+        operator: ge
+        threshold: 3
+        duration_percent: 1
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-dataproxy-server-connections-system-is-throttling
+    severity: critical
+    category: sfb
+    title: "Edge: DATAPROXY - System is throttling"
+    summary: "DATAPROXY - System is throttling was above 0 (Edge role)."
+    explanation: "This value indicates that system wide throttling is on Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.dataproxy_server_connections.system_is_throttling
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-xmppfederationproxy-streams-failed-inbound-stream-establishes-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: XmppFederationProxy - Failed inbound stream establishes/sec"
+    summary: "XmppFederationProxy - Failed inbound stream establishes/sec was above 0 (Edge role)."
+    explanation: "Number of inbound stream establishment failures/sec Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.xmppfederationproxy_streams.failed_inbound_stream_establishes_per_sec
+        aggregation: avg
+        operator: gt
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  - rule_id: edge-xmppfederationproxy-streams-failed-outbound-stream-establishes-per-sec
+    severity: critical
+    category: sfb
+    title: "Edge: XmppFederationProxy - Failed outbound stream establishes/sec"
+    summary: "XmppFederationProxy - Failed outbound stream establishes/sec was at or above 0 (Edge role)."
+    explanation: "Number of outbound stream establishment failures/sec Legacy PAL alerts Critical when this counter is at or above 0."
+    conditions:
+      - metric: sfb.xmppfederationproxy_streams.failed_outbound_stream_establishes_per_sec
+        aggregation: avg
+        operator: ge
+        threshold: 0
+        duration_percent: 10
+    recommendations:
+      - investigate-edge-health
+  # === Mediation role ===
+  - rule_id: med-mediationserver-media-relay-candidates-missing
+    severity: critical
+    category: sfb
+    title: "Mediation: Candidates Missing"
+    summary: "Candidates Missing was above 0 (Mediation role)."
+    explanation: "Number of times Media stack does not have Media relay candidates. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.mediationserver_media_relay.candidates_missing
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-mediation-health
+  - rule_id: med-mediationserver-media-relay-media-connectivity-check-failure
+    severity: critical
+    category: sfb
+    title: "Mediation: Media Connectivity Check Failure"
+    summary: "Media Connectivity Check Failure was above 0 (Mediation role)."
+    explanation: "Number of media connectivity check failures. Legacy PAL alerts Critical when this counter is above 0."
+    conditions:
+      - metric: sfb.mediationserver_media_relay.media_connectivity_check_failure
+        aggregation: max
+        operator: gt
+        threshold: 0
+        duration_percent: 1
+    recommendations:
+      - investigate-mediation-health
+  - rule_id: med-mediationserver-health-indices-load-call-failure-index
+    severity: critical
+    category: sfb
+    title: "Mediation: Load Call Failure Index"
+    summary: "Load Call Failure Index was at or above 10 (Mediation role)."
+    explanation: "Scaled index between zero and 100 that is related to all call failures due to heavy load Legacy PAL alerts Critical when this counter is at or above 10."
+    conditions:
+      - metric: sfb.mediationserver_health_indices.load_call_failure_index
+        aggregation: max
+        operator: ge
+        threshold: 10
+        duration_percent: 1
+    recommendations:
+      - investigate-mediation-health
+  - rule_id: med-mediationserver-global-counters-total-failed-calls-caused-by-unexpected-interaction-from-the-proxy
+    severity: critical
+    category: sfb
+    title: "Mediation: Total failed calls caused by unexpected interaction from the Proxy"
+    summary: "Total failed calls caused by unexpected interaction from the Proxy was at or above 10 (Mediation role)."
+    explanation: "The number of calls that failed because of unexpected interaction from the Proxy Legacy PAL alerts Critical when this counter is at or above 10."
+    conditions:
+      - metric: sfb.mediationserver_global_counters.total_failed_calls_caused_by_unexpected_interaction_from_the_proxy
+        aggregation: max
+        operator: ge
+        threshold: 10
+        duration_percent: 1
+    recommendations:
+      - investigate-mediation-health
+  - rule_id: med-mediationserver-global-per-gateway-counters-total-failed-calls-caused-by-unexpected-interaction-from-a-gateway
+    severity: critical
+    category: sfb
+    title: "Mediation: Total failed calls caused by unexpected interaction from a gateway"
+    summary: "Total failed calls caused by unexpected interaction from a gateway was at or above 10 (Mediation role)."
+    explanation: "The number of calls that failed because of unexpected interaction from a gateway Legacy PAL alerts Critical when this counter is at or above 10."
+    conditions:
+      - metric: sfb.mediationserver_global_per_gateway_counters.total_failed_calls_caused_by_unexpected_interaction_from_a_gateway
+        instance: "_Total"
+        aggregation: max
+        operator: ge
+        threshold: 10
+        duration_percent: 1
+    recommendations:
+      - investigate-mediation-health

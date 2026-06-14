@@ -1,0 +1,251 @@
+schema_version: "pal.pack/v1"
+pack_id: dynamics-ax
+pack_name: "Dynamics AX 2012 AOS & WCF"
+version: "1.0.0"
+description: "Microsoft Dynamics AX 2012 AOS health thresholds from the WCF ServiceModelService 4.0.0.0 counters that front the AOS: WCF call duration, failed/faulted calls, and percent-of-max concurrent calls/instances/sessions throttle saturation. Loads alongside windows-core (the always-on base) on Dynamics AX AOS captures."
+
+# Workload pack: loads only when Dynamics AX 2012 AOS WCF (ServiceModelService) counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+# Note: legacy DynamicsAX2012AOS.xml charts many additional "Microsoft Dynamics AX Object Server"
+# cache counters (total clears, deletes, hits, misses, selects) and a raw WCF "Calls" rate, but
+# defines NO alert threshold for them — they are observational only. The six counters below are the
+# only ones carrying StaticThreshold alerting rules in legacy.
+applicability:
+  requires_any:
+    - dynamicsax.wcf_calls_duration
+    - dynamicsax.wcf_calls_failed
+    - dynamicsax.wcf_calls_faulted
+    - dynamicsax.wcf_percent_max_concurrent_calls
+    - dynamicsax.wcf_percent_max_concurrent_instances
+    - dynamicsax.wcf_percent_max_concurrent_sessions
+
+recommendations:
+  investigate-wcf-latency:
+    priority: high
+    text: "Profile the slow AX WCF service operations (trace logging on the AOS, AX SQL trace, and downstream dependency timing) to find which calls exceed two seconds; check AOS CPU/memory headroom and SQL Server latency feeding the AOS."
+    rationale: "WCF call duration is the round-trip time clients see for AX service operations — sustained multi-second calls slow every integration and AOS-fronted client request."
+    links:
+      - "https://blogs.msdn.com/b/sajay/archive/2009/09/14/wcf-performance-counters.aspx"
+
+  investigate-wcf-failures:
+    priority: high
+    text: "Inspect the AOS event log and WCF tracing for the failed/faulted operations to determine whether the cause is a message-format/serialization error or a fault returned by AX business logic, then fix the offending integration or X++ code path."
+    rationale: "Failed and faulted WCF calls are dropped or errored AX service operations — they represent integration requests that did not complete successfully and need root-cause investigation, not tuning."
+
+  increase-wcf-throttle:
+    priority: medium
+    text: "If AOS CPU is still below ~80%, raise the service group's MaxConcurrentCalls / MaxConcurrentInstances / MaxConcurrentSessions throttle (default 200) in the service configuration; otherwise scale out AOS instances to add capacity."
+    rationale: "Percent-of-max concurrency approaching 100% means the WCF throttle — not the hardware — is the bottleneck, so requests queue behind the limit even when the box has spare CPU."
+    links:
+      - "https://msdn.microsoft.com/en-us/library/ms735098.aspx"
+
+rules:
+  # ── WCF call latency (ServiceModelService 4.0.0.0 — Calls Duration) ────────
+  - rule_id: ax2012-wcf-call-duration-high
+    severity: warning
+    category: dynamics
+    title: "Elevated AX WCF call duration"
+    summary: "WCF Calls Duration averaged above 1 second, indicating slow AX service operations."
+    explanation: |
+      Calls Duration is the round-trip execution time of WCF service operations exposed by the
+      Dynamics AX 2012 AOS (ServiceModelService 4.0.0.0). A sustained average above 1 second means
+      AX service calls are taking longer than expected, which slows every integration and AOS-fronted
+      client request. Common causes are AOS CPU/memory pressure, slow SQL Server queries behind the
+      AOS, or inefficient business logic in the called operation.
+    conditions:
+      - metric: dynamicsax.wcf_calls_duration
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-wcf-latency
+
+  - rule_id: ax2012-wcf-call-duration-critical
+    severity: critical
+    category: dynamics
+    title: "Critical AX WCF call duration"
+    summary: "WCF Calls Duration averaged above 2 seconds — AX service latency is degraded."
+    explanation: |
+      A WCF Calls Duration average above 2 seconds (ServiceModelService 4.0.0.0) means Dynamics AX
+      service operations are routinely taking multiple seconds to complete. At this level integrations
+      and AOS-fronted client requests experience noticeable latency and may begin timing out. This
+      usually points to AOS resource saturation or slow SQL Server / business-logic paths that need
+      immediate attention.
+    conditions:
+      - metric: dynamicsax.wcf_calls_duration
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 2
+        duration_percent: 10
+    recommendations:
+      - investigate-wcf-latency
+
+  # ── WCF call failures ─────────────────────────────────────────────────────
+  - rule_id: ax2012-wcf-calls-failed
+    severity: critical
+    category: dynamics
+    title: "AX WCF calls failed"
+    summary: "WCF Calls Failed exceeded 1 — AX service operations are failing (message-format errors)."
+    explanation: |
+      Calls Failed counts WCF service operations on the AX AOS (ServiceModelService 4.0.0.0) that
+      failed, typically due to a message-format or serialization error before the operation could run.
+      Any sustained non-trivial count means AX integration requests are being dropped and not
+      processed, so the calling systems are not getting their results. Inspect the AOS event log and
+      WCF tracing to identify the failing contract or client.
+    conditions:
+      - metric: dynamicsax.wcf_calls_failed
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-wcf-failures
+
+  - rule_id: ax2012-wcf-calls-faulted
+    severity: critical
+    category: dynamics
+    title: "AX WCF calls faulted"
+    summary: "WCF Calls Faulted exceeded 1 — AX returned faults from service operations."
+    explanation: |
+      Calls Faulted counts WCF service operations on the AX AOS (ServiceModelService 4.0.0.0) that
+      returned a fault — that is, the operation ran but AX business logic raised an error back to the
+      caller. A sustained non-trivial count means AX integration calls are erroring out in business
+      logic. Inspect the AOS event log and WCF tracing to find the faulting operation and fix the
+      underlying X++ code path or data condition.
+    conditions:
+      - metric: dynamicsax.wcf_calls_faulted
+        instance: "_Total"
+        aggregation: max
+        operator: gt
+        threshold: 1
+        duration_percent: 1
+    recommendations:
+      - investigate-wcf-failures
+
+  # ── WCF concurrency throttle saturation ───────────────────────────────────
+  - rule_id: ax2012-wcf-max-concurrent-calls-high
+    severity: warning
+    category: dynamics
+    title: "AX WCF concurrent-calls throttle approaching limit"
+    summary: "Percent Of Max Concurrent Calls averaged above 70% of the configured WCF limit."
+    explanation: |
+      Percent Of Max Concurrent Calls is how close the AX AOS WCF service is to its MaxConcurrentCalls
+      throttle (default 200). Sustained values above 70% mean the service is consuming most of its
+      configured concurrent-call budget; once the limit is reached, further calls queue behind it even
+      if the AOS has spare CPU. If AOS CPU is still below ~80%, the throttle should be raised.
+    conditions:
+      - metric: dynamicsax.wcf_percent_max_concurrent_calls
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 70
+        duration_percent: 10
+    recommendations:
+      - increase-wcf-throttle
+
+  - rule_id: ax2012-wcf-max-concurrent-calls-critical
+    severity: critical
+    category: dynamics
+    title: "AX WCF concurrent-calls throttle saturated"
+    summary: "Percent Of Max Concurrent Calls averaged above 90% of the configured WCF limit."
+    explanation: |
+      Percent Of Max Concurrent Calls above 90% (ServiceModelService 4.0.0.0) means the AX AOS WCF
+      service is at the edge of its MaxConcurrentCalls throttle (default 200). New service calls are
+      about to queue behind the limit, raising latency and risking timeouts for AX integrations even
+      while the box has spare CPU. Raise the throttle if AOS CPU is below ~80%, or scale out AOS
+      instances.
+    conditions:
+      - metric: dynamicsax.wcf_percent_max_concurrent_calls
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 90
+        duration_percent: 10
+    recommendations:
+      - increase-wcf-throttle
+
+  - rule_id: ax2012-wcf-max-concurrent-instances-high
+    severity: warning
+    category: dynamics
+    title: "AX WCF concurrent-instances throttle approaching limit"
+    summary: "Percent Of Max Concurrent Instances averaged above 70% of the configured WCF limit."
+    explanation: |
+      Percent Of Max Concurrent Instances is how close the AX AOS WCF service is to its
+      MaxConcurrentInstances throttle (default 200). Sustained values above 70% mean most of the
+      configured service-instance budget is in use; once the limit is reached, additional work queues
+      behind it even when the AOS has spare CPU. If AOS CPU is still below ~80%, raise the throttle.
+    conditions:
+      - metric: dynamicsax.wcf_percent_max_concurrent_instances
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 70
+        duration_percent: 10
+    recommendations:
+      - increase-wcf-throttle
+
+  - rule_id: ax2012-wcf-max-concurrent-instances-critical
+    severity: critical
+    category: dynamics
+    title: "AX WCF concurrent-instances throttle saturated"
+    summary: "Percent Of Max Concurrent Instances averaged above 90% of the configured WCF limit."
+    explanation: |
+      Percent Of Max Concurrent Instances above 90% (ServiceModelService 4.0.0.0) means the AX AOS WCF
+      service is at the edge of its MaxConcurrentInstances throttle (default 200). New service
+      instances are about to queue behind the limit, raising latency and risking timeouts for AX
+      integrations even while the box has spare CPU. Raise the throttle if AOS CPU is below ~80%, or
+      scale out AOS instances.
+    conditions:
+      - metric: dynamicsax.wcf_percent_max_concurrent_instances
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 90
+        duration_percent: 10
+    recommendations:
+      - increase-wcf-throttle
+
+  - rule_id: ax2012-wcf-max-concurrent-sessions-high
+    severity: warning
+    category: dynamics
+    title: "AX WCF concurrent-sessions throttle approaching limit"
+    summary: "Percent Of Max Concurrent Sessions averaged above 70% of the configured WCF limit."
+    explanation: |
+      Percent Of Max Concurrent Sessions is how close the AX AOS WCF service is to its
+      MaxConcurrentSessions throttle (default 200). Sustained values above 70% mean most of the
+      configured session budget is in use; once the limit is reached, new sessions queue behind it
+      even when the AOS has spare CPU. If AOS CPU is still below ~80%, raise the throttle.
+    conditions:
+      - metric: dynamicsax.wcf_percent_max_concurrent_sessions
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 70
+        duration_percent: 10
+    recommendations:
+      - increase-wcf-throttle
+
+  - rule_id: ax2012-wcf-max-concurrent-sessions-critical
+    severity: critical
+    category: dynamics
+    title: "AX WCF concurrent-sessions throttle saturated"
+    summary: "Percent Of Max Concurrent Sessions averaged above 90% of the configured WCF limit."
+    explanation: |
+      Percent Of Max Concurrent Sessions above 90% (ServiceModelService 4.0.0.0) means the AX AOS WCF
+      service is at the edge of its MaxConcurrentSessions throttle (default 200). New sessions are
+      about to queue behind the limit, raising latency and risking timeouts for AX integrations even
+      while the box has spare CPU. Raise the throttle if AOS CPU is below ~80%, or scale out AOS
+      instances.
+    conditions:
+      - metric: dynamicsax.wcf_percent_max_concurrent_sessions
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 90
+        duration_percent: 10
+    recommendations:
+      - increase-wcf-throttle

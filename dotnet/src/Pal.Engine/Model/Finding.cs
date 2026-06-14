@@ -22,7 +22,7 @@ public sealed class Finding
     /// <summary>One of <c>critical</c>, <c>warning</c>, <c>informational</c>.</summary>
     public required string Severity { get; init; }
 
-    /// <summary>One of <c>cpu</c>, <c>memory</c>, <c>disk</c>, <c>network</c>, <c>process</c>, <c>iis</c>, <c>sql</c>, <c>dotnet</c>, <c>ad</c>, <c>system</c>, <c>collection</c>, <c>pack-validation</c>.</summary>
+    /// <summary>One of <c>cpu</c>, <c>memory</c>, <c>disk</c>, <c>network</c>, <c>process</c>, <c>iis</c>, <c>sql</c>, <c>dotnet</c>, <c>ad</c>, <c>print</c>, <c>hyperv</c>, <c>sharepoint</c>, <c>exchange</c>, <c>citrix</c>, <c>dynamics</c>, <c>sfb</c>, <c>system</c>, <c>collection</c>, <c>pack-validation</c>.</summary>
     public required string Category { get; init; }
 
     /// <summary>One-line title from the rule.</summary>

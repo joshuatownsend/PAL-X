@@ -1,0 +1,7 @@
+"(PDH-CSV 4.0)","\\SP01\SharePoint Publishing Cache(_Total)\Publishing cache flushes / second","\\SP01\SharePoint Publishing Cache(_Total)\Publishing cache hit ratio","\\SP01\SharePoint Publishing Cache(_Total)\Publishing cache misses / sec","\\SP01\Office Server Search Archival Plugin(Portal_Content)\Total docs in first queue","\\SP01\Office Server Search Archival Plugin(Portal_Content)\Total docs in Second queue","\\SP01\Office Server Search Archival Plugin(ProfileImport)\Total docs in first queue","\\SP01\Office Server Search Archival Plugin(ProfileImport)\Total docs in Second queue","\\SP01\Office Server Search Gatherer\Idle Threads"
+"04/23/2026 08:00:00.000","5.0","85.0","6.0","500","500","50","50","0"
+"04/23/2026 08:05:00.000","4.5","84.0","5.5","500","500","50","50","0"
+"04/23/2026 08:10:00.000","6.0","86.0","6.5","500","500","50","50","0"
+"04/23/2026 08:15:00.000","5.5","83.0","5.0","500","500","50","50","0"
+"04/23/2026 08:20:00.000","4.0","85.0","6.0","500","500","50","50","0"
+"04/23/2026 08:25:00.000","5.0","84.0","5.5","500","500","50","50","0"

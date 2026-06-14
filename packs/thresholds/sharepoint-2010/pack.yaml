@@ -1,0 +1,94 @@
+schema_version: "pal.pack/v1"
+pack_id: sharepoint-2010
+pack_name: "SharePoint Server 2010"
+version: "1.0.0"
+description: "SharePoint Server 2010 publishing-cache health thresholds: cache flush rate, cache miss rate, and cache hit ratio. Loads alongside windows-core (the always-on base) on SharePoint 2010 captures."
+
+# Workload pack: loads only when SharePoint Publishing Cache counters are present.
+# Base CPU/memory/disk coverage comes from windows-core (always: true) — do not redeclare it here.
+# Note: legacy SPS2010.xml charts many additional SharePoint Foundation / OSS Search counters
+# (current page requests, executing SQL queries, incoming/responded request rates, active threads,
+# search documents filtered) but defines NO alert threshold for them — they are observational only.
+# The only legacy StaticThreshold alert rules are the three Publishing Cache thresholds below.
+applicability:
+  requires_any:
+    - sharepoint.publishing_cache_flushes_per_sec
+    - sharepoint.publishing_cache_misses_per_sec
+    - sharepoint.publishing_cache_hit_ratio
+
+recommendations:
+  investigate-cache-pressure:
+    priority: high
+    text: "Check the worker-process memory headroom and recycle history on the SharePoint web front end. A high flush or miss rate often coincides with a worker-process restart, memory pressure, or under-sized output/object cache settings — review the publishing output cache and object cache profiles in Central Administration."
+    rationale: "SharePoint relies on the publishing cache for high performance; sustained flushes or misses force the server to rebuild pages from the content database, raising CPU, SQL load, and page latency."
+    links:
+      - "https://learn.microsoft.com/en-us/sharepoint/administration/cache-settings-operations"
+
+  raise-cache-hit-ratio:
+    priority: medium
+    text: "Investigate why the publishing cache hit ratio has fallen below 99 percent: look for frequent content changes invalidating the cache, an undersized object cache, or memory pressure forcing evictions. Tune the object cache size and review per-site output-cache profiles."
+    rationale: "A low cache hit ratio means most page requests miss the cache and fall through to the content database, which increases SQL load and slows page rendering."
+
+rules:
+  # ── SharePoint Publishing Cache — flush rate ──────────────────────────────
+  - rule_id: sp2010-publishing-cache-flush-rate-high
+    severity: warning
+    category: sharepoint
+    title: "Elevated SharePoint publishing cache flush rate"
+    summary: "Publishing cache flushes exceeded 1 per second — the cache is being rebuilt due to site changes."
+    explanation: |
+      Publishing cache flushes / second is the rate at which SharePoint updates (flushes) the
+      publishing cache because of site changes. A sustained rate above 1 per second can indicate an
+      approaching problem such as lack of memory, a worker-process restart, or poor cache hits.
+      Frequent flushes force pages to be rebuilt from the content database, raising CPU and SQL load.
+    conditions:
+      - metric: sharepoint.publishing_cache_flushes_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-cache-pressure
+
+  # ── SharePoint Publishing Cache — miss rate ───────────────────────────────
+  - rule_id: sp2010-publishing-cache-miss-rate-high
+    severity: warning
+    category: sharepoint
+    title: "Elevated SharePoint publishing cache miss rate"
+    summary: "Publishing cache misses exceeded 1 per second — requests are falling through to the content database."
+    explanation: |
+      Publishing cache misses / sec is the rate of misses on the SharePoint publishing cache. A high
+      miss rate (more than 1 per second) can indicate an approaching problem with lack of memory, a
+      worker-process restart, or poor cache hits. Each miss forces the request to be served from the
+      content database instead of cache, increasing SQL load and page latency.
+    conditions:
+      - metric: sharepoint.publishing_cache_misses_per_sec
+        instance: "_Total"
+        aggregation: avg
+        operator: gt
+        threshold: 1
+        duration_percent: 10
+    recommendations:
+      - investigate-cache-pressure
+
+  # ── SharePoint Publishing Cache — hit ratio ───────────────────────────────
+  - rule_id: sp2010-publishing-cache-hit-ratio-low
+    severity: warning
+    category: sharepoint
+    title: "Low SharePoint publishing cache hit ratio"
+    summary: "Publishing cache hit ratio dropped below 99 percent — most requests are missing the cache."
+    explanation: |
+      Publishing cache hit ratio is the ratio of hits to misses on the SharePoint publishing cache.
+      A value below 99 percent means a meaningful share of page requests are not being served from
+      cache and instead fall through to the content database. A low hit ratio can indicate lack of
+      memory, a worker-process restart, frequent content invalidation, or an undersized object cache.
+    conditions:
+      - metric: sharepoint.publishing_cache_hit_ratio
+        instance: "_Total"
+        aggregation: avg
+        operator: lt
+        threshold: 99
+        duration_percent: 10
+    recommendations:
+      - raise-cache-hit-ratio
