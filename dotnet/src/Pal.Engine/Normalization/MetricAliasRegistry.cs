@@ -97,6 +97,16 @@ public sealed class MetricAliasRegistry
         reg.Add(@"\\[^\\]+\\ASP\.NET Applications\([^)]*\)\\Requests In Application Queue", "aspnet.requests_in_application_queue");
         reg.Add(@"\\[^\\]+\\ASP\.NET Applications\([^)]*\)\\Request Execution Time", "aspnet.request_execution_time");
         reg.Add(@"\\[^\\]+\\ASP\.NET Applications\([^)]*\)\\Errors Total/sec", "aspnet.errors_total_per_sec");
+        // ASP.NET versioned application counters (\ASP.NET Apps vX.Y.ZZZZZ(*)\...) map to the same canonical IDs
+        reg.Add(@"\\[^\\]+\\ASP\.NET Apps v[0-9.]+\([^)]*\)\\Request Execution Time", "aspnet.request_execution_time");
+
+        // .NET CLR
+        reg.Add(@"\\[^\\]+\\\.NET CLR Exceptions\([^)]*\)\\# of Exceps Thrown / sec", "dotnetclr.exceptions_thrown_per_sec");
+        reg.Add(@"\\[^\\]+\\\.NET CLR Memory\([^)]*\)\\% Time in GC", "dotnetclr.percent_time_in_gc");
+
+        // NTDS — Active Directory domain controller (singleton object, no instance)
+        reg.Add(@"\\[^\\]+\\NTDS\\LDAP Bind Time", "ntds.ldap_bind_time");
+        reg.Add(@"\\[^\\]+\\NTDS\\DRA Pending Replication Operations", "ntds.dra_pending_replication_operations");
 
         return reg;
     }
