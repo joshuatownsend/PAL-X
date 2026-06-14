@@ -6,7 +6,7 @@ namespace Pal.Packs;
 public sealed class PackValidator
 {
     private static readonly HashSet<string> ValidSeverities = ["critical", "warning", "informational"];
-    private static readonly HashSet<string> ValidCategories = ["cpu", "memory", "disk", "network", "process", "iis", "sql", "system", "collection", "pack-validation"];
+    private static readonly HashSet<string> ValidCategories = ["cpu", "memory", "disk", "network", "process", "iis", "sql", "dotnet", "system", "collection", "pack-validation"];
     private static readonly HashSet<string> ValidAggregations = ["avg", "min", "max", "p90", "p95", "p99", "trend"];
     private static readonly HashSet<string> ValidWindowAggregations = ["avg", "min", "max", "p90", "p95", "p99"];
     private static readonly HashSet<string> ValidSchemaVersions = ["pal.pack/v1", "pal.pack/v1.1"];
