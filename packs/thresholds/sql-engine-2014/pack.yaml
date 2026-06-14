@@ -180,25 +180,11 @@ rules:
     recommendations:
       - tune-buffer-pool
 
-  - rule_id: sql2014-page-reads-very-high
-    severity: critical
-    category: sql
-    title: "Critical SQL Server page read rate"
-    summary: "Page reads exceeded 20 per second — readahead/physical read activity is excessive."
-    explanation: |
-      Page Reads/sec above 20 is flagged as critical in the legacy SQL Server 2014 analysis because
-      physical page reads (including readahead) should be a small fraction of total page activity once
-      the buffer pool is warm. Sustained physical reads at this level mean data is being re-read from
-      disk continuously, indicating an undersized buffer pool or queries scanning more data than they
-      should.
-    conditions:
-      - metric: sql.page_reads_per_sec
-        aggregation: avg
-        operator: gt
-        threshold: 20
-        duration_percent: 10
-    recommendations:
-      - tune-buffer-pool
+  # Note: legacy SQLServer2014.xml also defined a "critical" threshold on this same
+  # Buffer Manager\Page reads/sec counter at gt 20 — but its name was "Less than 20% of
+  # Page Reads/sec", a mislabeled ratio analysis with no declarative equivalent (ADR 0002).
+  # Porting the literal gt 20 produced a contradictory pair (critical easier to trip than the
+  # gt 90 warning above), so it is intentionally not ported. See PR #80 review.
 
   - rule_id: sql2014-page-writes-high
     severity: warning

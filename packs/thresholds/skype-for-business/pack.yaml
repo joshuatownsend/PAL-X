@@ -103,7 +103,7 @@ rules:
     category: sfb
     title: "Front End: USrv - Queue Latency (msec)"
     summary: "USrv - Queue Latency (msec) was at or above 100 (Front End role)."
-    explanation: "Queue latency is the amount of time (in milliseconds) that it takes for a request to leave the Front End Server's queue toward the back-end database. If this value by itself is high, you may have be encountering a network problem between FE->SQL. If this value is high and Sproc Latency is high, it is most commonly a bottom-neck with the SQL backend. Legacy PAL alerts Critical when this counter is at or above 100."
+    explanation: "Queue latency is the amount of time (in milliseconds) that it takes for a request to leave the Front End Server's queue toward the back-end database. If this value by itself is high, you may be encountering a network problem between FE->SQL. If this value is high and Sproc Latency is high, it is most commonly a bottleneck with the SQL backend. Legacy PAL alerts Critical when this counter is at or above 100."
     conditions:
       - metric: sfb.usrv_dbstore.queue_latency_msec
         aggregation: avg
@@ -986,12 +986,12 @@ rules:
     severity: critical
     category: sfb
     title: "Edge: XmppFederationProxy - Failed outbound stream establishes/sec"
-    summary: "XmppFederationProxy - Failed outbound stream establishes/sec was at or above 0 (Edge role)."
-    explanation: "Number of outbound stream establishment failures/sec Legacy PAL alerts Critical when this counter is at or above 0."
+    summary: "XmppFederationProxy - Failed outbound stream establishes/sec was above 0 (Edge role)."
+    explanation: "Number of outbound stream establishment failures/sec. The legacy threshold name is 'Failed outbound stream establishes/sec > 0'; PAL alerts Critical when any failures occur (rate above 0)."
     conditions:
       - metric: sfb.xmppfederationproxy_streams.failed_outbound_stream_establishes_per_sec
         aggregation: avg
-        operator: ge
+        operator: gt
         threshold: 0
         duration_percent: 10
     recommendations:

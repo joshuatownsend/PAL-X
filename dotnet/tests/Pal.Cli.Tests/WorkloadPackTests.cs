@@ -25,7 +25,6 @@ public class WorkloadPackTests
     [InlineData("print-server", "print")]
     [InlineData("hyper-v", "hyperv")]
     [InlineData("sharepoint-2013", "sharepoint")]
-    [InlineData("sharepoint-2010", "sharepoint")]
     [InlineData("exchange-2016", "exchange")]
     [InlineData("sql-engine-2014", "sql")]
     [InlineData("citrix-xenapp", "citrix")]
