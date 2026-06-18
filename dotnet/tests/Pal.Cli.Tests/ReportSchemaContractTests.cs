@@ -30,6 +30,7 @@ public class ReportSchemaContractTests
         if (RepoRoot is null) return;
 
         var reportJson = WriteReport("cpu-pressure", []);
+        AssertHasFindings(reportJson);
         AssertReportIsSchemaValid(reportJson);
     }
 
@@ -39,6 +40,7 @@ public class ReportSchemaContractTests
         if (RepoRoot is null) return;
 
         var reportJson = WriteReport("dotnet-clr", ["dotnet-clr"]);
+        AssertHasFindings(reportJson, "dotnet");
         AssertReportIsSchemaValid(reportJson);
     }
 
@@ -48,6 +50,7 @@ public class ReportSchemaContractTests
         if (RepoRoot is null) return;
 
         var reportJson = WriteReport("active-directory", ["active-directory"]);
+        AssertHasFindings(reportJson, "ad");
         AssertReportIsSchemaValid(reportJson);
     }
 
@@ -69,7 +72,12 @@ public class ReportSchemaContractTests
         using var doc = JsonDocument.Parse(tampered);
         var results = ReportSchema!.Evaluate(doc.RootElement, new EvaluationOptions
         {
-            OutputFormat = OutputFormat.List
+            OutputFormat = OutputFormat.List,
+            // Draft-07 treats `format` as an annotation by default, so the schema's
+            // `format: date-time` constraints (generated_at_utc, dataset times, finding
+            // windows) would not be asserted. Force them on so a writer regressing to a
+            // non-date string is caught by the contract test.
+            RequireFormatValidation = true
         });
         Assert.False(results.IsValid, "Expected tampered report to fail schema validation but it passed");
     }
@@ -93,6 +101,16 @@ public class ReportSchemaContractTests
 
             var resolver = new PackResolver();
             var resolveResult = resolver.Resolve(packIds, [Path.Combine(RepoRoot!, "packs", "thresholds")], false);
+
+            // Guard against silent mis-resolution. PackResolver.Resolve can return an empty
+            // Packs list (e.g. a missing pack dir) without always populating Errors; a report
+            // produced with no packs would still satisfy the (open) schema, making the contract
+            // test misleading. Fail loudly instead.
+            Assert.True(resolveResult.Errors.Count == 0,
+                $"Pack resolution reported errors: {string.Join("; ", resolveResult.Errors)}");
+            Assert.True(resolveResult.Packs.Count > 0,
+                "Pack resolution produced zero packs — the engine would emit an empty report.");
+
             var engine = new RuleEngine();
             var engineResult = engine.Run(resolveResult.Packs, dataset);
 
@@ -125,13 +143,43 @@ public class ReportSchemaContractTests
         using var doc = JsonDocument.Parse(reportJson);
         var results = ReportSchema!.Evaluate(doc.RootElement, new EvaluationOptions
         {
-            OutputFormat = OutputFormat.List
+            OutputFormat = OutputFormat.List,
+            // Draft-07 treats `format` as an annotation by default, so the schema's
+            // `format: date-time` constraints (generated_at_utc, dataset times, finding
+            // windows) would not be asserted. Force them on so a writer regressing to a
+            // non-date string is caught by the contract test.
+            RequireFormatValidation = true
         });
 
         if (!results.IsValid)
         {
             var errors = CollectErrors(results);
             Assert.Fail($"Report does not satisfy pal.report/v1:\n{errors}");
+        }
+    }
+
+    /// <summary>
+    /// Guards the positive contract tests against becoming vacuous. An open schema is
+    /// satisfied by an empty <c>findings</c> array, so a regressed alias/pack/fixture that
+    /// stops producing findings would leave the schema test green while guarding nothing.
+    /// Asserts the report has at least one finding, and — when <paramref name="requiredCategory"/>
+    /// is given — at least one finding in that category (the thing the regression guard protects).
+    /// </summary>
+    private static void AssertHasFindings(string reportJson, string? requiredCategory = null)
+    {
+        using var doc = JsonDocument.Parse(reportJson);
+        var findings = doc.RootElement.GetProperty("findings");
+
+        Assert.True(findings.GetArrayLength() > 0,
+            "Report contains zero findings — the fixture, alias table, or pack resolution has " +
+            "regressed and this schema guard is now vacuous.");
+
+        if (requiredCategory is not null)
+        {
+            Assert.True(
+                findings.EnumerateArray().Any(f => f.GetProperty("category").GetString() == requiredCategory),
+                $"Report has findings but none with category '{requiredCategory}' — the " +
+                $"'{requiredCategory}' workload pack or alias has regressed and this regression guard is now vacuous.");
         }
     }
 
