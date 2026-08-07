@@ -94,16 +94,28 @@ If port `8080` is taken on your host (often by another service or a previous con
 
 ## Building vs pulling
 
-The compose file builds the API from source via `infra/docker/api.Dockerfile`. To use a prebuilt image instead:
+The compose file builds the API from source via `infra/docker/api.Dockerfile`, and that is the canonical path — **PAL-X publishes no official image**. CI builds the image on every run to prove the Dockerfile still works, but tags it `pal-api:ci` locally and never pushes it.
+
+If you want to pull rather than build — typically to deploy the same artifact to several hosts — publish to a registry you control:
+
+```bash
+# Build and tag from the repo root
+docker build -f infra/docker/api.Dockerfile -t ghcr.io/<your-org>/pal-api:<tag> .
+
+# Push (requires `docker login ghcr.io` with a token carrying write:packages)
+docker push ghcr.io/<your-org>/pal-api:<tag>
+```
+
+Then point compose at it instead of building:
 
 ```yaml
 services:
   api:
-    build: null               # remove or comment out
-    image: ghcr.io/your-org/pal-api:2026.2.0
+    build: null                              # remove or comment out
+    image: ghcr.io/<your-org>/pal-api:<tag>  # your registry, not an official one
 ```
 
-There is no official published image today; the build-from-source flow is the canonical path.
+`<your-org>` and `<tag>` are placeholders — substitute your own namespace and version. Prefer an immutable tag or digest over `latest` so a redeploy can't silently change what runs.
 
 ## Common operational commands
 
