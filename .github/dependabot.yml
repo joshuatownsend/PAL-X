@@ -27,22 +27,26 @@ updates:
       prefix: "chore(deps)"
       include: "scope"
     groups:
-      # EF Core + Postgres provider MUST move together — version-skew between
-      # Microsoft.EntityFrameworkCore.Relational and Npgsql.EntityFrameworkCore.PostgreSQL
-      # is unsupported and produces runtime errors.
-      efcore-and-postgres:
+      # The whole .NET 8 servicing train moves as ONE unit. EF Core, the
+      # ASP.NET Core packages, and the Npgsql provider all version in lockstep,
+      # and — critically — they are not independent of each other:
+      # Microsoft.AspNetCore.Identity.EntityFrameworkCore matches the
+      # "Microsoft.AspNetCore.*" pattern but depends on
+      # Microsoft.EntityFrameworkCore.Relational. Splitting these into separate
+      # groups splits a single atomic upgrade across two PRs, and NEITHER can
+      # merge on its own:
+      #   - EF Core alone  → runtime FileNotFoundException, because
+      #     Identity.EntityFrameworkCore still drags in the older Relational.
+      #   - AspNetCore alone → build error NU1605, because Identity.EFCore now
+      #     requires a Relational newer than the pinned EF Core.
+      # This bit us with #93/#94; keep them in one group.
+      dotnet-platform:
         patterns:
           - "Microsoft.EntityFrameworkCore*"
-          - "Npgsql*"
-        update-types:
-          - "minor"
-          - "patch"
-      # ASP.NET Core middleware packages share a release cadence; mixing
-      # versions across the host and middleware stack is unsupported.
-      aspnet-core:
-        patterns:
           - "Microsoft.AspNetCore.*"
           - "Microsoft.Extensions.*"
+          - "Npgsql*"
+          - "EFCore.NamingConventions"
         update-types:
           - "minor"
           - "patch"
@@ -76,6 +80,7 @@ updates:
           - "Npgsql*"
           - "Microsoft.AspNetCore.*"
           - "Microsoft.Extensions.*"
+          - "EFCore.NamingConventions"
           - "xunit*"
           - "Microsoft.NET.Test.Sdk"
           - "coverlet*"
