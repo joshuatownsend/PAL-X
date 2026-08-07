@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Pal.Packs;
 using Xunit;
 
@@ -56,6 +57,29 @@ public class ListPacksTests
         // Every other shipped pack is counter-gated, not always-on.
         Assert.All(result.Packs.Where(p => p.PackId != "windows-core"),
             p => Assert.False(p.AlwaysApplicable, $"{p.PackId} unexpectedly declares always: true"));
+    }
+
+    [Fact]
+    public void JsonPayload_UsesSnakeCaseKeysAndCarriesErrors()
+    {
+        if (RepoRoot is null) return;
+
+        var thresholdsDir = Path.Combine(RepoRoot, "packs", "thresholds");
+        var result = new PackResolver().ListAvailable([thresholdsDir]);
+
+        using var doc = JsonDocument.Parse(
+            JsonSerializer.Serialize(Commands.ListPacksCommand.BuildJsonPayload(result)));
+        var root = doc.RootElement;
+
+        // Load failures must be visible to tooling, not only on the console.
+        Assert.Equal(JsonValueKind.Array, root.GetProperty("errors").ValueKind);
+
+        var first = root.GetProperty("packs").EnumerateArray().First();
+        // snake_case throughout, matching validate-pack's --json-output.
+        foreach (var key in new[] { "pack_id", "pack_name", "version", "schema_version", "rule_count", "always_applicable", "applicability", "path" })
+            Assert.True(first.TryGetProperty(key, out _), $"missing key '{key}'");
+
+        Assert.False(first.TryGetProperty("PackId", out _), "PascalCase key leaked into JSON output");
     }
 
     [Theory]

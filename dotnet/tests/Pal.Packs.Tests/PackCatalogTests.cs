@@ -105,6 +105,23 @@ public class PackCatalogTests : IDisposable
     }
 
     [Fact]
+    public void ListAvailable_DuplicatePackIdsOrderByPath()
+    {
+        // Two directories declaring the same pack_id: OrderBy alone is stable, so without a
+        // secondary key their relative order would follow filesystem enumeration.
+        WritePack("zulu-dir", ruleCount: 1, packId: "shared-id");
+        WritePack("alpha-dir", ruleCount: 1, packId: "shared-id");
+
+        var duplicates = new PackResolver().ListAvailable([_tempDir])
+            .Packs.Where(p => p.PackId == "shared-id").ToList();
+
+        Assert.Equal(2, duplicates.Count);
+        Assert.Equal(
+            duplicates.Select(p => p.Path).OrderBy(path => path, StringComparer.Ordinal),
+            duplicates.Select(p => p.Path));
+    }
+
+    [Fact]
     public void ListAvailable_UnparseablePackIsReportedAndOmitted()
     {
         WritePack("good-pack", ruleCount: 1);

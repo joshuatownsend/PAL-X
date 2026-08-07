@@ -29,7 +29,8 @@ public sealed class PackResolver
     /// with <c>autoResolve: false</c> yields only <c>windows-core</c>.
     /// </para>
     /// Packs that fail to load or validate are omitted and reported in <see cref="CatalogResult.Errors"/>.
-    /// Entries are sorted by pack ID so output is deterministic across filesystems.
+    /// Entries are sorted by pack ID, then by path so that two packs declaring the same
+    /// <c>pack_id</c> still order deterministically rather than by filesystem enumeration.
     /// </summary>
     public CatalogResult ListAvailable(IReadOnlyList<string> packDirs)
     {
@@ -58,7 +59,10 @@ public sealed class PackResolver
 
         return new CatalogResult
         {
-            Packs = entries.OrderBy(e => e.PackId, StringComparer.Ordinal).ToList(),
+            Packs = entries
+                .OrderBy(e => e.PackId, StringComparer.Ordinal)
+                .ThenBy(e => e.Path, StringComparer.Ordinal)
+                .ToList(),
             Errors = errors
         };
     }

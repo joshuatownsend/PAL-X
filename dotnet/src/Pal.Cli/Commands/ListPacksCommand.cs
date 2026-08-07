@@ -55,12 +55,35 @@ public sealed class ListPacksCommand : Command<ListPacksSettings>
         if (settings.JsonOutput is not null)
         {
             File.WriteAllText(settings.JsonOutput,
-                JsonSerializer.Serialize(result.Packs, new JsonSerializerOptions { WriteIndented = true }),
+                JsonSerializer.Serialize(BuildJsonPayload(result), new JsonSerializerOptions { WriteIndented = true }),
                 new System.Text.UTF8Encoding(false));
         }
 
         return ExitCodes.Success;
     }
+
+    /// <summary>
+    /// Shapes the <c>--json-output</c> document: snake_case keys and a top-level <c>errors</c>
+    /// array, matching <c>validate-pack</c> (see <see cref="ValidatePackCommand"/>) so both
+    /// commands are consumable by the same tooling. Load and validation failures must be
+    /// visible in JSON mode, not only on the console.
+    /// </summary>
+    internal static object BuildJsonPayload(PackResolver.CatalogResult result) => new
+    {
+        packs = result.Packs.Select(p => new
+        {
+            pack_id = p.PackId,
+            pack_name = p.PackName,
+            version = p.Version,
+            schema_version = p.SchemaVersion,
+            description = p.Description,
+            rule_count = p.RuleCount,
+            always_applicable = p.AlwaysApplicable,
+            applicability = p.Applicability,
+            path = p.Path
+        }).ToList(),
+        errors = result.Errors
+    };
 
     /// <summary>
     /// Keeps the applicability column readable. Some packs gate on dozens of counters
