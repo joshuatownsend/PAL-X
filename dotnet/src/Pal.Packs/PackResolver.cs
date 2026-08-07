@@ -14,6 +14,73 @@ public sealed class PackResolver
         public required IReadOnlyList<string> Errors { get; init; }
     }
 
+    public sealed class CatalogResult
+    {
+        public required IReadOnlyList<PackCatalogEntry> Packs { get; init; }
+        public required IReadOnlyList<string> Errors { get; init; }
+    }
+
+    /// <summary>
+    /// Lists every pack on the search path, independent of any dataset.
+    /// <para>
+    /// This answers "what packs exist?" — <see cref="Resolve"/> answers the different question
+    /// "which packs apply to this run?" and deliberately returns a subset. Callers doing
+    /// discovery (e.g. <c>pal list-packs</c>) must use this method; using <see cref="Resolve"/>
+    /// with <c>autoResolve: false</c> yields only <c>windows-core</c>.
+    /// </para>
+    /// Packs that fail to load or validate are omitted and reported in <see cref="CatalogResult.Errors"/>.
+    /// Entries are sorted by pack ID, then by path so that two packs declaring the same
+    /// <c>pack_id</c> still order deterministically rather than by filesystem enumeration.
+    /// </summary>
+    public CatalogResult ListAvailable(IReadOnlyList<string> packDirs)
+    {
+        var errors = new List<string>();
+        var entries = new List<PackCatalogEntry>();
+
+        foreach (var (_, path) in DiscoverPacks(BuildSearchPaths(packDirs)))
+        {
+            var pack = LoadAndValidate(path, errors);
+            if (pack is null) continue;
+
+            entries.Add(new PackCatalogEntry
+            {
+                // pack_id from the yaml is authoritative; DiscoverPacks keys by directory name.
+                PackId = pack.PackId,
+                PackName = pack.PackName,
+                Version = pack.Version,
+                SchemaVersion = pack.SchemaVersion,
+                Description = pack.Description,
+                RuleCount = pack.Rules.Count,
+                AlwaysApplicable = pack.Applicability?.Always ?? false,
+                Applicability = DescribeApplicability(pack.Applicability),
+                Path = Path.GetFullPath(path)
+            });
+        }
+
+        return new CatalogResult
+        {
+            Packs = entries
+                .OrderBy(e => e.PackId, StringComparer.Ordinal)
+                .ThenBy(e => e.Path, StringComparer.Ordinal)
+                .ToList(),
+            Errors = errors
+        };
+    }
+
+    private static string DescribeApplicability(PackApplicability? applicability)
+    {
+        if (applicability is null) return "never (no applicability block)";
+        if (applicability.Always) return "always";
+
+        if (applicability.RequiresAll.Count > 0)
+            return $"all of: {string.Join(", ", applicability.RequiresAll)}";
+
+        if (applicability.RequiresAny.Count > 0)
+            return $"any of: {string.Join(", ", applicability.RequiresAny)}";
+
+        return "never (empty applicability block)";
+    }
+
     public ResolveResult Resolve(
         IReadOnlyList<string> explicitPackIds,
         IReadOnlyList<string> packDirs,
