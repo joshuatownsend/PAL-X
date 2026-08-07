@@ -62,7 +62,7 @@ dotnet run --project dotnet/src/Pal.Cli -c Release -- \
 start out/server.pal-report.html
 ```
 
-The CLI auto-resolves `windows-core` on every run. It also loads `iis-core` if IIS counters are present, and `sql-host-core` if SQL Server counters are present.
+The CLI auto-resolves `windows-core` on every run, plus any shipped workload pack whose counters are present in the capture — `iis-core` for IIS, `sql-host-core` and `sql-engine-2014` for SQL Server, `exchange-2016` for Exchange, and so on. See [Rule packs](#rule-packs) for the full set.
 
 ---
 
@@ -254,7 +254,7 @@ counters — so `--auto-resolve-packs` on an Exchange server picks up `exchange-
 Twelve additional workload packs ship alongside these — `active-directory`, `citrix-xenapp`,
 `classic-asp`, `dotnet-clr`, `dynamics-ax`, `dynamics-crm`, `exchange-2016`, `hyper-v`,
 `print-server`, `sharepoint-2013`, `skype-for-business`, and `sql-engine-2014` — each ported from
-the PAL v2 threshold files. Run `pal list-packs` for the authoritative list with rule counts.
+the PAL v2 threshold files. `packs/thresholds/` is the authoritative list.
 
 ### Writing a pack
 
