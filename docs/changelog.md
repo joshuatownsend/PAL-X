@@ -11,12 +11,44 @@ For per-PR detail, see the commit log on GitHub.
 
 ## Unreleased
 
-Work in progress on `main`. Major surfaces:
+Nothing yet — `main` is at 2026.2.0.
 
-- **Documentation site** (this site) — comprehensive user-facing documentation hosted via GitHub Pages, built by DocFX. Replaces the README-as-documentation pattern that came before.
+## 2026.2.0 — First tagged release (2026-08-07)
+
+The first tagged release. Phases 1 through 4 are all shipped, so this cuts a named version over the accumulated surface rather than introducing a phase of its own.
+
+### Added
+
+- **Documentation site** — comprehensive user-facing documentation hosted via GitHub Pages, built by DocFX. Replaces the README-as-documentation pattern that came before.
+- **Rule-pack coverage** — 12 workload packs ported from the PAL v2 threshold files: `active-directory`, `citrix-xenapp`, `classic-asp`, `dotnet-clr`, `dynamics-ax`, `dynamics-crm`, `exchange-2016`, `hyper-v`, `print-server`, `sharepoint-2013`, `skype-for-business`, `sql-engine-2014`. With the three core packs that makes **15 packs, 284 rules**, all auto-resolving on counter presence.
 - **Markdown reports** — `MarkdownReportWriter` produces GFM-flavoured renderings of analysis output for PR comments and chatops.
 - **Pack signing** — RSA-PSS-SHA256 over `pack.yaml` bytes with a sidecar; `--require-signature` and `--trust-key` enforcement.
-- **Schema v1.1** — pack schema gains optional `window:` block on conditions for rolling-window aggregations.
+- **Schema v1.1** — pack schema gains an optional `window:` block on conditions for rolling-window aggregations.
+
+### Fixed
+
+- **`pal list-packs` reported only `windows-core`** — the command called `PackResolver.Resolve(autoResolve: false)`, a dataset-applicability query, instead of asking what packs exist. Adds `PackResolver.ListAvailable`, and the listing now carries rule counts and applicability.
+- **PDH wildcard expansion** — counter paths are qualified with the machine prefix, fixing BLG ingestion of wildcard instances.
+- **Counter-path instance parsing** — corrected during the workload-pack port.
+
+### Changed
+
+- **Report writers** — severity counting single-sourced across the JSON, HTML, and Markdown writers.
+- **List queries** — job and baseline listings are paginated; completed-job windowing pushed into SQL.
+- **Test suite** — migrated to xUnit.net v3; `TestContext.Current.CancellationToken` adopted throughout.
+- **CLI framework** — Spectre.Console 0.55+ with `CancellationToken`-aware commands.
+
+### Testing
+
+- Emitted reports are validated against `pal.report/v1` as a contract test.
+- Cross-workspace tenant-isolation regression tests.
+- CSV ingestion characterization tests and pack-signature gap coverage.
+
+### Known gaps
+
+- **Charts are not wired.** `ScottPlotRenderer` is byte-deterministic and tested, but nothing calls its file-writing path — `--include-charts` and `--chart-limit` are accepted and inert.
+- No official container image is published; build from source via `infra/docker/api.Dockerfile`.
+- The Phase 4 gaps below still stand.
 
 ## Phase 4 — Continuous monitoring (shipped 2026-04-29)
 
@@ -102,7 +134,9 @@ PAL-X uses sequential phase numbers for major capability slices, and conventiona
 { "status": "ok", "version": "2026.2.0" }
 ```
 
-The version string is a date-based `YYYY.MAJOR.MINOR`. Today's `2026.2.0` corresponds to Phase 4 v1.
+The version string is a date-based `YYYY.MAJOR.MINOR`. Today's `2026.2.0` corresponds to Phase 4 v1, and is declared once in `dotnet/Directory.Build.props` (`AssemblyVersion` / `FileVersion` / `Version`) — bump it there and the tag, binaries, and `/health` all agree.
+
+Releases are tagged `vYYYY.MAJOR.MINOR` on `main`.
 
 ## Related
 
