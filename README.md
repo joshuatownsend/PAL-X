@@ -17,6 +17,8 @@ Overall status: CRITICAL  (3 findings — 1 critical, 2 warnings)
 → reports/server01.pal-report.html
 ```
 
+**📖 Full documentation: [joshuatownsend.github.io/PAL-X](https://joshuatownsend.github.io/PAL-X/)** — concepts, guides, CLI/HTTP/.NET reference, operations, and architecture.
+
 ---
 
 ## Status
@@ -41,8 +43,8 @@ Overall status: CRITICAL  (3 findings — 1 critical, 2 warnings)
 
 ```bash
 # Clone (submodule is legacy reference; --recurse-submodules is optional)
-git clone https://github.com/your-org/pal-x
-cd pal-x
+git clone https://github.com/joshuatownsend/PAL-X
+cd PAL-X
 
 # Build
 dotnet build dotnet/Pal.sln -c Release
@@ -60,7 +62,7 @@ dotnet run --project dotnet/src/Pal.Cli -c Release -- \
 start out/server.pal-report.html
 ```
 
-The CLI auto-resolves `windows-core` on every run. It also loads `iis-core` if IIS counters are present, and `sql-host-core` if SQL Server counters are present.
+The CLI auto-resolves `windows-core` on every run, plus any shipped workload pack whose counters are present in the capture — `iis-core` for IIS, `sql-host-core` and `sql-engine-2014` for SQL Server, `exchange-2016` for Exchange, and so on. See [Rule packs](#rule-packs) for the full set.
 
 ---
 
@@ -178,11 +180,13 @@ pal remote             Interact with a running PAL API server
 | `--host-memory-mb <n>` | Total physical memory — required for RAM-relative rules |
 | `--host-cpu-count <n>` | Logical processor count — required for CPU-count-relative rules |
 | `--markdown` | Also emit a Markdown report alongside HTML/JSON |
-| `--include-charts` | Emit SVG chart files alongside the report |
-| `--chart-limit <n>` | Maximum charts to generate (default: 20) |
+| `--include-charts` | Accepted but **inert** — chart rendering is not yet wired up |
+| `--chart-limit <n>` | Accepted but **inert** (see above) |
 | `--json-only` / `--html-only` | Emit only one format |
 | `--fail-on-warning` | Exit 1 if any warning finding is produced |
 | `--now <iso>` | Override `generated_at_utc` for deterministic test output |
+
+> **Charts**: `ScottPlotRenderer` exists and is byte-deterministic, but nothing calls its file-writing path yet — no SVG files are produced today. See [`docs/architecture/design/html-report-charts.md`](docs/architecture/design/html-report-charts.md).
 
 > **BLG files**: native BLG ingestion is supported on Windows (x64) via PDH interop. On non-Windows platforms, convert first with:
 > `relog -f CSV server.blg -o server.csv`
@@ -237,11 +241,20 @@ Report IDs and finding IDs are **content-hash-based** — the same input and pac
 
 Packs live under `packs/thresholds/` and are validated against `dotnet/schemas/pal.pack.v1.json`.
 
+Every pack declares an `applicability` block. `windows-core` sets `always: true`; all others use
+`requires_any: [<canonical metric ids>]` and load only when the capture actually contains those
+counters — so `--auto-resolve-packs` on an Exchange server picks up `exchange-2016` without being told.
+
 | Pack | Coverage | Auto-loaded when |
 |------|----------|-----------------|
 | `windows-core` | CPU, memory, disk, system | Always |
 | `iis-core` | App pool failures, request queue, ASP.NET | IIS counters present |
 | `sql-host-core` | Buffer pool, page life expectancy, deadlocks | SQL Server counters present |
+
+Twelve additional workload packs ship alongside these — `active-directory`, `citrix-xenapp`,
+`classic-asp`, `dotnet-clr`, `dynamics-ax`, `dynamics-crm`, `exchange-2016`, `hyper-v`,
+`print-server`, `sharepoint-2013`, `skype-for-business`, and `sql-engine-2014` — each ported from
+the PAL v2 threshold files. `packs/thresholds/` is the authoritative list.
 
 ### Writing a pack
 
@@ -274,7 +287,7 @@ Validate with: `pal validate-pack --path packs/thresholds/my-pack`
 ## Project layout
 
 ```
-pal-x/
+PAL-X/
 ├── dotnet/
 │   ├── src/
 │   │   ├── Pal.Engine/       # Dataset model, rule evaluator, statistics, status classifier
@@ -296,7 +309,7 @@ pal-x/
 │       └── Pal.Api.Tests/    # Integration tests — requires Docker Desktop
 ├── packs/thresholds/         # Shipped rule packs
 ├── fixtures/                 # Golden-output test fixtures (CSV and BLG)
-├── docs/                     # Architecture ADRs and phase specs
+├── docs/                     # DocFX source for the documentation site (ADRs, guides, reference)
 └── legacy/                   # PAL v2 PowerShell tool (read-only reference)
 ```
 
@@ -337,7 +350,7 @@ Ratified deviations from the original design docs are recorded in `docs/architec
 - **Declarative comparators** ([ADR 0002](docs/architecture/adr/0002-declarative-rule-schema.md)) instead of a custom expression DSL — every rule condition is `metric + aggregation + operator + threshold + duration_percent`, trivially validatable and diffable
 - **Tri-state status** (critical / warning / healthy) instead of an additive numeric score
 - **Content-hash IDs** — `report_id` and `finding_id` are SHA-256-based; the same inputs always produce the same identifiers
-- **snake_case canonical metric IDs** — legacy counter paths (e.g. `\Processor(_Total)\% Processor Time`) map to `processor.percent_processor_time` via a pack-level alias table
+- **snake_case canonical metric IDs** — legacy counter paths (e.g. `\Processor(_Total)\% Processor Time`) map to `processor.percent_processor_time` via `MetricAliasRegistry.BuildDefault()` in `Pal.Engine`. Packs *may* contribute their own aliases through an optional `metric_aliases` block, but no shipped pack currently does
 - **Pack signing** ([ADR 0003](docs/architecture/adr/0003-pack-signing-format.md)) — RSA-PSS-SHA256 signatures stored as `pack.yaml.sig` sidecar files; `pal validate-pack --require-signature` enforces them
 - **Rolling-window aggregations** ([ADR 0004](docs/architecture/adr/0004-schema-v1.1-rolling-windows.md)) — `schema_version: "pal.pack/v1.1"` adds an optional `window:` block to rule conditions for time-windowed evaluation (avg, min, max, p90, p95, p99)
 - **Multitenancy** — two-level Org → Workspace hierarchy enforced by EF Core global query filters and DB-level cascade constraints; API routes scope under `/api/workspaces/{workspaceId}`

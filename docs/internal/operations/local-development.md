@@ -9,8 +9,8 @@
 
 ```powershell
 # Clone and build
-git clone https://github.com/your-org/pal-x
-cd pal-x
+git clone https://github.com/joshuatownsend/PAL-X
+cd PAL-X
 dotnet build dotnet/Pal.sln
 
 # Run all tests
